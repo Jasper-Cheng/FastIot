@@ -1,0 +1,47 @@
+# ================== 构建系统配置 ==================
+[build-system]
+requires = ["poetry-core>=1.0.0"]    # 指定构建时依赖
+build-backend = "poetry.core.masonry.api"  # 使用 poetry-core 作为构建后端
+
+# ================== 项目信息 ==================
+[tool.poetry]
+name = "fastiot-backend"             # 项目名称
+version = "0.1.0"                    # 项目版本
+description = "Backend API for FastIot platform"  # 项目描述
+authors = ["Jasper Cheng"]   # 作者信息
+packages = [{ include = "app" }]     # 指定代码目录（即包含 app/ 目录）
+
+# ================== 项目依赖 ==================
+[tool.poetry.dependencies]
+python = "^3.9"                      # 运行环境要求 Python 3.9+
+fastapi = "^0.104.0"                 # Web 框架 FastAPI
+uvicorn = { extras = ["standard"], version = "^0.24.0" } # ASGI 服务器
+sqlalchemy = "^2.0.0"                # ORM 框架
+aiomysql = "^0.2.0"                  # 异步 MySQL 驱动
+redis = "^5.0.0"                     # Redis 客户端
+celery = { extras = ["redis"], version = "^5.3.0" } # 异步任务队列 Celery，使用 Redis 作为 broker
+pydantic-settings = "^2.0.0"         # 用于配置管理（基于 Pydantic）
+python-jose = { extras = ["cryptography"], version = "^3.3.0" } # JWT 认证
+passlib = { extras = ["bcrypt"], version = "^1.7.4" }  # 密码哈希工具
+websockets = "^12.0.0"               # WebSocket 支持
+paho-mqtt = "^1.6.1"                 # MQTT 客户端
+python-multipart = "^0.0.6"          # 处理表单数据（文件上传时需要）
+
+# ================== 开发环境依赖 ==================
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"                    # 单元测试框架
+httpx = "^0.25.0"                    # 异步 HTTP 客户端（常用于测试 API）
+alembic = "^1.12.0"                  # 数据库迁移工具
+pre-commit = "^3.5.0"                # Git 提交前钩子（用于代码检查）
+black = "^23.11.0"                   # 代码格式化工具
+ruff = "^0.1.0"                      # Python 静态检查工具（替代 flake8）
+
+# ================== 自定义命令 ==================
+[tool.poetry.scripts]
+start = "uvicorn app.main:app --host 0.0.0.0 --port 8000"          # 生产环境启动命令
+start-reload = "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload" # 开发环境自动热重载
+
+# ================== 代码格式化规则 ==================
+[tool.black]
+line-length = 88                    # 每行最大长度 88 字符
+target-version = ['py39']           # 代码目标 Python 版本为 3.9
