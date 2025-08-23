@@ -1,61 +1,58 @@
-FastIot/                          # 项目根目录 (Git 仓库根目录)
-├── app/                          # 应用核心代码包 (Python 模块)
-│   ├── api/                      # API 路由层
-│   │   ├── dependencies.py       # API 依赖项 (如认证)
-│   │   ├── endpoints/            # 各个端点路由文件
-│   │   │   ├── devices.py        # 设备管理接口
-│   │   │   ├── sensor_data.py    # 传感器数据接口
-│   │   │   ├── auth.py           # 认证接口
-│   │   │   └── ws_connections.py # WebSocket 连接管理接口
-│   │   └── router.py             # 主路由聚合器 (汇总所有路由)
-│   ├── core/                     # 核心配置与工具
-│   │   ├── config.py             # 应用设置 (从环境变量读取)
-│   │   ├── security.py           # 安全工具 (JWT, 密码哈希)
-│   │   └── dependencies.py       # 全局依赖项 (如数据库会话)
-│   ├── crud/                     # 数据操作层 (CRUD)
-│   │   ├── base.py               # CRUD 基类
-│   │   ├── device.py             # 设备相关数据库操作
-│   │   └── sensor_data.py        # 传感器数据相关操作
-│   ├── db/                       # 数据库相关
-│   │   ├── base.py               # 数据库基类
-│   │   ├── base_class.py         # ORM 模型基类
-│   │   ├── session.py            # 数据库会话工厂
-│   │   └── models/               # SQLAlchemy ORM 模型
-│   │       ├── device.py         # 设备模型
-│   │       └── sensor_data.py    # 传感器数据模型
-│   ├── models/                   # Pydantic 模型 (Schemas)
-│   │   ├── device.py             # 设备的请求/响应模型
-│   │   ├── sensor_data.py        # 传感器数据的请求/响应模型
-│   │   ├── token.py              # Token 模型
-│   │   └── msg.py                # WebSocket 消息模型
-│   ├── services/                 # 业务逻辑层
-│   │   ├── device_service.py     # 设备相关业务逻辑
-│   │   ├── data_service.py       # 数据处理业务逻辑
-│   │   └── mqtt_client.py        # MQTT 客户端服务 (用于接收设备消息)
-│   ├── tasks/                    # 异步任务函数 (Celery)
-│   │   └── sample_task.py        # 示例: 处理耗时任务
-│   ├── utils/                    # 通用工具函数
-│   │   └── logging.py            # 日志配置
-│   ├── worker.py                 # Celery Worker 入口点 (异步任务处理)
-│   └── main.py                   # FastAPI 应用创建和入口点
-├── tests/                        # 测试目录
+FastIoT 项目结构
+├── app/
 │   ├── api/
+│   │   ├── dependencies.py
+│   │   ├── router.py
+│   │   └── endpoints/
+│   │       ├── auth.py
+│   │       ├── devices.py
+│   │       ├── device_data.py    # 设备数据接口
+│   │       └── ws_connections.py
+│   ├── core/
+│   │   ├── config.py
+│   │   └── security.py
 │   ├── crud/
+│   │   ├── base.py
+│   │   ├── device.py
+│   │   └── device_data.py        # 设备数据相关操作
+│   ├── db/
+│   │   ├── base.py
+│   │   ├── session.py
+│   │   ├── init_db.py
+│   │   └── models/
+│   │       ├── device.py
+│   │       ├── device_data.py    # 设备数据模型
+│   │       ├── user.py
+│   │       └── alert.py
+│   ├── models/
+│   │   ├── device.py
+│   │   ├── device_data.py        # 设备数据的请求/响应模型
+│   │   ├── user.py
+│   │   ├── alert.py
+│   │   ├── token.py
+│   │   └── msg.py
 │   ├── services/
-│   └── conftest.py               # Pytest 配置和 fixture
-├── deployments/                  # 部署配置 (Docker相关)
-│   ├── docker-compose.yml        # 主编排文件 (App, MySQL, Redis, RabbitMQ)
-│   ├── docker-compose.override.yml # 开发环境覆盖配置
-│   ├── mysql/
-│   │   └── init.sql              # 数据库初始化脚本
-│   └── nginx/
-│       └── nginx.conf            # (可选) 生产环境 Nginx 配置
-├── scripts/                      # 辅助脚本
-│   └── init_db.py                # 数据库初始化脚本 (可选)
-├── pyproject.toml                # 项目依赖和配置 (Poetry)
-├── Dockerfile                    # 后端应用镜像构建文件
-├── entrypoint.sh                 # 容器启动脚本
-├── .env.example                  # 环境变量示例文件
+│   │   ├── data_service.py
+│   │   ├── device_service.py
+│   │   └── mqtt_client.py
+│   ├── main.py
+│   └── worker.py
+├── deployments/
+│   ├── docker-compose.yml
+│   ├── docker-compose.override.yml
+│   └── mysql/
+│       └── init.sql
+├── tests/
+│   └── conftest.py
+├── .env                          # 环境变量配置 (被 .gitignore 保护)
 ├── .gitignore
-├── LICENSE
-└── README.md
+├── Dockerfile
+├── entrypoint.sh
+├── pyproject.toml
+├── poetry.lock
+├── README.md
+├── DATABASE_SETUP.md             # 数据库配置指南
+├── env_updated.txt               # 环境变量模板
+├── check_env.py                  # 环境变量验证脚本
+├── start_database.py             # 数据库启动脚本
+└── test_database.py              # 数据库连接测试脚本

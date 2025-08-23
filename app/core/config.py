@@ -1,11 +1,11 @@
 # app/core/config.py
-from typing import Optional
+from typing import Optional, List
 from pydantic_settings import BaseSettings
-from pydantic import RedisDsn, AmqpDsn, MySQLDsn
+from pydantic import RedisDsn, AmqpDsn, MySQLDsn, validator
 
 class Settings(BaseSettings):
     # 项目信息
-    PROJECT_NAME: str = "FastIot API"
+    PROJECT_NAME: str = "FastIoT API"
     API_V1_STR: str = "/api/v1"
 
     # 安全配置
@@ -46,6 +46,27 @@ class Settings(BaseSettings):
 
     # 日志配置
     LOG_LEVEL: str = "INFO"
+
+    # 时区配置
+    TZ: str = "Asia/Shanghai"
+
+    # 跨域配置
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+
+    # 文件上传配置
+    MAX_FILE_SIZE: int = 10485760  # 10MB
+    UPLOAD_DIR: str = "./uploads"
+
+    @validator("CORS_ORIGINS", pre=True)
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            # 处理字符串格式的CORS_ORIGINS
+            import json
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return [v]
+        return v
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
