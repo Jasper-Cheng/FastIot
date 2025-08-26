@@ -1,7 +1,7 @@
 # app/core/config.py
 from typing import Optional, List
 from pydantic_settings import BaseSettings
-from pydantic import RedisDsn, AmqpDsn, MySQLDsn, validator
+from pydantic import RedisDsn, AmqpDsn, MySQLDsn, validator, Field
 
 class Settings(BaseSettings):
     # 项目信息
@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     RABBITMQ_PORT: int = 5672
     RABBITMQ_USER: str
     RABBITMQ_PASSWORD: str
+    RABBITMQ_MANAGEMENT_PORT: int = Field(default=15672, env="RABBITMQ_MANAGEMENT_PORT")  # 添加这行
 
     # FastAPI 配置
     DEBUG: bool = True
