@@ -18,9 +18,8 @@ async def health_check():
     return {"status": "ok", "project": settings.PROJECT_NAME}
 
 # ----------------------
-# 示例 API 路由
-# 可以把 endpoints 放到 app/api/endpoints
-# 然后在这里 include_router
+# API 路由
 # ----------------------
-# from app.api.endpoints import devices
-# app.include_router(devices.router, prefix=f"{settings.API_V1_STR}/devices", tags=["Devices"])
+from app.api.router import api_router
+
+app.include_router(api_router, prefix=settings.API_V1_STR)
