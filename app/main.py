@@ -7,7 +7,7 @@ from app.core.config import settings
 app = FastAPI(
     title=settings.PROJECT_NAME,
     debug=settings.DEBUG,
-    version="0.1.0"
+    version=settings.VERSION,
 )
 
 # ----------------------
