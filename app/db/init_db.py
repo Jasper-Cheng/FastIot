@@ -1,5 +1,6 @@
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from app.db.base import Base
 from app.db.session import engine
 from app.db.models.user import User
@@ -19,7 +20,7 @@ async def init_db() -> None:
 async def insert_initial_data(session: AsyncSession) -> None:
     """插入初始数据"""
     # 检查是否已有数据
-    result = await session.execute("SELECT COUNT(*) FROM User")
+    result = await session.execute(text("SELECT COUNT(*) FROM User"))
     count = result.scalar()
     
     if count == 0:

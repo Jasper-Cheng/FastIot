@@ -2,6 +2,10 @@
 from typing import Optional, List
 from pydantic_settings import BaseSettings
 from pydantic import RedisDsn, AmqpDsn, MySQLDsn, validator, Field
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
 
 class Settings(BaseSettings):
     # 项目信息
