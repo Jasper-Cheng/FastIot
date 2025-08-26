@@ -9,10 +9,11 @@ from app.crud.user import create_user, authenticate_user, get_user_by_username
 from app.models.user import UserCreate, User, UserLogin
 from app.models.token import Token
 from jose import JWTError, jwt
+from typing import Optional
 
 router = APIRouter()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db),

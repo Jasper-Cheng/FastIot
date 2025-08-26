@@ -1,4 +1,6 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from app.models.user import User
+from app.api.endpoints.auth import get_current_user
 from typing import List
 import json
 
@@ -26,11 +28,12 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 @router.get("/status", tags=["websocket"])
-def get_connection_status():
+async def get_connection_status(current_user: User = Depends(get_current_user)):
     """获取当前WebSocket连接状态"""
     return {
         "active_connections": len(manager.active_connections),
-        "status": "running"
+        "status": "running",
+        "user": current_user.username
     }
 
 @router.websocket("/ws/{client_id}")
