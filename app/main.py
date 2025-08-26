@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from app.core.config import settings
 from app.services.redis_service import redis_service
 from app.services.mqtt_client import mqtt_service
+from app.services.mqtt_handlers import register_mqtt_subscriptions
 
 # ----------------------
 # 创建 FastAPI 实例
@@ -27,6 +28,8 @@ async def startup_event():
     try:
         mqtt_service.connect()
         print("✅ MQTT连接成功")
+        # 注册订阅处理器（设备上行数据/生命周期/回执）
+        register_mqtt_subscriptions()
     except Exception as e:
         print(f"❌ MQTT连接失败: {e}")
 
