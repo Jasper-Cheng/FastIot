@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.core.config import settings
 from app.services.redis_service import redis_service
+from app.services.mqtt_client import mqtt_service
 
 # ----------------------
 # 创建 FastAPI 实例
@@ -22,6 +23,12 @@ async def startup_event():
         print("✅ Redis连接成功")
     except Exception as e:
         print(f"❌ Redis连接失败: {e}")
+    # 初始化 MQTT 连接（同步）
+    try:
+        mqtt_service.connect()
+        print("✅ MQTT连接成功")
+    except Exception as e:
+        print(f"❌ MQTT连接失败: {e}")
 
 # ----------------------
 # 关闭事件
@@ -31,6 +38,9 @@ async def shutdown_event():
     """应用关闭时断开Redis连接"""
     await redis_service.disconnect()
     print("🔌 Redis连接已断开")
+    # 关闭 MQTT
+    mqtt_service.disconnect()
+    print("🔌 MQTT连接已断开")
 
 # ----------------------
 # 健康检查路由

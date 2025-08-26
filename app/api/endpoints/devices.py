@@ -13,6 +13,7 @@ from app.models.device import (
 )
 from app.models.user import User
 from app.services.redis_service import redis_service
+from app.services.mqtt_client import mqtt_service
 
 router = APIRouter()
 
@@ -170,6 +171,16 @@ async def control_device(
     }
     
     success = await redis_service.set_device_control(device_id, command_data)
+    # 通过MQTT下发控制命令
+    mqtt_service.publish_json(
+        topic=f"devices/{device_id}/control",
+        payload={
+            "device_id": device_id,
+            **command_data,
+        },
+        qos=1,
+        retain=False,
+    )
     
     if success:
         return DeviceControlResponse(
@@ -191,7 +202,7 @@ async def device_heartbeat(
     db: AsyncSession = Depends(get_db)
 ):
     """设备心跳接口（设备端调用）"""
-    from app.services.websocket_service import push_device_status, push_device_online_status
+    # WebSocket 推送改为 MQTT 推送
     
     # 更新设备在线状态
     await redis_service.set_device_online(device_id)
@@ -202,11 +213,24 @@ async def device_heartbeat(
     # 如果有状态数据，保存到Redis
     if status_data:
         await redis_service.set_device_status(device_id, status_data)
-        # 推送状态更新到WebSocket
-        await push_device_status(device_id, status_data)
+        # 推送状态到 MQTT
+        mqtt_service.publish_json(
+            topic=f"devices/{device_id}/status",
+            payload={
+                "device_id": device_id,
+                "status": status_data,
+            },
+            qos=0,
+            retain=False,
+        )
     
-    # 推送在线状态更新
-    await push_device_online_status(device_id, True)
+    # 推送在线状态到 MQTT
+    mqtt_service.publish_json(
+        topic=f"devices/{device_id}/online",
+        payload={"device_id": device_id, "online": True},
+        qos=0,
+        retain=False,
+    )
     
     # 检查是否有待执行的控制命令
     control_command = await redis_service.get_device_control(device_id)
