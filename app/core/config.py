@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     # 项目信息
     PROJECT_NAME: str = "FastIoT API"
     API_V1_STR: str = "/api/v1"
+    VERSION: str = "0.1.0"
 
     # 安全配置
     SECRET_KEY: str
