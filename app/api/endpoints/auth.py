@@ -1,7 +1,7 @@
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_db
 from app.core.config import settings
 from app.core.security import create_access_token
@@ -14,8 +14,8 @@ router = APIRouter()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-def get_current_user(
-    db: Session = Depends(get_db),
+async def get_current_user(
+    db: AsyncSession = Depends(get_db),
     token: str = Depends(oauth2_scheme)
 ) -> User:
     """获取当前用户"""
@@ -33,16 +33,16 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    user = get_user_by_username(db, username=username)
+    user = await get_user_by_username(db, username=username)
     if user is None:
         raise credentials_exception
     return user
 
 @router.post("/register", response_model=User, status_code=status.HTTP_201_CREATED)
-def register(user: UserCreate, db: Session = Depends(get_db)):
+async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
     """用户注册"""
     # 检查用户名是否已存在
-    db_user = get_user_by_username(db, username=user.username)
+    db_user = await get_user_by_username(db, username=user.username)
     if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -50,13 +50,13 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         )
     
     # 创建新用户
-    return create_user(db=db, user=user)
+    return await create_user(db=db, user=user)
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     """用户登录"""
     # 验证用户凭据
-    user = authenticate_user(db, form_data.username, form_data.password)
+    user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -73,12 +73,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=User)
-def read_users_me(current_user: User = Depends(get_current_user)):
+async def read_users_me(current_user: User = Depends(get_current_user)):
     """获取当前用户信息"""
     return current_user
 
 @router.post("/refresh", response_model=Token)
-def refresh_token(current_user: User = Depends(get_current_user)):
+async def refresh_token(current_user: User = Depends(get_current_user)):
     """刷新访问令牌"""
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
