@@ -13,14 +13,23 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     VERSION: str = "0.1.0"
 
+    # FastAPI 配置
+    DEBUG: bool = True
+    HOST: str
+    PORT: int
+    # 日志配置
+    LOG_LEVEL: str = "INFO"
+    # 时区配置
+    TZ: str
+
     # 安全配置
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
 
     # MySQL 配置
     DATABASE_URL: Optional[MySQLDsn] = None
     MYSQL_HOST: str
-    MYSQL_PORT: int = 3306
+    MYSQL_PORT: int
     MYSQL_DB: str
     MYSQL_USER: str
     MYSQL_PASSWORD: str
@@ -29,32 +38,21 @@ class Settings(BaseSettings):
     # Redis 配置
     REDIS_URL: Optional[RedisDsn] = None
     REDIS_HOST: str
-    REDIS_PORT: int = 6379
-    REDIS_DB: int = 0
+    REDIS_PORT: int
+    REDIS_DB: int
     REDIS_PASSWORD: Optional[str] = None
 
     # RabbitMQ 配置
     RABBITMQ_URL: Optional[AmqpDsn] = None
     RABBITMQ_HOST: str
-    RABBITMQ_PORT: int = 5672
+    RABBITMQ_PORT: int
     RABBITMQ_USER: str
     RABBITMQ_PASSWORD: str
-    RABBITMQ_MANAGEMENT_PORT: int = Field(default=15672, env="RABBITMQ_MANAGEMENT_PORT")  # 添加这行
-
-    # FastAPI 配置
-    DEBUG: bool = True
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    RABBITMQ_MANAGEMENT_PORT: int
 
     # Celery 配置
     CELERY_BROKER_URL: Optional[AmqpDsn] = None
     CELERY_RESULT_BACKEND: Optional[RedisDsn] = None
-
-    # 日志配置
-    LOG_LEVEL: str = "INFO"
-
-    # 时区配置
-    TZ: str = "Asia/Shanghai"
 
     # 跨域配置
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]

@@ -79,11 +79,6 @@ services:
         condition: service_healthy
     networks:
       - fastiot_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      timeout: 30s
-      retries: 3
-      start_period: 40s
 
 volumes:
   mysql_data:
