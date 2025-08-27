@@ -62,6 +62,102 @@ class RedisService:
         except Exception as e:
             logger.error(f"合并更新设备状态失败: {e}")
             return False
+
+    # ---------- Device Info (metadata) cache ----------
+    async def set_device_info(self, device_id: int, info: Dict[str, Any], ttl_seconds: int = 600) -> bool:
+        """缓存设备基础信息（相对稳定的元数据），如 name、serial_number、owner_id、status、last_active、created_at 等。
+
+        使用独立的 key：device:info:{id}
+        与运行态 state 分开，TTL 默认更长。
+        """
+        try:
+            key = f"device:info:{device_id}"
+            await self.redis_client.setex(
+                key,
+                ttl_seconds,
+                json.dumps(info, ensure_ascii=False, default=str)
+            )
+            logger.info(f"[CACHE] 设置缓存 - 字段:device_info, device_id:{device_id}")
+            logger.debug("[CACHE] device_info payload: %s", info)
+            return True
+        except Exception as e:
+            logger.error(f"设置设备信息缓存失败: {e}")
+            return False
+
+    async def get_device_info(self, device_id: int) -> Optional[Dict[str, Any]]:
+        """读取设备基础信息缓存。"""
+        try:
+            key = f"device:info:{device_id}"
+            raw = await self.redis_client.get(key)
+            if not raw:
+                logger.info(f"[CACHE] 缓存未命中 - 字段:device_info, device_id:{device_id}")
+                return None
+            try:
+                info = json.loads(raw)
+            except Exception:
+                info = None
+            if isinstance(info, dict):
+                logger.info(f"[CACHE] 缓存命中 - 字段:device_info, device_id:{device_id}")
+                return info
+            return None
+        except Exception as e:
+            logger.error(f"获取设备信息缓存失败: {e}")
+            return None
+
+    async def delete_device_info(self, device_id: int) -> bool:
+        """删除设备基础信息缓存。"""
+        try:
+            key = f"device:info:{device_id}"
+            await self.redis_client.delete(key)
+            logger.info(f"[CACHE] 删除缓存 - 字段:device_info, device_id:{device_id}")
+            return True
+        except Exception as e:
+            logger.error(f"删除设备信息缓存失败: {e}")
+            return False
+
+    # ---------- Owner -> devices index ----------
+    def _owner_devices_key(self, owner_id: int) -> str:
+        return f"owner:{owner_id}:devices"
+
+    async def add_device_to_owner(self, owner_id: int, device_id: int, ttl_seconds: int = 1800) -> bool:
+        try:
+            key = self._owner_devices_key(owner_id)
+            await self.redis_client.sadd(key, device_id)
+            await self.redis_client.expire(key, ttl_seconds)
+            logger.info(f"[CACHE] 索引更新 - owner_devices add, owner_id:{owner_id}, device_id:{device_id}")
+            return True
+        except Exception as e:
+            logger.error(f"添加设备到用户索引失败: {e}")
+            return False
+
+    async def remove_device_from_owner(self, owner_id: int, device_id: int) -> bool:
+        try:
+            key = self._owner_devices_key(owner_id)
+            await self.redis_client.srem(key, device_id)
+            logger.info(f"[CACHE] 索引更新 - owner_devices remove, owner_id:{owner_id}, device_id:{device_id}")
+            return True
+        except Exception as e:
+            logger.error(f"从用户索引移除设备失败: {e}")
+            return False
+
+    async def get_owner_device_ids(self, owner_id: int) -> List[int]:
+        try:
+            key = self._owner_devices_key(owner_id)
+            raw_ids = await self.redis_client.smembers(key)
+            if not raw_ids:
+                logger.info(f"[CACHE] 缓存未命中 - 字段:owner_devices, owner_id:{owner_id}")
+                return []
+            ids: List[int] = []
+            for rid in raw_ids:
+                try:
+                    ids.append(int(rid))
+                except Exception:
+                    continue
+            logger.info(f"[CACHE] 缓存命中 - 字段:owner_devices, owner_id:{owner_id}, count:{len(ids)}")
+            return ids
+        except Exception as e:
+            logger.error(f"获取用户设备索引失败: {e}")
+            return []
             
     async def set_device_status(self, device_id: int, status: Dict) -> bool:
         """设置设备状态"""
