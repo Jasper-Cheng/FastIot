@@ -38,6 +38,7 @@ class RedisService:
                 300,  # 5分钟过期
                 json.dumps(status, ensure_ascii=False)
             )
+            logger.info(f"[CACHE] 设置缓存 - 字段:device_status, device_id:{device_id}")
             return True
         except Exception as e:
             logger.error(f"设置设备状态失败: {e}")
@@ -48,7 +49,12 @@ class RedisService:
         try:
             key = f"device:status:{device_id}"
             data = await self.redis_client.get(key)
-            return json.loads(data) if data else None
+            if data:
+                logger.info(f"[CACHE] 缓存命中 - 字段:device_status, device_id:{device_id}")
+                return json.loads(data)
+            else:
+                logger.info(f"[CACHE] 缓存未命中 - 字段:device_status, device_id:{device_id}")
+                return None
         except Exception as e:
             logger.error(f"获取设备状态失败: {e}")
             return None
@@ -59,8 +65,10 @@ class RedisService:
             key = f"device:online:{device_id}"
             if is_online:
                 await self.redis_client.setex(key, 300, "1")  # 5分钟过期
+                logger.info(f"[CACHE] 设置缓存 - 字段:device_online, device_id:{device_id}")
             else:
                 await self.redis_client.delete(key)
+                logger.info(f"[CACHE] 删除缓存 - 字段:device_online, device_id:{device_id}")
             return True
         except Exception as e:
             logger.error(f"设置设备在线状态失败: {e}")
@@ -70,7 +78,12 @@ class RedisService:
         """检查设备是否在线"""
         try:
             key = f"device:online:{device_id}"
-            return await self.redis_client.exists(key) > 0
+            exists = await self.redis_client.exists(key) > 0
+            if exists:
+                logger.info(f"[CACHE] 缓存命中 - 字段:device_online, device_id:{device_id}")
+            else:
+                logger.info(f"[CACHE] 缓存未命中 - 字段:device_online, device_id:{device_id}")
+            return exists
         except Exception as e:
             logger.error(f"检查设备在线状态失败: {e}")
             return False
@@ -98,6 +111,7 @@ class RedisService:
                 60,  # 1分钟过期
                 json.dumps(command, ensure_ascii=False)
             )
+            logger.info(f"[CACHE] 设置缓存 - 字段:device_control, device_id:{device_id}")
             return True
         except Exception as e:
             logger.error(f"设置设备控制命令失败: {e}")
@@ -110,7 +124,9 @@ class RedisService:
             data = await self.redis_client.get(key)
             if data:
                 await self.redis_client.delete(key)  # 获取后删除
+                logger.info(f"[CACHE] 缓存命中 - 字段:device_control, device_id:{device_id}")
                 return json.loads(data)
+            logger.info(f"[CACHE] 缓存未命中 - 字段:device_control, device_id:{device_id}")
             return None
         except Exception as e:
             logger.error(f"获取设备控制命令失败: {e}")
