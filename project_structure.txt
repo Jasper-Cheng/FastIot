@@ -1,58 +1,60 @@
-FastIoT 项目结构
-├── app/
-│   ├── api/
-│   │   ├── dependencies.py
-│   │   ├── router.py
-│   │   └── endpoints/
-│   │       ├── auth.py
-│   │       ├── devices.py
-│   │       ├── device_data.py    # 设备数据接口
-│   │       └── ws_connections.py
-│   ├── core/
-│   │   ├── config.py
-│   │   └── security.py
-│   ├── crud/
-│   │   ├── base.py
-│   │   ├── device.py
-│   │   └── device_data.py        # 设备数据相关操作
-│   ├── db/
-│   │   ├── base.py
-│   │   ├── session.py
-│   │   ├── init_db.py
-│   │   └── models/
-│   │       ├── device.py
-│   │       ├── device_data.py    # 设备数据模型
-│   │       ├── user.py
-│   │       └── alert.py
-│   ├── models/
-│   │   ├── device.py
-│   │   ├── device_data.py        # 设备数据的请求/响应模型
-│   │   ├── user.py
-│   │   ├── alert.py
-│   │   ├── token.py
-│   │   └── msg.py
-│   ├── services/
-│   │   ├── data_service.py
-│   │   ├── device_service.py
-│   │   └── mqtt_client.py
-│   ├── main.py
-│   └── worker.py
-├── deployments/
-│   ├── docker-compose.yml
-│   ├── docker-compose.override.yml
-│   └── mysql/
-│       └── init.sql
-├── tests/
-│   └── conftest.py
-├── .env                          # 环境变量配置 (被 .gitignore 保护)
-├── .gitignore
-├── Dockerfile
-├── entrypoint.sh
-├── pyproject.toml
-├── poetry.lock
-├── README.md
-├── DATABASE_SETUP.md             # 数据库配置指南
-├── env_updated.txt               # 环境变量模板
-├── check_env.py                  # 环境变量验证脚本
-├── start_database.py             # 数据库启动脚本
-└── test_database.py              # 数据库连接测试脚本
+FastIoT 项目结构 - 物联网设备管理平台
+├── app/                                    # 主应用目录
+│   ├── api/                                # API接口层
+│   │   ├── dependencies.py                 # 依赖注入和认证中间件
+│   │   ├── router.py                       # API路由配置
+│   │   └── endpoints/                      # API端点实现
+│   │       ├── auth.py                     # 用户认证接口
+│   │       ├── devices.py                  # 设备管理接口
+│   │       ├── device_data.py              # 设备数据查询接口
+│   │       └── ws_connections.py           # WebSocket连接管理
+│   ├── core/                               # 核心配置模块
+│   │   ├── config.py                       # 应用配置管理
+│   │   └── security.py                     # 安全工具 (JWT、密码加密)
+│   ├── crud/                               # 数据库操作层
+│   │   ├── base.py                         # 基础CRUD操作
+│   │   ├── device.py                       # 设备数据库操作
+│   │   ├── device_data.py                  # 设备数据数据库操作
+│   │   └── user.py                         # 用户数据库操作
+│   ├── db/                                 # 数据库模块
+│   │   ├── base.py                         # 数据库基础配置
+│   │   ├── session.py                      # 数据库会话管理
+│   │   ├── init_db.py                      # 数据库初始化脚本
+│   │   ├── init.sql                        # 数据库表结构SQL
+│   │   └── models/                         # 数据库模型 (SQLAlchemy)
+│   │       ├── device.py                   # 设备数据模型
+│   │       ├── device_data.py              # 设备传感器数据模型
+│   │       ├── user.py                     # 用户数据模型
+│   │       └── alert.py                    # 告警数据模型
+│   ├── models/                             # Pydantic数据模型
+│   │   ├── device.py                       # 设备请求/响应模型
+│   │   ├── device_data.py                  # 设备数据请求/响应模型
+│   │   ├── user.py                         # 用户请求/响应模型
+│   │   ├── alert.py                        # 告警请求/响应模型
+│   │   └── token.py                        # 认证令牌模型
+│   ├── services/                           # 业务逻辑服务层
+│   │   ├── data_service.py                 # 数据处理服务
+│   │   ├── device_service.py               # 设备管理服务
+│   │   ├── mqtt_client.py                  # MQTT客户端
+│   │   ├── mqtt_handlers.py                # MQTT消息处理
+│   │   ├── redis_service.py                # Redis缓存服务
+│   │   └── websocket_service.py            # WebSocket通信服务
+│   ├── main.py                             # FastAPI应用入口
+│   └── worker.py                           # 后台任务处理
+├── docker-compose.yml                      # Docker容器编排
+├── Dockerfile                              # Docker镜像构建
+├── entrypoint.sh                           # 容器启动脚本
+├── pyproject.toml                          # Python项目配置
+├── poetry.lock                             # 依赖锁定文件
+├── project_structure.txt                   # 项目结构文档
+└── README.md                               # 项目说明文档
+
+# 技术栈:
+# - FastAPI: Web框架
+# - SQLAlchemy: ORM框架
+# - Pydantic: 数据验证
+# - MQTT: 物联网通信
+# - Redis: 缓存和消息队列
+# - WebSocket: 实时通信
+# - Docker: 容器化部署
+# - Poetry: 依赖管理
