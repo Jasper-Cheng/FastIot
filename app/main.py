@@ -7,7 +7,7 @@ from app.services.mqtt_handlers import register_mqtt_subscriptions
 
 
 @asynccontextmanager
-async def lifespan():
+async def lifespan(app: FastAPI):
     # startup
     try:
         await redis_service.connect()
