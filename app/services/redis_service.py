@@ -2,33 +2,6 @@ import redis.asyncio as redis
 from typing import Optional, Dict, List, Any
 from app.core.config import settings
 import json
-import asyncio
-from functools import wraps
-
-def prevent_redis_loop(max_retries: int = 3):
-    """防止Redis操作陷入循环的装饰器"""
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            # 检查Redis是否启用
-            if not settings.REDIS_ENABLED:
-                return None
-            
-            # 检查是否在Redis操作中
-            task = asyncio.current_task()
-            if hasattr(task, '_redis_operation') and task._redis_operation:
-                print(f"⚠️ [REDIS] 检测到Redis操作循环，跳过操作: {func.__name__}")
-                return None
-            
-            # 标记当前任务正在进行Redis操作
-            task._redis_operation = True
-            try:
-                return await func(*args, **kwargs)
-            finally:
-                # 清除标记
-                task._redis_operation = False
-        return wrapper
-    return decorator
 
 class RedisService:
     def __init__(self):
@@ -66,7 +39,6 @@ class RedisService:
         return settings.REDIS_ENABLED and self._is_connected and self.redis_client is not None
 
     # ---------- Device Info (metadata) cache ----------
-    @prevent_redis_loop()
     async def set_device_info(self, device_id: int, info: Dict[str, Any], ttl_seconds: int = 600) -> bool:
         """缓存设备基础信息（相对稳定的元数据），如 name、serial_number、owner_id、status、last_active、created_at 等。
 
@@ -90,7 +62,6 @@ class RedisService:
             print(f"❌ [CACHE] 设置设备信息缓存失败: {e}")
             return False
 
-    @prevent_redis_loop()
     async def get_device_info(self, device_id: int) -> Optional[Dict[str, Any]]:
         """读取设备基础信息缓存。"""
         if not self.is_available():
@@ -115,7 +86,6 @@ class RedisService:
             print(f"❌ [CACHE] 获取设备信息缓存失败: {e}")
             return None
 
-    @prevent_redis_loop()
     async def delete_device_info(self, device_id: int) -> bool:
         """删除设备基础信息缓存。"""
         if not self.is_available():
@@ -135,7 +105,6 @@ class RedisService:
     def _owner_devices_key(self, owner_id: int) -> str:
         return f"owner:{owner_id}:devices"
 
-    @prevent_redis_loop()
     async def add_device_to_owner(self, owner_id: int, device_id: int, ttl_seconds: int = 1800) -> bool:
         """添加设备到用户索引"""
         if not self.is_available():
@@ -152,7 +121,6 @@ class RedisService:
             print(f"❌ [CACHE] 添加设备到用户索引失败: {e}")
             return False
 
-    @prevent_redis_loop()
     async def remove_device_from_owner(self, owner_id: int, device_id: int) -> bool:
         """从用户索引移除设备"""
         if not self.is_available():
@@ -168,7 +136,6 @@ class RedisService:
             print(f"❌ [CACHE] 从用户索引移除设备失败: {e}")
             return False
 
-    @prevent_redis_loop()
     async def get_owner_device_ids(self, owner_id: int) -> List[int]:
         """获取用户的设备ID列表"""
         if not self.is_available():
@@ -193,7 +160,6 @@ class RedisService:
             print(f"❌ [CACHE] 获取用户设备索引失败: {e}")
             return []
 
-    @prevent_redis_loop()
     async def clear_owner_devices(self, owner_id: int) -> bool:
         """清除用户的所有设备索引"""
         if not self.is_available():
