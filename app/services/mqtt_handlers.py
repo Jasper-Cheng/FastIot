@@ -18,12 +18,12 @@ async def handle_telemetry(topic: str, data: Dict[str, Any], db: AsyncSession | 
     device_id = _extract_device_id(topic)
     if not device_id:
         return
-    # 1) cache latest status
-    await redis_service.set_device_status(device_id, data)
-    # 2) optional: update last active in DB
+    
+    # 1) 更新设备最后活跃时间到数据库
     if db is not None:
         await update_device_last_active(db, device_id)
-    # 3) rebroadcast to app/web side
+    
+    # 2) 广播到应用/Web端
     mqtt_service.publish_json(
         topic=f"apps/broadcast/devices/{device_id}/status",
         payload={"device_id": device_id, "status": data},
@@ -35,8 +35,16 @@ async def handle_lifecycle(topic: str, data: Dict[str, Any]) -> None:
     device_id = _extract_device_id(topic)
     if not device_id:
         return
+    
     is_online = bool(data.get("online", True))
-    await redis_service.set_device_online(device_id, is_online)
+    
+    # 更新设备信息缓存中的状态
+    cached_info = await redis_service.get_device_info(device_id)
+    if cached_info:
+        cached_info["status"] = "online" if is_online else "offline"
+        await redis_service.set_device_info(device_id, cached_info)
+    
+    # 广播到应用/Web端
     mqtt_service.publish_json(
         topic=f"apps/broadcast/devices/{device_id}/online",
         payload={"device_id": device_id, "online": is_online},
@@ -48,7 +56,8 @@ async def handle_ack(topic: str, data: Dict[str, Any]) -> None:
     device_id = _extract_device_id(topic)
     if not device_id:
         return
-    # Forward ack to app/web
+    
+    # 转发确认到应用/Web端
     mqtt_service.publish_json(
         topic=f"apps/broadcast/devices/{device_id}/ack",
         payload={"device_id": device_id, "ack": data},

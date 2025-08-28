@@ -2,13 +2,45 @@ import redis.asyncio as redis
 from typing import Optional, Dict, List, Any
 from app.core.config import settings
 import json
+import asyncio
+from functools import wraps
+
+def prevent_redis_loop(max_retries: int = 3):
+    """防止Redis操作陷入循环的装饰器"""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # 检查Redis是否启用
+            if not settings.REDIS_ENABLED:
+                return None
+            
+            # 检查是否在Redis操作中
+            task = asyncio.current_task()
+            if hasattr(task, '_redis_operation') and task._redis_operation:
+                print(f"⚠️ [REDIS] 检测到Redis操作循环，跳过操作: {func.__name__}")
+                return None
+            
+            # 标记当前任务正在进行Redis操作
+            task._redis_operation = True
+            try:
+                return await func(*args, **kwargs)
+            finally:
+                # 清除标记
+                task._redis_operation = False
+        return wrapper
+    return decorator
 
 class RedisService:
     def __init__(self):
         self.redis_client: Optional[redis.Redis] = None
+        self._is_connected = False
         
     async def connect(self):
         """连接Redis"""
+        if not settings.REDIS_ENABLED:
+            print("⚠️ [REDIS] Redis已禁用，跳过连接")
+            return
+            
         try:
             self.redis_client = redis.from_url(
                 str(settings.REDIS_URL),
@@ -16,176 +48,35 @@ class RedisService:
                 decode_responses=True
             )
             await self.redis_client.ping()
+            self._is_connected = True
+            print("✅ [REDIS] Redis连接成功")
         except Exception as e:
             print(f"❌ [REDIS] Redis连接失败: {e}")
+            self._is_connected = False
             raise
             
     async def disconnect(self):
         """断开Redis连接"""
         if self.redis_client:
             await self.redis_client.close()
+            self._is_connected = False
             
-    async def _merge_and_set_state(self, device_id: int, partial_state: Dict[str, Any], ttl_seconds: int = 300) -> bool:
-        """Merge a partial state into the cached device state and persist with TTL.
-
-        State schema in Redis (JSON string):
-        {
-          "online": bool,
-          "status": dict | None,
-          "last_active": str | None
-        }
-        """
-        try:
-            key = f"device:state:{device_id}"
-            existing_raw = await self.redis_client.get(key)
-            if existing_raw:
-                try:
-                    state: Dict[str, Any] = json.loads(existing_raw)
-                except Exception:
-                    state = {}
-            else:
-                state = {}
-
-            state.update(partial_state)
-
-            await self.redis_client.setex(
-                key,
-                ttl_seconds,
-                json.dumps(state, ensure_ascii=False)
-            )
-            print(f"✅ [CACHE] 设置缓存 - 字段:device_state, device_id:{device_id}")
-            return True
-        except Exception as e:
-            print(f"❌ [CACHE] 合并更新设备状态失败: {e}")
-            return False
-            
-    async def set_device_status(self, device_id: int, status: Dict) -> bool:
-        """设置设备状态"""
-        try:
-            # merge into unified state under device:state:{id}
-            return await self._merge_and_set_state(device_id, {"status": status})
-        except Exception as e:
-            print(f"❌ [CACHE] 设置设备状态失败: {e}")
-            return False
-            
-    async def get_device_status(self, device_id: int) -> Optional[Dict]:
-        """获取设备状态"""
-        try:
-            key = f"device:state:{device_id}"
-            data = await self.redis_client.get(key)
-            if not data:
-                print(f"❌ [CACHE] 缓存未命中 - 字段:device_status, device_id:{device_id}")
-                return None
-            try:
-                state = json.loads(data)
-            except Exception:
-                state = {}
-            print(f"✅ [CACHE] 缓存命中 - 字段:device_status, device_id:{device_id}")
-            status = state.get("status")
-            return status if isinstance(status, dict) else None
-        except Exception as e:
-            print(f"❌ [CACHE] 获取设备状态失败: {e}")
-            return None
-            
-    async def set_device_online(self, device_id: int, is_online: bool = True) -> bool:
-        """设置设备在线状态"""
-        try:
-            # unify online flag into device state instead of separate key
-            return await self._merge_and_set_state(device_id, {"online": bool(is_online)})
-        except Exception as e:
-            print(f"❌ [CACHE] 设置设备在线状态失败: {e}")
-            return False
-            
-    async def is_device_online(self, device_id: int) -> bool:
-        """检查设备是否在线"""
-        try:
-            key = f"device:state:{device_id}"
-            data = await self.redis_client.get(key)
-            if not data:
-                print(f"❌ [CACHE] 缓存未命中 - 字段:device_online, device_id:{device_id}")
-                return False
-            try:
-                state = json.loads(data)
-            except Exception:
-                state = {}
-            online = bool(state.get("online", False))
-            print(f"✅ [CACHE] 缓存命中 - 字段:device_online, device_id:{device_id}")
-            return online
-        except Exception as e:
-            print(f"❌ [CACHE] 检查设备在线状态失败: {e}")
-            return False
-            
-    async def get_all_online_devices(self) -> List[int]:
-        """获取所有在线设备ID"""
-        try:
-            pattern = "device:state:*"
-            keys = await self.redis_client.keys(pattern)
-            device_ids = []
-            for key in keys:
-                try:
-                    # quick filter by checking online flag
-                    raw = await self.redis_client.get(key)
-                    if not raw:
-                        continue
-                    state = json.loads(raw)
-                    if not bool(state.get("online", False)):
-                        continue
-                    device_id = key.split(":")[-1]
-                    device_ids.append(int(device_id))
-                except Exception:
-                    continue
-            return device_ids
-        except Exception as e:
-            print(f"❌ [CACHE] 获取在线设备列表失败: {e}")
-            return []
-            
-    async def set_device_control(self, device_id: int, command: Dict) -> bool:
-        """设置设备控制命令"""
-        try:
-            key = f"device:control:{device_id}"
-            await self.redis_client.setex(
-                key,
-                60,  # 1分钟过期
-                json.dumps(command, ensure_ascii=False)
-            )
-            cmd_name = command.get("command") if isinstance(command, dict) else None
-            user_id = command.get("user_id") if isinstance(command, dict) else None
-            print(f"✅ [CACHE] 设置缓存 - 字段:device_control, device_id:{device_id}, command:{cmd_name}, user_id:{user_id}")
-            # 详细命令内容仅在调试级别打印，避免日志过大/敏感
-            print(f"🔍 [CACHE] device_control payload: {command}")
-            return True
-        except Exception as e:
-            print(f"❌ [CACHE] 设置设备控制命令失败: {e}")
-            return False
-            
-    async def get_device_control(self, device_id: int) -> Optional[Dict]:
-        """获取设备控制命令"""
-        try:
-            key = f"device:control:{device_id}"
-            data = await self.redis_client.get(key)
-            if data:
-                await self.redis_client.delete(key)  # 获取后删除
-                print(f"✅ [CACHE] 缓存命中并消费 - 字段:device_control, device_id:{device_id}")
-                try:
-                    payload = json.loads(data)
-                except Exception:
-                    payload = None
-                if isinstance(payload, dict):
-                    print(f"🔍 [CACHE] device_control consumed payload: {payload}")
-                return payload
-            print(f"❌ [CACHE] 缓存未命中 - 字段:device_control, device_id:{device_id}")
-            return None
-        except Exception as e:
-            print(f"❌ [CACHE] 获取设备控制命令失败: {e}")
-            return None
+    def is_available(self) -> bool:
+        """检查Redis是否可用"""
+        return settings.REDIS_ENABLED and self._is_connected and self.redis_client is not None
 
     # ---------- Device Info (metadata) cache ----------
+    @prevent_redis_loop()
     async def set_device_info(self, device_id: int, info: Dict[str, Any], ttl_seconds: int = 600) -> bool:
         """缓存设备基础信息（相对稳定的元数据），如 name、serial_number、owner_id、status、last_active、created_at 等。
 
         使用独立的 key：device:info:{id}
         与运行态 state 分开，TTL 默认更长。
         """
+        if not self.is_available():
+            print(f"⚠️ [REDIS] Redis不可用，跳过设置设备信息缓存: device_id:{device_id}")
+            return False
+            
         try:
             key = f"device:info:{device_id}"
             await self.redis_client.setex(
@@ -194,14 +85,18 @@ class RedisService:
                 json.dumps(info, ensure_ascii=False, default=str)
             )
             print(f"✅ [CACHE] 设置缓存 - 字段:device_info, device_id:{device_id}")
-            print(f"🔍 [CACHE] device_info payload: {info}")
             return True
         except Exception as e:
             print(f"❌ [CACHE] 设置设备信息缓存失败: {e}")
             return False
 
+    @prevent_redis_loop()
     async def get_device_info(self, device_id: int) -> Optional[Dict[str, Any]]:
         """读取设备基础信息缓存。"""
+        if not self.is_available():
+            print(f"⚠️ [REDIS] Redis不可用，跳过获取设备信息缓存: device_id:{device_id}")
+            return None
+            
         try:
             key = f"device:info:{device_id}"
             raw = await self.redis_client.get(key)
@@ -220,8 +115,13 @@ class RedisService:
             print(f"❌ [CACHE] 获取设备信息缓存失败: {e}")
             return None
 
+    @prevent_redis_loop()
     async def delete_device_info(self, device_id: int) -> bool:
         """删除设备基础信息缓存。"""
+        if not self.is_available():
+            print(f"⚠️ [REDIS] Redis不可用，跳过删除设备信息缓存: device_id:{device_id}")
+            return False
+            
         try:
             key = f"device:info:{device_id}"
             await self.redis_client.delete(key)
@@ -235,7 +135,13 @@ class RedisService:
     def _owner_devices_key(self, owner_id: int) -> str:
         return f"owner:{owner_id}:devices"
 
+    @prevent_redis_loop()
     async def add_device_to_owner(self, owner_id: int, device_id: int, ttl_seconds: int = 1800) -> bool:
+        """添加设备到用户索引"""
+        if not self.is_available():
+            print(f"⚠️ [REDIS] Redis不可用，跳过添加设备到用户索引: owner_id:{owner_id}, device_id:{device_id}")
+            return False
+            
         try:
             key = self._owner_devices_key(owner_id)
             await self.redis_client.sadd(key, device_id)
@@ -246,7 +152,13 @@ class RedisService:
             print(f"❌ [CACHE] 添加设备到用户索引失败: {e}")
             return False
 
+    @prevent_redis_loop()
     async def remove_device_from_owner(self, owner_id: int, device_id: int) -> bool:
+        """从用户索引移除设备"""
+        if not self.is_available():
+            print(f"⚠️ [REDIS] Redis不可用，跳过从用户索引移除设备: owner_id:{owner_id}, device_id:{device_id}")
+            return False
+            
         try:
             key = self._owner_devices_key(owner_id)
             await self.redis_client.srem(key, device_id)
@@ -256,7 +168,13 @@ class RedisService:
             print(f"❌ [CACHE] 从用户索引移除设备失败: {e}")
             return False
 
+    @prevent_redis_loop()
     async def get_owner_device_ids(self, owner_id: int) -> List[int]:
+        """获取用户的设备ID列表"""
+        if not self.is_available():
+            print(f"⚠️ [REDIS] Redis不可用，跳过获取用户设备索引: owner_id:{owner_id}")
+            return []
+            
         try:
             key = self._owner_devices_key(owner_id)
             raw_ids = await self.redis_client.smembers(key)
@@ -274,6 +192,22 @@ class RedisService:
         except Exception as e:
             print(f"❌ [CACHE] 获取用户设备索引失败: {e}")
             return []
+
+    @prevent_redis_loop()
+    async def clear_owner_devices(self, owner_id: int) -> bool:
+        """清除用户的所有设备索引"""
+        if not self.is_available():
+            print(f"⚠️ [REDIS] Redis不可用，跳过清除用户设备索引: owner_id:{owner_id}")
+            return False
+            
+        try:
+            key = self._owner_devices_key(owner_id)
+            await self.redis_client.delete(key)
+            print(f"✅ [CACHE] 清除用户设备索引: owner_id:{owner_id}")
+            return True
+        except Exception as e:
+            print(f"❌ [CACHE] 清除用户设备索引失败: {e}")
+            return False
 
 # 全局Redis服务实例
 redis_service = RedisService()

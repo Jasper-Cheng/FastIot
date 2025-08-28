@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     MYSQL_ROOT_PASSWORD: str
 
     # Redis 配置
+    REDIS_ENABLED: bool = True  # Redis全局开关
     REDIS_URL: Optional[RedisDsn] = None
     REDIS_HOST: str
     REDIS_PORT: int
