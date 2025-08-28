@@ -5,10 +5,12 @@ from app.services.redis_service import redis_service
 from app.services.mqtt_client import mqtt_service
 from app.services.mqtt_handlers import register_mqtt_subscriptions
 
+print("🚀 FastAPI 应用启动")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup
+    print("🔄 应用启动中...")
     try:
         await redis_service.connect()
         print("✅ Redis连接成功")
@@ -22,6 +24,7 @@ async def lifespan(app: FastAPI):
         print(f"❌ MQTT连接失败: {e}")
     yield
     # shutdown
+    print("🔄 应用关闭中...")
     try:
         await redis_service.disconnect()
         print("🔌 Redis连接已断开")

@@ -56,14 +56,19 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     """用户登录"""
+    print(f"🔐 [LOGIN] 登录尝试: {form_data.username}")
+    
     # 验证用户凭据
     user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
+        print(f"❌ [LOGIN] 登录失败: {form_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    print(f"✅ [LOGIN] 登录成功: {form_data.username}, 角色: {user.role}")
     
     # 创建访问令牌
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

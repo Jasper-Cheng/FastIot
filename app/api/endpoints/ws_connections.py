@@ -3,9 +3,6 @@ from app.models.user import User
 from app.api.endpoints.auth import get_current_user
 from app.services.websocket_service import manager
 import json
-import logging
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -78,4 +75,4 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
-        logger.info(f"User {user_id} disconnected")
+        print(f"❌ [WS] 用户 {user_id} 断开连接")
