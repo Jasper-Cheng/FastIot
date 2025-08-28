@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,17 +7,13 @@ from app.api.dependencies import get_db
 from app.api.endpoints.auth import get_current_user
 from app.crud.device import (
     get_device, create_device, update_device, delete_device,
-    get_devices_by_owner_with_count, get_devices_by_owner
+    get_devices_by_owner_with_count
 )
 from app.models.device import (
-    Device, DeviceCreate, DeviceUpdate, DeviceControl, DeviceControlResponse,
-    DeviceListResponse, DeviceStatusResponse
+    Device, DeviceCreate, DeviceUpdate, DeviceListResponse
 )
 from app.models.user import User
 from app.services.redis_service import redis_service
-from app.services.mqtt_client import mqtt_service
-from datetime import datetime, timedelta
-from app.crud.device_data import get_latest_device_data
 
 router = APIRouter()
 
@@ -142,7 +140,6 @@ async def read_device(
     
     return device
 
-
 @router.post("/", response_model=Device, status_code=status.HTTP_201_CREATED, tags=["devices"])
 async def create_new_device(
     device: DeviceCreate, 
@@ -219,5 +216,35 @@ async def delete_existing_device(
         await redis_service.delete_device_info(device_id)
         await redis_service.remove_device_from_owner(current_user.id, device_id)
     return {"message": "Device deleted successfully"}
+
+@router.post("/cache/clear", tags=["devices"])
+async def clear_device_cache(
+    current_user: User = Depends(get_current_user)
+):
+    """清除设备缓存（需要管理员权限）"""
+    # 检查用户权限（只有管理员可以清除缓存）
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only administrators can clear cache")
+    
+    success = await redis_service.clear_device_cache()
+    if success:
+        return {"message": "Device cache cleared successfully"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to clear device cache")
+
+@router.post("/cache/clear-all", tags=["devices"])
+async def clear_all_cache(
+    current_user: User = Depends(get_current_user)
+):
+    """清除所有Redis缓存（需要管理员权限）"""
+    # 检查用户权限（只有管理员可以清除缓存）
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only administrators can clear cache")
+    
+    success = await redis_service.clear_all_cache()
+    if success:
+        return {"message": "All cache cleared successfully"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to clear all cache")
 
  

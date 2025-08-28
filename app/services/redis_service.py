@@ -38,6 +38,45 @@ class RedisService:
         """检查Redis是否可用"""
         return settings.REDIS_ENABLED and self._is_connected and self.redis_client is not None
 
+    async def clear_all_cache(self) -> bool:
+        """清除所有Redis缓存"""
+        if not self.is_available():
+            print("⚠️ [REDIS] Redis不可用，跳过清除所有缓存")
+            return False
+            
+        try:
+            # 清除当前数据库的所有键
+            await self.redis_client.flushdb()
+            print("✅ [REDIS] 已清除所有Redis缓存")
+            return True
+        except Exception as e:
+            print(f"❌ [REDIS] 清除所有缓存失败: {e}")
+            return False
+
+    async def clear_device_cache(self) -> bool:
+        """清除所有设备相关的缓存"""
+        if not self.is_available():
+            print("⚠️ [REDIS] Redis不可用，跳过清除设备缓存")
+            return False
+            
+        try:
+            # 获取所有设备信息缓存键
+            device_info_keys = await self.redis_client.keys("device:info:*")
+            # 获取所有用户设备索引键
+            owner_devices_keys = await self.redis_client.keys("owner:*:devices")
+            
+            # 删除所有找到的键
+            if device_info_keys or owner_devices_keys:
+                all_keys = device_info_keys + owner_devices_keys
+                await self.redis_client.delete(*all_keys)
+                print(f"✅ [REDIS] 已清除设备缓存 - 设备信息: {len(device_info_keys)}个, 用户索引: {len(owner_devices_keys)}个")
+            else:
+                print("ℹ️ [REDIS] 没有找到设备相关的缓存")
+            return True
+        except Exception as e:
+            print(f"❌ [REDIS] 清除设备缓存失败: {e}")
+            return False
+
     # ---------- Device Info (metadata) cache ----------
     async def set_device_info(self, device_id: int, info: Dict[str, Any], ttl_seconds: int = 600) -> bool:
         """缓存设备基础信息（相对稳定的元数据），如 name、serial_number、owner_id、status、last_active、created_at 等。
