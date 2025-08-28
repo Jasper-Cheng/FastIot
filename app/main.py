@@ -13,7 +13,7 @@ async def lifespan(app: FastAPI):
     print("🔄 应用启动中...")
     try:
         await redis_service.connect()
-        print("✅ Redis连接成功")
+        print("✅ [REDIS] Redis连接成功")
     except Exception as e:
         print(f"❌ Redis连接失败: {e}")
     try:

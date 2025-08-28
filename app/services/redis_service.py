@@ -16,7 +16,6 @@ class RedisService:
                 decode_responses=True
             )
             await self.redis_client.ping()
-            print("✅ [REDIS] Redis连接成功")
         except Exception as e:
             print(f"❌ [REDIS] Redis连接失败: {e}")
             raise

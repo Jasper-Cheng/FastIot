@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS `Alert` (
 
 -- 插入默认管理员用户（密码: admin123）
 INSERT INTO `User` (`username`, `password`, `role`) 
-VALUES ('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.s5u.Gi', 'admin')
+VALUES ('admin', 'admin123', 'admin')
 ON DUPLICATE KEY UPDATE `username` = `username`;
 
 -- 插入示例设备

@@ -62,7 +62,7 @@ async def delete_user(db: AsyncSession, user_id: int) -> bool:
 
 async def authenticate_user(db: AsyncSession, username: str, password: str) -> Optional[User]:
     """验证用户凭据"""
-    print(f"🔍 [AUTH] 开始验证用户: {username}")
+    print(f"🔍 [AUTH] 验证用户: {username}")
     
     user = await get_user_by_username(db, username)
     if not user:
