@@ -37,7 +37,7 @@ async def get_current_user(
 
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        username: str = payload.get("username") or payload.get("sub")
+        username: str | None = payload.get("username")
         if username is None:
             raise credentials_exception
     except JWTError:
@@ -60,12 +60,12 @@ async def get_current_user_claims(
     )
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        sub: str | None = payload.get("sub")
+        user_id: int | None = payload.get("user_id")
         username: str | None = payload.get("username")
         role_raw = payload.get("role")
-        if not sub or not username or role_raw is None:
+        if user_id is None or not username or role_raw is None:
             raise credentials_exception
-        return CurrentUserClaims(id=int(sub), username=username, role=UserRole(role_raw))
+        return CurrentUserClaims(id=int(user_id), username=username, role=UserRole(role_raw))
     except JWTError:
         raise credentials_exception
 
@@ -102,12 +102,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 
     print(f"✅ [LOGIN] 登录成功: {form_data.username}, 角色: {user.role}")
 
-    # 创建访问令牌，sub=用户ID，并嵌入 username/role
+    # 创建访问令牌，extra_claims 包含 user_id / username / role
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        subject=user.id,
         expires_delta=access_token_expires,
-        extra_claims={"username": user.username, "role": user.role}
+        extra_claims={"user_id": user.id, "username": user.username, "role": user.role}
     )
 
     return {"access_token": access_token, "token_type": "bearer"}
@@ -124,9 +123,8 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
     """刷新访问令牌（使用当前DB用户信息）"""
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        subject=current_user.id,
         expires_delta=access_token_expires,
-        extra_claims={"username": current_user.username, "role": current_user.role}
+        extra_claims={"user_id": current_user.id, "username": current_user.username, "role": current_user.role}
     )
 
     return {"access_token": access_token, "token_type": "bearer"}

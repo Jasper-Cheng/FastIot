@@ -1,15 +1,16 @@
 from datetime import datetime, timedelta
-from typing import Any, Union, Optional, Dict
+from typing import Any, Optional, Dict
 from jose import jwt
 from app.core.config import settings
 
 
 def create_access_token(
-    subject: Union[str, int], expires_delta: timedelta | None = None, extra_claims: Optional[Dict[str, Any]] = None
+    expires_delta: timedelta | None = None,
+    extra_claims: Optional[Dict[str, Any]] = None
 ) -> str:
     """创建访问令牌
-    - subject: 放在JWT的sub中（建议传用户ID）
-    - extra_claims: 额外载荷，如用户名、角色等
+    - 不再使用JWT的sub
+    - extra_claims: 额外载荷，如 user_id、username、role 等
     """
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -17,7 +18,7 @@ def create_access_token(
         expire = datetime.utcnow() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
-    to_encode: Dict[str, Any] = {"exp": expire, "sub": str(subject)}
+    to_encode: Dict[str, Any] = {"exp": expire}
     if extra_claims:
         to_encode.update(extra_claims)
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
