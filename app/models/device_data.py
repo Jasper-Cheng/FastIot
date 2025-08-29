@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-from datetime import datetime
 
 class DeviceDataBase(BaseModel):
     device_id: int
@@ -14,7 +13,6 @@ class DeviceDataUpdate(BaseModel):
 
 class DeviceDataInDB(DeviceDataBase):
     id: int
-    timestamp: datetime
 
     class Config:
         from_attributes = True

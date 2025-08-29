@@ -22,7 +22,12 @@ async def get_device_by_serial(db: AsyncSession, serial_number: str) -> Optional
 
 async def create_device(db: AsyncSession, device: DeviceCreate) -> Device:
     """创建新设备"""
-    db_device = Device(**device.dict())
+    # 仅传递 ORM 支持的字段，避免未知字段报错
+    db_device = Device(
+        name=device.name,
+        serial_number=device.serial_number,
+        owner_id=device.owner_id,
+    )
     db.add(db_device)
     await db.commit()
     await db.refresh(db_device)

@@ -10,8 +10,10 @@ from app.crud.device import (
     get_devices_by_owner_with_count
 )
 from app.models.device import (
-    Device, DeviceCreate, DeviceUpdate, DeviceListResponse
+    Device, DeviceCreate, DeviceUpdate, DeviceListResponse, DeviceCreateInput
 )
+from app.models.device_data import DeviceDataCreate
+from app.crud.device_data import create_device_data
 from app.services.redis_service import redis_service
 
 router = APIRouter()
@@ -126,13 +128,21 @@ async def read_device(
 
 @router.post("/", response_model=Device, status_code=status.HTTP_201_CREATED, tags=["devices"])
 async def create_new_device(
-    device: DeviceCreate,
+    device_input: DeviceCreateInput,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUserClaims = Depends(get_current_user_claims)
 ):
-    """创建新设备"""
-    device.owner_id = current_user.id
+    """创建新设备（owner_id 不由前端传入；需要 data JSON）"""
+    device = DeviceCreate(
+        name=device_input.name,
+        serial_number=device_input.serial_number,
+        device_type=device_input.device_type,
+        owner_id=current_user.id,
+    )
     created = await create_device(db=db, device=device)
+
+    # 创建初始设备数据记录
+    await create_device_data(db=db, device_data=DeviceDataCreate(device_id=created.id, data=device_input.data))
     await redis_service.set_device_info(created.id, {
         "id": created.id,
         "name": created.name,

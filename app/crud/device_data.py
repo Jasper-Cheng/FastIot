@@ -3,7 +3,6 @@ from sqlalchemy import select
 from app.db.models.device_data import DeviceData
 from app.models.device_data import DeviceDataCreate
 from typing import Optional, List
-from datetime import datetime
 
 async def get_device_data(db: AsyncSession, data_id: int) -> Optional[DeviceData]:
     """根据ID获取设备数据"""
@@ -29,18 +28,11 @@ async def create_device_data(db: AsyncSession, device_data: DeviceDataCreate) ->
     return db_device_data
 
 async def get_latest_device_data(db: AsyncSession, device_id: int) -> Optional[DeviceData]:
-    """获取设备的最新数据"""
-    result = await db.execute(select(DeviceData).filter(DeviceData.device_id == device_id).order_by(DeviceData.timestamp.desc()))
+    """获取设备的最新数据（按id倒序视作最新）"""
+    result = await db.execute(select(DeviceData).filter(DeviceData.device_id == device_id).order_by(DeviceData.id.desc()))
     return result.scalar_one_or_none()
 
-async def get_device_data_by_time_range(db: AsyncSession, device_id: int, start_time: datetime, end_time: datetime) -> List[DeviceData]:
-    """根据时间范围获取设备数据"""
-    result = await db.execute(select(DeviceData).filter(
-        DeviceData.device_id == device_id,
-        DeviceData.timestamp >= start_time,
-        DeviceData.timestamp <= end_time
-    ).order_by(DeviceData.timestamp.asc()))
-    return result.scalars().all()
+# 已移除按时间范围查询功能（无 timestamp 字段）
 
 async def delete_device_data(db: AsyncSession, data_id: int) -> bool:
     """删除设备数据"""
@@ -52,20 +44,4 @@ async def delete_device_data(db: AsyncSession, data_id: int) -> bool:
     await db.commit()
     return True
 
-async def delete_old_device_data(db: AsyncSession, device_id: int, days: int = 30) -> int:
-    """删除指定天数之前的旧数据"""
-    from datetime import timedelta
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
-    result = await db.execute(select(DeviceData).filter(
-        DeviceData.device_id == device_id,
-        DeviceData.timestamp < cutoff_date
-    ))
-    deleted_count = len(result.scalars().all())
-    
-    await db.execute(select(DeviceData).filter(
-        DeviceData.device_id == device_id,
-        DeviceData.timestamp < cutoff_date
-    ).delete())
-    await db.commit()
-    return deleted_count
+# 已移除按时间清理旧数据功能（无 timestamp 字段）

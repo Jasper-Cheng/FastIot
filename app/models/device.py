@@ -17,7 +17,8 @@ class DeviceBase(BaseModel):
     name: str
     serial_number: str
     device_type: DeviceType = DeviceType.sensor
-    description: Optional[str] = None
+    status: DeviceStatus = DeviceStatus.offline
+    data: Optional[Dict[str, Any]] = None
 
 class DeviceCreate(DeviceBase):
     owner_id: int
@@ -26,7 +27,6 @@ class DeviceUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[DeviceStatus] = None
     last_active: Optional[datetime] = None
-    description: Optional[str] = None
 
 class DeviceInDB(DeviceBase):
     id: int
@@ -80,3 +80,10 @@ class DeviceDataInDB(DeviceDataBase):
 
 class DeviceData(DeviceDataInDB):
     pass
+
+# 创建设备时的输入模型（不包含 owner_id/description，包含初始 data）
+class DeviceCreateInput(BaseModel):
+    name: str
+    serial_number: str
+    device_type: DeviceType = DeviceType.sensor
+    data: Dict[str, Any]
