@@ -181,6 +181,9 @@ async def update_existing_device(
             "last_active": updated_device.last_active.isoformat() if updated_device.last_active else None,
             "created_at": updated_device.created_at.isoformat() if updated_device.created_at else None,
         })
+        # 如请求包含 data，追加写入 DeviceData
+        if device.data is not None:
+            await create_device_data(db=db, device_data=DeviceDataCreate(device_id=updated_device.id, data=device.data))
     return updated_device
 
 @router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["devices"])

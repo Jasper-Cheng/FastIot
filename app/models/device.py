@@ -25,8 +25,9 @@ class DeviceCreate(DeviceBase):
 
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
+    serial_number: Optional[str] = None
     status: Optional[DeviceStatus] = None
-    last_active: Optional[datetime] = None
+    data: Optional[Dict[str, Any]] = None
 
 class DeviceInDB(DeviceBase):
     id: int

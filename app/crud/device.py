@@ -27,6 +27,7 @@ async def create_device(db: AsyncSession, device: DeviceCreate) -> Device:
         name=device.name,
         serial_number=device.serial_number,
         owner_id=device.owner_id,
+        status=(device.status.value if hasattr(device.status, 'value') else device.status),
     )
     db.add(db_device)
     await db.commit()
@@ -40,8 +41,15 @@ async def update_device(db: AsyncSession, device_id: int, device: DeviceUpdate) 
         return None
     
     update_data = device.dict(exclude_unset=True)
+    # 允许更新的字段白名单
+    allowed_fields = {"name", "serial_number", "status"}
     for field, value in update_data.items():
-        setattr(db_device, field, value)
+        if field not in allowed_fields:
+            continue
+        if field == "status" and value is not None:
+            setattr(db_device, field, (value.value if hasattr(value, 'value') else value))
+        else:
+            setattr(db_device, field, value)
     
     await db.commit()
     await db.refresh(db_device)
