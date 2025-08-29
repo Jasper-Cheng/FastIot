@@ -5,7 +5,7 @@ class DeviceData(Base):
     __tablename__ = "DeviceData"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("Device.id"), nullable=False, index=True)
+    device_id = Column(Integer, ForeignKey("Device.id", ondelete="CASCADE"), nullable=False, index=True)
     data = Column(JSON, nullable=False)
 
     def __repr__(self):

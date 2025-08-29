@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from app.db.models.device import Device
 from app.models.device import DeviceCreate, DeviceUpdate
+from app.db.models.device_data import DeviceData
 from typing import Optional, List, Tuple
 from datetime import datetime
 
@@ -60,7 +61,8 @@ async def delete_device(db: AsyncSession, device_id: int) -> bool:
     db_device = await get_device(db, device_id)
     if not db_device:
         return False
-    
+    # 先删除关联的 DeviceData，避免外键约束错误
+    await db.execute(delete(DeviceData).where(DeviceData.device_id == device_id))
     await db.delete(db_device)
     await db.commit()
     return True
