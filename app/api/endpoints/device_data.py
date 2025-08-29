@@ -40,21 +40,3 @@ async def read_device_data_by_device(
     
     data = await get_device_data_by_device(db, device_id=device_id, skip=skip, limit=limit)
     return data
-
-@router.get("/{data_id}", response_model=DeviceData, tags=["device-data"])
-async def read_specific_device_data(
-    data_id: int, 
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """根据ID获取特定的设备数据"""
-    data = await get_device_data(db, data_id=data_id)
-    if data is None:
-        raise HTTPException(status_code=404, detail="Device data not found")
-    
-    # 检查数据所属设备的所有权
-    device = await get_device(db, device_id=data.device_id)
-    if device and device.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this data")
-    
-    return data

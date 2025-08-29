@@ -206,20 +206,6 @@ async def delete_existing_device(
         await redis_service.remove_device_from_owner(current_user.id, device_id)
     return {"message": "Device deleted successfully"}
 
-@router.post("/cache/clear", tags=["devices"])
-async def clear_device_cache(
-    current_user: CurrentUserClaims = Depends(get_current_user_claims)
-):
-    """清除设备缓存（需要管理员权限）"""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only administrators can clear cache")
-
-    success = await redis_service.clear_device_cache()
-    if success:
-        return {"message": "Device cache cleared successfully"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to clear device cache")
-
 @router.post("/cache/clear-all", tags=["devices"])
 async def clear_all_cache(
     current_user: CurrentUserClaims = Depends(get_current_user_claims)
