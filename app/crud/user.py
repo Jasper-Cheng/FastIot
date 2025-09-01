@@ -15,6 +15,11 @@ async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User
     result = await db.execute(select(User).filter(User.username == username))
     return result.scalar_one_or_none()
 
+async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
+    """根据邮箱获取用户"""
+    result = await db.execute(select(User).filter(User.email == email))
+    return result.scalar_one_or_none()
+
 async def get_users(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[User]:
     """获取用户列表"""
     result = await db.execute(select(User).offset(skip).limit(limit))
@@ -25,6 +30,7 @@ async def create_user(db: AsyncSession, user: UserCreate) -> User:
     hashed_password = get_password_hash(user.password)
     db_user = User(
         username=user.username,
+        email=user.email,
         password=hashed_password,
         role=user.role
     )

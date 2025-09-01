@@ -27,6 +27,7 @@ async def insert_initial_data(session: AsyncSession) -> None:
         # 创建默认管理员用户
         admin_user = User(
             username="admin",
+            email="admin@fastiot.com",
             password=get_password_hash("admin123"),
             role="admin"
         )

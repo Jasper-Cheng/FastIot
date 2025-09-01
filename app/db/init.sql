@@ -7,6 +7,7 @@ USE `iot`;
 CREATE TABLE IF NOT EXISTS `User` (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
     `username` VARCHAR(50) UNIQUE NOT NULL,
+    `email` VARCHAR(100) UNIQUE NOT NULL,
     `password` VARCHAR(255) NOT NULL,
     `role` ENUM('user','admin') DEFAULT 'user',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -51,8 +52,8 @@ CREATE TABLE IF NOT EXISTS `Alert` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 插入默认管理员用户（密码: admin123）
-INSERT INTO `User` (`username`, `password`, `role`) 
-VALUES ('admin', 'admin123', 'admin')
+INSERT INTO `User` (`username`, `email`, `password`, `role`) 
+VALUES ('admin', 'admin@fastiot.com', 'admin123', 'admin')
 ON DUPLICATE KEY UPDATE `username` = `username`;
 
 -- 插入示例设备

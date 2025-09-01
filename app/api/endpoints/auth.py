@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_db, get_current_user
 from app.core.config import settings
 from app.core.security import create_access_token
-from app.crud.user import create_user, authenticate_user, get_user_by_username
+from app.crud.user import create_user, authenticate_user, get_user_by_username, get_user_by_email
 from app.models.token import Token
 from app.models.user import UserCreate, User, UserRole
 
@@ -54,6 +54,14 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
+        )
+
+    # 检查邮箱是否已存在
+    db_user = await get_user_by_email(db, email=user.email)
+    if db_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
         )
 
     # 创建新用户

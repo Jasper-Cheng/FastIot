@@ -6,7 +6,7 @@ FastIot 是一个物联网（IoT）设备管理平台的后端服务，基于 **
 
 - 设备管理（CRUD）
 - 传感器数据接收与存储
-- 用户认证与权限控制
+- 用户认证与权限控制（支持邮箱验证）
 - WebSocket 实时通信
 - 异步任务处理（Celery + Redis/RabbitMQ）
 
@@ -26,3 +26,4 @@ FastIot 是一个物联网（IoT）设备管理平台的后端服务，基于 **
 
 ```bash
 poetry install
+```

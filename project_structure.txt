@@ -4,7 +4,7 @@ FastIoT 项目结构 - 物联网设备管理平台
 │   │   ├── dependencies.py                 # 依赖注入和认证中间件
 │   │   ├── router.py                       # API路由配置
 │   │   └── endpoints/                      # API端点实现
-│   │       ├── auth.py                     # 用户认证接口
+│   │       ├── auth.py                     # 用户认证接口（支持邮箱验证）
 │   │       ├── devices.py                  # 设备管理接口
 │   │       ├── device_data.py              # 设备数据查询接口
 │   │       └── ws_connections.py           # WebSocket连接管理
@@ -15,7 +15,7 @@ FastIoT 项目结构 - 物联网设备管理平台
 │   │   ├── base.py                         # 基础CRUD操作
 │   │   ├── device.py                       # 设备数据库操作
 │   │   ├── device_data.py                  # 设备数据数据库操作
-│   │   └── user.py                         # 用户数据库操作
+│   │   └── user.py                         # 用户数据库操作（支持邮箱查询）
 │   ├── db/                                 # 数据库模块
 │   │   ├── base.py                         # 数据库基础配置
 │   │   ├── session.py                      # 数据库会话管理
@@ -24,12 +24,12 @@ FastIoT 项目结构 - 物联网设备管理平台
 │   │   └── models/                         # 数据库模型 (SQLAlchemy)
 │   │       ├── device.py                   # 设备数据模型
 │   │       ├── device_data.py              # 设备传感器数据模型
-│   │       ├── user.py                     # 用户数据模型
+│   │       ├── user.py                     # 用户数据模型（包含email字段）
 │   │       └── alert.py                    # 告警数据模型
 │   ├── models/                             # Pydantic数据模型
 │   │   ├── device.py                       # 设备请求/响应模型
 │   │   ├── device_data.py                  # 设备数据请求/响应模型
-│   │   ├── user.py                         # 用户请求/响应模型
+│   │   ├── user.py                         # 用户请求/响应模型（支持邮箱验证）
 │   │   ├── alert.py                        # 告警请求/响应模型
 │   │   └── token.py                        # 认证令牌模型
 │   ├── services/                           # 业务逻辑服务层
@@ -52,7 +52,7 @@ FastIoT 项目结构 - 物联网设备管理平台
 # 技术栈:
 # - FastAPI: Web框架
 # - SQLAlchemy: ORM框架
-# - Pydantic: 数据验证
+# - Pydantic: 数据验证（支持邮箱验证）
 # - MQTT: 物联网通信
 # - Redis: 缓存和消息队列
 # - WebSocket: 实时通信
