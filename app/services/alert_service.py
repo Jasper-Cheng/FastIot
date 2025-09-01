@@ -11,6 +11,7 @@ class AlertService:
     """告警服务类，统一管理告警相关逻辑"""
     
     def __init__(self):
+        # 内置告警规则
         self.alert_rules = {
             "temperature_high": {
                 "threshold": 80,
@@ -186,35 +187,6 @@ class AlertService:
             logger.error(f"❌ [AlertUpdate] 更新告警状态失败: {e}")
         
         return None
-    
-    def add_alert_rule(
-        self, 
-        rule_name: str, 
-        field: str, 
-        threshold: float, 
-        message_template: str, 
-        alert_type: str, 
-        operator: str = "gt"
-    ):
-        """添加自定义告警规则"""
-        self.alert_rules[rule_name] = {
-            "threshold": threshold,
-            "field": field,
-            "message_template": message_template,
-            "alert_type": alert_type,
-            "operator": operator
-        }
-        logger.info(f"✅ [AlertRule] 添加告警规则: {rule_name}")
-    
-    def remove_alert_rule(self, rule_name: str):
-        """移除告警规则"""
-        if rule_name in self.alert_rules:
-            del self.alert_rules[rule_name]
-            logger.info(f"✅ [AlertRule] 移除告警规则: {rule_name}")
-    
-    def get_alert_rules(self) -> Dict[str, Any]:
-        """获取所有告警规则"""
-        return self.alert_rules.copy()
 
 # 全局告警服务实例
 alert_service = AlertService()

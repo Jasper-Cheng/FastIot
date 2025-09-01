@@ -45,6 +45,15 @@ async def get_user_alerts(db: AsyncSession, user_id: int, limit: int = 100) -> L
     )
     return result.scalars().all()
 
+async def get_all_alerts(db: AsyncSession, limit: int = 100) -> List[Alert]:
+    """获取所有告警记录（Admin专用）"""
+    result = await db.execute(
+        select(Alert)
+        .order_by(Alert.created_at.desc())
+        .limit(limit)
+    )
+    return result.scalars().all()
+
 async def update_alert_status(db: AsyncSession, alert_id: int, status: AlertStatus) -> Optional[Alert]:
     """更新告警状态"""
     await db.execute(
