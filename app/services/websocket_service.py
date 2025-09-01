@@ -69,3 +69,24 @@ async def push_device_online_status(device_id: int, is_online: bool):
         "timestamp": datetime.now().isoformat()
     })
     await manager.send_to_device_users(device_id, message)
+
+async def push_alert_notification(device_id: int, alert_data: dict):
+    """推送告警通知到订阅的用户"""
+    message = json.dumps({
+        "type": "alert_notification",
+        "device_id": device_id,
+        "alert": alert_data,
+        "timestamp": datetime.now().isoformat()
+    })
+    await manager.send_to_device_users(device_id, message)
+
+async def push_alert_update(alert_id: int, device_id: int, alert_data: dict):
+    """推送告警状态更新到订阅的用户"""
+    message = json.dumps({
+        "type": "alert_update",
+        "alert_id": alert_id,
+        "device_id": device_id,
+        "alert": alert_data,
+        "timestamp": datetime.now().isoformat()
+    })
+    await manager.send_to_device_users(device_id, message)

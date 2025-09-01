@@ -6,7 +6,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_db
+from app.api.dependencies import get_db, get_current_user
 from app.core.config import settings
 from app.core.security import create_access_token
 from app.crud.user import create_user, authenticate_user, get_user_by_username
@@ -22,31 +22,6 @@ class CurrentUserClaims(BaseModel):
     id: int
     username: str
     role: UserRole
-
-
-async def get_current_user(
-    db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
-) -> User:
-    """获取当前用户（从数据库读取完整信息）"""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        username: str | None = payload.get("username")
-        if username is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-
-    user = await get_user_by_username(db, username=str(username))
-    if user is None:
-        raise credentials_exception
-    return user
 
 
 async def get_current_user_claims(
@@ -100,21 +75,20 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    print(f"✅ [LOGIN] 登录成功: {form_data.username}, 角色: {user.role}")
-
-    # 创建访问令牌，extra_claims 包含 user_id / username / role
+    # 生成访问令牌
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         expires_delta=access_token_expires,
-        extra_claims={"user_id": user.id, "username": user.username, "role": user.role}
+        extra_claims={"username": user.username, "user_id": user.id, "role": user.role}
     )
 
+    print(f"✅ [LOGIN] 登录成功: {form_data.username}")
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
-    """获取当前用户信息（完整信息，走DB）"""
+    """获取当前用户信息"""
     return current_user
 
 
