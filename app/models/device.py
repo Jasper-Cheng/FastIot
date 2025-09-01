@@ -7,16 +7,9 @@ class DeviceStatus(str, Enum):
     online = "online"
     offline = "offline"
 
-class DeviceType(str, Enum):
-    sensor = "sensor"
-    actuator = "actuator"
-    controller = "controller"
-    gateway = "gateway"
-
 class DeviceBase(BaseModel):
     name: str
     serial_number: str
-    device_type: DeviceType = DeviceType.sensor
     status: DeviceStatus = DeviceStatus.offline
     data: Optional[Dict[str, Any]] = None
 
@@ -32,8 +25,7 @@ class DeviceUpdate(BaseModel):
 class DeviceInDB(DeviceBase):
     id: int
     owner_id: int
-    status: DeviceStatus
-    last_active: Optional[datetime]
+    last_active: Optional[datetime] = None
     created_at: datetime
 
     class Config:
@@ -46,13 +38,11 @@ class Device(DeviceInDB):
 class DeviceControl(BaseModel):
     device_id: int
     command: str
-    parameters: Optional[Dict[str, Any]] = None
-    timestamp: Optional[datetime] = None
+    params: Optional[Dict[str, Any]] = None
 
-class DeviceControlResponse(BaseModel):
+class DeviceControlResult(BaseModel):
     success: bool
-    message: str
-    data: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
 
 class DeviceStatusResponse(BaseModel):
     device_id: int
@@ -76,9 +66,6 @@ class DeviceDataInDB(DeviceDataBase):
     id: int
     timestamp: datetime
 
-    class Config:
-        from_attributes = True
-
 class DeviceData(DeviceDataInDB):
     pass
 
@@ -86,5 +73,4 @@ class DeviceData(DeviceDataInDB):
 class DeviceCreateInput(BaseModel):
     name: str
     serial_number: str
-    device_type: DeviceType = DeviceType.sensor
     data: Dict[str, Any]

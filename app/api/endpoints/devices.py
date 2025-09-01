@@ -136,7 +136,6 @@ async def create_new_device(
     device = DeviceCreate(
         name=device_input.name,
         serial_number=device_input.serial_number,
-        device_type=device_input.device_type,
         owner_id=current_user.id,
     )
     created = await create_device(db=db, device=device)
