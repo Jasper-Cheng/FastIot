@@ -7,7 +7,7 @@ class Alert(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("Device.id"), nullable=False, index=True)
-    alert_type = Column(String(50))
+    alert_type = Column(Enum('emergency', 'important', 'minor', 'reminder', name='alert_type'), nullable=False)
     message = Column(Text)
     status = Column(Enum('new', 'read', 'resolved', name='alert_status'), default='new')
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

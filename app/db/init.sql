@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `DeviceData` (
 CREATE TABLE IF NOT EXISTS `Alert` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
     `device_id` INT NOT NULL,
-    `alert_type` VARCHAR(50),
+    `alert_type` ENUM('emergency','important','minor','reminder') NOT NULL,
     `message` TEXT,
     `status` ENUM('new','read','resolved') DEFAULT 'new',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
