@@ -56,7 +56,19 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: Optional[RedisDsn] = None
 
     # 跨域配置
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",      # React 默认端口
+        "http://localhost:3001",      # React 备用端口
+        "http://localhost:8080",      # Vue 默认端口
+        "http://localhost:8081",      # Vue 备用端口
+        "http://localhost:4200",      # Angular 默认端口
+        "http://localhost:5173",      # Vite 默认端口
+        "http://localhost:4000",      # 其他前端框架
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:5173",
+        "*"                           # 开发环境允许所有来源（生产环境请移除）
+    ]
 
     # 文件上传配置
     MAX_FILE_SIZE: int = 10485760  # 10MB
