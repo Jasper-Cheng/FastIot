@@ -8,7 +8,7 @@ async def create_alert(db: AsyncSession, alert: AlertCreate) -> Alert:
     """创建新的告警记录"""
     db_alert = Alert(
         device_id=alert.device_id,
-        alert_type=alert.alert_type,
+        level=alert.level,
         message=alert.message,
         status=AlertStatus.new
     )
@@ -39,7 +39,7 @@ async def get_user_alerts(db: AsyncSession, user_id: int, limit: int = 100) -> L
     result = await db.execute(
         select(Alert)
         .join(Device, Alert.device_id == Device.id)
-        .where(Device.owner_id == user_id)  # 修复：使用 owner_id 而不是 user_id
+        .where(Device.user_id == user_id)
         .order_by(Alert.created_at.desc())
         .limit(limit)
     )
@@ -66,11 +66,11 @@ async def update_alert_status(db: AsyncSession, alert_id: int, status: AlertStat
     # 返回更新后的告警记录
     return await get_alert(db, alert_id)
 
-async def update_alert_content(db: AsyncSession, alert_id: int, alert_type: Optional[str] = None, message: Optional[str] = None) -> Optional[Alert]:
-    """更新告警内容（alert_type和message）"""
+async def update_alert_content(db: AsyncSession, alert_id: int, level: Optional[str] = None, message: Optional[str] = None) -> Optional[Alert]:
+    """更新告警内容（level和message）"""
     update_data = {}
-    if alert_type is not None:
-        update_data["alert_type"] = alert_type
+    if level is not None:
+        update_data["level"] = level
     if message is not None:
         update_data["message"] = message
     
@@ -90,8 +90,8 @@ async def update_alert_full(db: AsyncSession, alert_id: int, alert_update: Alert
     update_data = {}
     
     # 收集需要更新的字段
-    if alert_update.alert_type is not None:
-        update_data["alert_type"] = alert_update.alert_type
+    if alert_update.level is not None:
+        update_data["level"] = alert_update.level
     if alert_update.message is not None:
         update_data["message"] = alert_update.message
     if alert_update.status is not None:
@@ -114,7 +114,7 @@ async def get_unread_alerts_count(db: AsyncSession, user_id: int) -> int:
     result = await db.execute(
         select(Alert)
         .join(Device, Alert.device_id == Device.id)
-        .where(Device.owner_id == user_id, Alert.status == AlertStatus.new)  # 修复：使用 owner_id
+        .where(Device.user_id == user_id, Alert.status == AlertStatus.new)
     )
     return len(result.scalars().all())
 

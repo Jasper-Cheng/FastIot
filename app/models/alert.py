@@ -8,22 +8,21 @@ class AlertStatus(str, Enum):
     read = "read"
     resolved = "resolved"
 
-class AlertType(str, Enum):
-    emergency = "emergency"   # 紧急
-    important = "important"   # 重要
-    minor = "minor"           # 次要
-    reminder = "reminder"     # 提醒
+class AlertLevel(str, Enum):
+    low = "low"       # 低
+    medium = "medium" # 中
+    high = "high"     # 高
 
 class AlertBase(BaseModel):
     device_id: int
-    alert_type: AlertType
-    message: str
+    level: AlertLevel
+    message: Optional[str] = None
 
 class AlertCreate(AlertBase):
     pass
 
 class AlertUpdate(BaseModel):
-    alert_type: Optional[AlertType] = None
+    level: Optional[AlertLevel] = None
     message: Optional[str] = None
     status: Optional[AlertStatus] = None
 

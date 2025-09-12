@@ -4,7 +4,6 @@ from app.services.mqtt_client import mqtt_service
 from app.services.redis_service import redis_service
 from app.services.websocket_service import push_alert_notification
 from app.services.alert_service import alert_service
-from app.crud.device import update_device_last_active
 from app.crud.alert import create_alert
 from app.models.alert import AlertCreate
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,15 +22,11 @@ async def handle_telemetry(topic: str, data: Dict[str, Any], db: AsyncSession | 
     if not device_id:
         return
     
-    # 1) 更新设备最后活跃时间到数据库
-    if db is not None:
-        await update_device_last_active(db, device_id)
-    
-    # 2) 检查是否有告警条件
+    # 1) 检查是否有告警条件
     if db is not None:
         await alert_service.check_telemetry_alerts(device_id, data, db)
     
-    # 3) 广播到应用/Web端
+    # 2) 广播到应用/Web端
     mqtt_service.publish_json(
         topic=f"apps/broadcast/devices/{device_id}/status",
         payload={"device_id": device_id, "status": data},

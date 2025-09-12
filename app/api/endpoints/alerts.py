@@ -7,7 +7,7 @@ from app.crud.alert import (
     update_alert_status, update_alert_full, get_unread_alerts_count, mark_alerts_as_read
 )
 from app.models.alert import AlertCreate, AlertUpdate, Alert, AlertStatus
-from app.models.user import User, UserRole
+from app.models.user import User
 from fastapi import status
 
 router = APIRouter()
@@ -19,29 +19,20 @@ async def create_new_alert(
     db: AsyncSession = Depends(get_db)
 ):
     """创建新的告警记录"""
-    if current_user.role == UserRole.admin:
-        # Admin可以为任何设备创建告警
-        try:
-            db_alert = await create_alert(db, alert)
-            return db_alert
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"创建告警失败: {str(e)}")
-    else:
-        # 普通用户只能为自己的设备创建告警
-        # 检查设备是否属于当前用户
-        from app.crud.device import get_device
-        device = await get_device(db, alert.device_id)
-        if not device or device.owner_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="没有权限为该设备创建告警"
-            )
-        
-        try:
-            db_alert = await create_alert(db, alert)
-            return db_alert
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"创建告警失败: {str(e)}")
+    # 检查设备是否属于当前用户
+    from app.crud.device import get_device
+    device = await get_device(db, alert.device_id)
+    if not device or device.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="没有权限为该设备创建告警"
+        )
+    
+    try:
+        db_alert = await create_alert(db, alert)
+        return db_alert
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"创建告警失败: {str(e)}")
 
 @router.get("/", response_model=List[Alert])
 async def get_alerts(

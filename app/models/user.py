@@ -1,31 +1,26 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
-from enum import Enum
-
-class UserRole(str, Enum):
-    user = "user"
-    admin = "admin"
 
 class UserBase(BaseModel):
     username: str
-    email: EmailStr
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    avatar: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
-    role: UserRole = UserRole.user
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
+    phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    avatar: Optional[str] = None
     password: Optional[str] = None
-    role: Optional[UserRole] = None
 
 class UserInDB(UserBase):
     id: int
-    role: UserRole
     created_at: datetime
-    updated_at: datetime
 
     class Config:
         from_attributes = True

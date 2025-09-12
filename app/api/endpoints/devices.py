@@ -7,13 +7,11 @@ from app.api.dependencies import get_db
 from app.api.endpoints.auth import get_current_user_claims, CurrentUserClaims
 from app.crud.device import (
     get_device, create_device, update_device, delete_device,
-    get_devices_by_owner_with_count
+    get_devices_by_user_with_count
 )
 from app.models.device import (
     Device, DeviceCreate, DeviceUpdate, DeviceListResponse, DeviceCreateInput
 )
-from app.models.device_data import DeviceDataCreate
-from app.crud.device_data import create_device_data
 from app.services.redis_service import redis_service
 
 router = APIRouter()
@@ -26,25 +24,25 @@ async def read_devices(
     current_user: CurrentUserClaims = Depends(get_current_user_claims)
 ):
     """获取当前用户的设备列表（包含在线状态）"""
-    owner_device_ids = await redis_service.get_owner_device_ids(current_user.id)
+    user_device_ids = await redis_service.get_owner_device_ids(current_user.id)
     devices = []
     online_count = 0
 
-    if owner_device_ids:
-        page_ids = owner_device_ids[skip:skip+limit]
+    if user_device_ids:
+        page_ids = user_device_ids[skip:skip+limit]
         for did in page_ids:
             info = await redis_service.get_device_info(did)
             if not info:
                 db_device = await get_device(db, device_id=did)
-                if not db_device or db_device.owner_id != current_user.id:
+                if not db_device or db_device.user_id != current_user.id:
                     continue
                 info = {
                     "id": db_device.id,
                     "name": db_device.name,
-                    "serial_number": db_device.serial_number,
-                    "owner_id": db_device.owner_id,
+                    "sn": db_device.sn,
+                    "user_id": db_device.user_id,
+                    "model_id": db_device.model_id,
                     "status": db_device.status,
-                    "last_active": db_device.last_active.isoformat() if db_device.last_active else None,
                     "created_at": db_device.created_at.isoformat() if db_device.created_at else None,
                 }
                 await redis_service.set_device_info(did, info)
@@ -54,10 +52,10 @@ async def read_devices(
             device_obj = DeviceModel(
                 id=info.get("id", did),
                 name=info.get("name", ""),
-                serial_number=info.get("serial_number", ""),
-                owner_id=info.get("owner_id", current_user.id),
+                sn=info.get("sn", ""),
+                user_id=info.get("user_id", current_user.id),
+                model_id=info.get("model_id", 1),
                 status=info.get("status", "offline"),
-                last_active=info.get("last_active", datetime.now()),
                 created_at=info.get("created_at")
             )
             devices.append(device_obj)
@@ -65,7 +63,7 @@ async def read_devices(
             if device_obj.status == 'online':
                 online_count += 1
     else:
-        devices, total = await get_devices_by_owner_with_count(db, owner_id=current_user.id, skip=skip, limit=limit)
+        devices, total = await get_devices_by_user_with_count(db, user_id=current_user.id, skip=skip, limit=limit)
         for d in devices:
             await redis_service.add_device_to_owner(current_user.id, d.id)
             await redis_service.set_device_info(d.id, {

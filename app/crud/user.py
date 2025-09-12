@@ -30,9 +30,10 @@ async def create_user(db: AsyncSession, user: UserCreate) -> User:
     hashed_password = get_password_hash(user.password)
     db_user = User(
         username=user.username,
+        phone=user.phone,
         email=user.email,
-        password=hashed_password,
-        role=user.role
+        avatar=user.avatar,
+        password=hashed_password
     )
     db.add(db_user)
     await db.commit()
@@ -75,7 +76,7 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> O
         print(f"❌ [AUTH] 用户不存在: {username}")
         return None
     
-    print(f"✅ [AUTH] 找到用户: {username}, 角色: {user.role}")
+    print(f"✅ [AUTH] 找到用户: {username}")
     
     if not verify_password(password, user.password):
         print(f"❌ [AUTH] 密码验证失败: {username}")

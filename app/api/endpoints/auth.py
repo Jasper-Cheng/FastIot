@@ -11,7 +11,9 @@ from app.core.config import settings
 from app.core.security import create_access_token
 from app.crud.user import create_user, authenticate_user, get_user_by_username, get_user_by_email
 from app.models.token import Token
-from app.models.user import UserCreate, User, UserRole
+from app.models.user import UserCreate, User
+from app.models.member import MemberLogin
+from app.crud.member import get_member_by_account, verify_member_password
 
 router = APIRouter()
 
@@ -21,7 +23,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 class CurrentUserClaims(BaseModel):
     id: int
     username: str
-    role: UserRole
+    user_type: str  # "user" or "member"
 
 
 async def get_current_user_claims(
@@ -37,10 +39,10 @@ async def get_current_user_claims(
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id: int | None = payload.get("user_id")
         username: str | None = payload.get("username")
-        role_raw = payload.get("role")
-        if user_id is None or not username or role_raw is None:
+        user_type: str | None = payload.get("user_type", "user")
+        if user_id is None or not username:
             raise credentials_exception
-        return CurrentUserClaims(id=int(user_id), username=username, role=UserRole(role_raw))
+        return CurrentUserClaims(id=int(user_id), username=username, user_type=user_type)
     except JWTError:
         raise credentials_exception
 
@@ -87,7 +89,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         expires_delta=access_token_expires,
-        extra_claims={"username": user.username, "user_id": user.id, "role": user.role}
+        extra_claims={"username": user.username, "user_id": user.id, "user_type": "user"}
     )
 
     print(f"✅ [LOGIN] 登录成功: {form_data.username}")
@@ -106,7 +108,46 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         expires_delta=access_token_expires,
-        extra_claims={"user_id": current_user.id, "username": current_user.username, "role": current_user.role}
+        extra_claims={"user_id": current_user.id, "username": current_user.username, "user_type": "user"}
     )
 
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/member/login", response_model=Token)
+async def member_login(member_login: MemberLogin, db: AsyncSession = Depends(get_db)):
+    """成员登录"""
+    print(f"🔐 [MEMBER_LOGIN] 成员登录尝试: {member_login.account}")
+
+    # 验证成员凭据
+    member = await get_member_by_account(db, member_login.account)
+    if not member:
+        print(f"❌ [MEMBER_LOGIN] 成员不存在: {member_login.account}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect account or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not verify_member_password(member, member_login.password):
+        print(f"❌ [MEMBER_LOGIN] 密码错误: {member_login.account}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect account or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 生成访问令牌
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        expires_delta=access_token_expires,
+        extra_claims={
+            "username": member.account or member.name, 
+            "user_id": member.id, 
+            "user_type": "member",
+            "parent_user_id": member.user_id
+        }
+    )
+
+    print(f"✅ [MEMBER_LOGIN] 成员登录成功: {member_login.account}")
     return {"access_token": access_token, "token_type": "bearer"}
