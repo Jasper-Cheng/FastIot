@@ -1,7 +1,6 @@
 import json
 from typing import Dict, Any
 from app.services.mqtt_client import mqtt_service
-from app.services.redis_service import redis_service
 from app.services.websocket_service import push_alert_notification
 from app.services.alert_service import alert_service
 from app.crud.alert import create_alert
@@ -40,12 +39,6 @@ async def handle_lifecycle(topic: str, data: Dict[str, Any]) -> None:
         return
     
     is_online = bool(data.get("online", True))
-    
-    # 更新设备信息缓存中的状态
-    cached_info = await redis_service.get_device_info(device_id)
-    if cached_info:
-        cached_info["status"] = "online" if is_online else "offline"
-        await redis_service.set_device_info(device_id, cached_info)
     
     # 广播到应用/Web端
     mqtt_service.publish_json(

@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
-from app.services.redis_service import redis_service
 from app.services.mqtt_client import mqtt_service
 from app.services.mqtt_handlers import register_mqtt_subscriptions
 
@@ -10,7 +9,6 @@ from app.services.mqtt_handlers import register_mqtt_subscriptions
 async def lifespan(app: FastAPI):
     # startup
     print("🔄 应用启动中...")
-    await redis_service.connect()
     try:
         mqtt_service.connect()
         register_mqtt_subscriptions()
@@ -20,12 +18,8 @@ async def lifespan(app: FastAPI):
     yield
     # shutdown
     print("🔄 应用关闭中...")
-    try:
-        await redis_service.disconnect()
-        print("🔌 Redis连接已断开")
-    finally:
-        mqtt_service.disconnect()
-        print("🔌 MQTT连接已断开")
+    mqtt_service.disconnect()
+    print("🔌 MQTT连接已断开")
 
 
 app = FastAPI(

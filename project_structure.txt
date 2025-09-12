@@ -2,12 +2,7 @@ FastIoT 项目结构 - 物联网设备管理平台
 ├── app/                                    # 主应用目录
 │   ├── api/                                # API接口层
 │   │   ├── dependencies.py                 # 依赖注入和认证中间件
-│   │   ├── router.py                       # API路由配置
-│   │   └── endpoints/                      # API端点实现
-│   │       ├── auth.py                     # 用户认证接口（支持邮箱验证）
-│   │       ├── devices.py                  # 设备管理接口
-│   │       ├── device_data.py              # 设备数据查询接口
-│   │       └── ws_connections.py           # WebSocket连接管理
+│   │   └── router.py                       # API路由配置
 │   ├── core/                               # 核心配置模块
 │   │   ├── config.py                       # 应用配置管理
 │   │   └── security.py                     # 安全工具 (JWT、密码加密)
@@ -37,7 +32,6 @@ FastIoT 项目结构 - 物联网设备管理平台
 │   │   ├── device_service.py               # 设备管理服务
 │   │   ├── mqtt_client.py                  # MQTT客户端
 │   │   ├── mqtt_handlers.py                # MQTT消息处理
-│   │   ├── redis_service.py                # Redis缓存服务
 │   │   └── websocket_service.py            # WebSocket通信服务
 │   ├── main.py                             # FastAPI应用入口
 │   └── worker.py                           # 后台任务处理
@@ -54,7 +48,6 @@ FastIoT 项目结构 - 物联网设备管理平台
 # - SQLAlchemy: ORM框架
 # - Pydantic: 数据验证（支持邮箱验证）
 # - MQTT: 物联网通信
-# - Redis: 缓存和消息队列
 # - WebSocket: 实时通信
 # - Docker: 容器化部署
 # - Poetry: 依赖管理
