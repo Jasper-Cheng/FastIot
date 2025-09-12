@@ -8,12 +8,12 @@ CREATE TABLE IF NOT EXISTS `account` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '账号ID',
     `account` VARCHAR(64) NOT NULL UNIQUE COMMENT '登录名',
     `password_hash` VARCHAR(128) NOT NULL COMMENT '密码哈希',
-    `name` VARCHAR(64) NOT NULL COMMENT '昵称/显示名',
+    `name` VARCHAR(64) NULL COMMENT '昵称/显示名',
     `gender` ENUM('male','female','other') DEFAULT 'other' COMMENT '性别',
-    `phone` VARCHAR(32) UNIQUE COMMENT '手机号',
+    `phone` VARCHAR(32) NOT NULL UNIQUE COMMENT '手机号',
     `email` VARCHAR(128) UNIQUE COMMENT '邮箱',
-    `avatar` VARCHAR(255) COMMENT '头像URL',
-    `role` ENUM('owner','member') NOT NULL COMMENT '角色: 主账号/子账号',
+    `avatar` VARCHAR(255) NULL COMMENT '头像URL',
+    `role` ENUM('owner','member') NOT NULL DEFAULT 'member' COMMENT '角色: 主账号/子账号',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账号表';
 

@@ -40,8 +40,8 @@ async def create_account(db: AsyncSession, account: AccountCreate) -> Account:
         gender=account.gender,
         phone=account.phone,
         email=account.email,
-        avatar=account.avatar,
-        role=account.role
+        # 不显式提供 avatar，则使用数据库默认
+        role=account.role or 'member'
     )
     db.add(db_account)
     await db.commit()

@@ -9,12 +9,12 @@ class Account(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     account = Column(String(64), unique=True, nullable=False, index=True)
     password_hash = Column(String(128), nullable=False)
-    name = Column(String(64), nullable=False)
+    name = Column(String(64), nullable=True)
     gender = Column(Enum('male', 'female', 'other', name='gender_enum'), default='other')
-    phone = Column(String(32), unique=True, nullable=True)
+    phone = Column(String(32), unique=True, nullable=False)
     email = Column(String(128), unique=True, nullable=True)
     avatar = Column(String(255), nullable=True)
-    role = Column(Enum('owner', 'member', name='role_enum'), nullable=False)
+    role = Column(Enum('owner', 'member', name='role_enum'), nullable=False, default='member')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # 关系

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from enum import Enum
@@ -14,12 +14,12 @@ class AccountGender(str, Enum):
 
 class AccountBase(BaseModel):
     account: str
-    name: str
+    name: Optional[str] = None
     gender: Optional[AccountGender] = AccountGender.other
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
+    phone: str
+    email: Optional[str] = None
     avatar: Optional[str] = None
-    role: AccountRole
+    role: Optional[AccountRole] = AccountRole.member
 
 class AccountCreate(AccountBase):
     password: str
@@ -29,7 +29,7 @@ class AccountUpdate(BaseModel):
     name: Optional[str] = None
     gender: Optional[AccountGender] = None
     phone: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     avatar: Optional[str] = None
     password: Optional[str] = None
 

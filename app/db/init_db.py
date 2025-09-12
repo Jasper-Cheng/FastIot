@@ -87,7 +87,6 @@ async def create_accounts(session: AsyncSession):
             gender=random.choice(['male', 'female', 'other']),
             phone=f"1380000000{i}" if i < 9 else f"138000000{i}",
             email=f"user{i+1}@example.com",
-            avatar=f"https://example.com/avatar{i+1}.jpg",
             role='owner'
         )
         session.add(account)
@@ -102,7 +101,6 @@ async def create_accounts(session: AsyncSession):
             gender=random.choice(['male', 'female', 'other']),
             phone=f"1390000000{i}" if i < 9 else f"139000000{i}",
             email=f"member{i+1}@example.com",
-            avatar=f"https://example.com/member{i+1}.jpg",
             role='member'
         )
         session.add(account)
