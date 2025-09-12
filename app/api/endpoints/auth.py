@@ -10,6 +10,7 @@ from app.core.security import create_access_token, verify_password
 from app.crud.account import (
     get_account_by_account_name,
     get_account_by_phone,
+    get_account_by_email,
     create_account,
 )
 from app.crud.user import create_user, get_user_by_account_id
@@ -95,6 +96,23 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if exists:
         raise HTTPException(status_code=400, detail="账号已存在")
 
+    # 手机号唯一性
+    phone_exists = await get_account_by_phone(db, req.phone)
+    if phone_exists:
+        raise HTTPException(status_code=400, detail="手机号已被使用")
+
+    # 规范化并校验邮箱（可选）
+    norm_email = (req.email or None)
+    if norm_email:
+        v = norm_email.strip().lower()
+        if v in ("", "string", "null", "undefined"):
+            norm_email = None
+        else:
+            norm_email = v
+            email_exists = await get_account_by_email(db, norm_email)
+            if email_exists:
+                raise HTTPException(status_code=400, detail="邮箱已被使用")
+
     acc = await create_account(
         db,
         AccountCreate(
@@ -103,7 +121,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             phone=req.phone,
             name=req.name,
             gender=req.gender,  # type: ignore[arg-type]
-            email=req.email,
+            email=norm_email,
             avatar=req.avatar,
             role=AccountRole.owner,
         ),
