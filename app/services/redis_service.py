@@ -10,8 +10,9 @@ class RedisService:
     async def connect(self):
         """连接到Redis服务器"""
         try:
+            # settings.REDIS_URL 可能为 Pydantic 的 RedisDsn，需要转为 str
             self.redis = redis.from_url(
-                settings.REDIS_URL,
+                str(settings.REDIS_URL),
                 encoding="utf-8",
                 decode_responses=True
             )

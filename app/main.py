@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 from app.core.config import settings
 from app.services.mqtt_client import mqtt_service
 from app.services.mqtt_handlers import register_mqtt_subscriptions
+from app.db.session import engine
+from app.services.redis_service import redis_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,6 +18,26 @@ async def lifespan(app: FastAPI):
         print("✅ MQTT连接成功并已注册订阅")
     except Exception as e:
         print(f"❌ MQTT连接失败: {e}")
+
+    # 数据库就绪检查
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        print("✅ 数据库连接正常")
+    except Exception as e:
+        print(f"❌ 数据库连接失败: {e}")
+
+    # Redis 就绪检查（仅验证，不启用缓存持久连接）
+    try:
+        await redis_service.connect()
+        print("✅ Redis就绪检测通过")
+    except Exception as e:
+        print(f"❌ Redis就绪检测失败: {e}")
+    finally:
+        try:
+            await redis_service.disconnect()
+        except Exception:
+            pass
     yield
     # shutdown
     print("🔄 应用关闭中...")
@@ -65,25 +88,3 @@ app.add_middleware(
 from app.api.router import api_router
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
-
-# ----------------------
-# 健康检查和CORS测试
-# ----------------------
-@app.get("/")
-async def root():
-    """根路径 - 健康检查"""
-    return {
-        "message": "FastIoT API is running!",
-        "version": settings.VERSION,
-        "docs": "/docs",
-        "cors_enabled": True
-    }
-
-@app.get("/health")
-async def health_check():
-    """健康检查端点"""
-    return {
-        "status": "healthy",
-        "timestamp": "2024-01-01T00:00:00Z",
-        "service": "FastIoT API"
-    }
