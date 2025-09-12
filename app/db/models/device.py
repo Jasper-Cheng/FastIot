@@ -1,5 +1,6 @@
 from sqlalchemy import Column, BigInteger, String, DateTime, Enum, ForeignKey
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 class Device(Base):
@@ -12,6 +13,9 @@ class Device(Base):
     sn = Column(String(100), unique=True, index=True, nullable=False)
     status = Column(Enum('online', 'offline', name='device_status'), default='offline')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # 关系
+    user = relationship("User", back_populates="devices")
 
     def __repr__(self):
         return f"<Device(id={self.id}, name='{self.name}', sn='{self.sn}', status='{self.status}')>"

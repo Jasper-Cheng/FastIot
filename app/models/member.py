@@ -1,45 +1,25 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-from enum import Enum
-
-class MemberGender(str, Enum):
-    male = "male"
-    female = "female"
-    other = "other"
+from app.models.account import Account
 
 class MemberBase(BaseModel):
-    name: str
-    gender: Optional[MemberGender] = None
-    account: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-    avatar: Optional[str] = None
+    user_id: int
+    account_id: int
 
 class MemberCreate(MemberBase):
-    user_id: int
-    password: Optional[str] = None
+    pass
 
 class MemberUpdate(BaseModel):
-    name: Optional[str] = None
-    gender: Optional[MemberGender] = None
-    account: Optional[str] = None
-    password: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-    avatar: Optional[str] = None
+    pass  # 成员信息通过 account 表管理
 
 class MemberInDB(MemberBase):
     id: int
-    user_id: int
     created_at: datetime
 
     class Config:
         from_attributes = True
 
 class Member(MemberInDB):
-    pass
-
-class MemberLogin(BaseModel):
-    account: str
-    password: str
+    account: Optional[Account] = None
+    user: Optional[dict] = None  # 避免循环导入

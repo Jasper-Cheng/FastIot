@@ -1,22 +1,16 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from app.models.account import Account
 
 class UserBase(BaseModel):
-    username: str
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-    avatar: Optional[str] = None
+    account_id: int
 
 class UserCreate(UserBase):
-    password: str
+    pass
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-    avatar: Optional[str] = None
-    password: Optional[str] = None
+    pass  # 用户信息通过 account 表管理
 
 class UserInDB(UserBase):
     id: int
@@ -26,8 +20,4 @@ class UserInDB(UserBase):
         from_attributes = True
 
 class User(UserInDB):
-    pass
-
-class UserLogin(BaseModel):
-    username: str
-    password: str
+    account: Optional[Account] = None

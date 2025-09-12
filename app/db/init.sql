@@ -3,30 +3,36 @@ CREATE DATABASE IF NOT EXISTS `iot` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicod
 
 USE `iot`;
 
--- 用户表：系统管理员和主用户账户
+-- 账号表：所有能登录的用户（包含主账号和子账号）
+CREATE TABLE IF NOT EXISTS `account` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '账号ID',
+    `account` VARCHAR(64) NOT NULL UNIQUE COMMENT '登录名',
+    `password_hash` VARCHAR(128) NOT NULL COMMENT '密码哈希',
+    `name` VARCHAR(64) NOT NULL COMMENT '昵称/显示名',
+    `gender` ENUM('male','female','other') DEFAULT 'other' COMMENT '性别',
+    `phone` VARCHAR(32) UNIQUE COMMENT '手机号',
+    `email` VARCHAR(128) UNIQUE COMMENT '邮箱',
+    `avatar` VARCHAR(255) COMMENT '头像URL',
+    `role` ENUM('owner','member') NOT NULL COMMENT '角色: 主账号/子账号',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账号表';
+
+-- 用户表：主账号（家庭/组织的拥有者），和 account 一一对应
 CREATE TABLE IF NOT EXISTS `user` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
-    `username` VARCHAR(50) NOT NULL UNIQUE COMMENT '用户名',
-    `password` VARCHAR(255) NOT NULL COMMENT '密码哈希',
-    `phone` VARCHAR(20) COMMENT '手机号',
-    `email` VARCHAR(100) COMMENT '邮箱',
-    `avatar` VARCHAR(255) COMMENT '头像URL',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+    `account_id` BIGINT NOT NULL UNIQUE COMMENT '对应 account.id',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
--- 成员表：用户下的子账户，可以分配设备权限
+-- 成员表：子账号，同样和 account 一一对应，并且属于某个 user
 CREATE TABLE IF NOT EXISTS `member` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '成员ID',
-    `user_id` BIGINT NOT NULL COMMENT '所属用户ID',
-    `name` VARCHAR(50) NOT NULL COMMENT '成员姓名',
-    `gender` ENUM('male','female','other') COMMENT '性别',
-    `account` VARCHAR(50) UNIQUE COMMENT '成员账号',
-    `password` VARCHAR(255) COMMENT '成员密码哈希',
-    `phone` VARCHAR(20) COMMENT '手机号',
-    `email` VARCHAR(100) COMMENT '邮箱',
-    `avatar` VARCHAR(255) COMMENT '头像URL',
+    `user_id` BIGINT NOT NULL COMMENT '归属主账号',
+    `account_id` BIGINT NOT NULL UNIQUE COMMENT '对应 account.id',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='成员表';
 
 -- 房间表：用于组织和管理设备的空间
@@ -111,10 +117,15 @@ CREATE TABLE IF NOT EXISTS `alert` (
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='告警表';
 
--- 插入默认用户（密码: admin123）
-INSERT INTO `user` (`username`, `password`, `email`) 
-VALUES ('admin', 'admin123', 'admin@fastiot.com')
-ON DUPLICATE KEY UPDATE `username` = `username`;
+-- 插入默认账号和用户（密码: admin123）
+INSERT INTO `account` (`account`, `password_hash`, `name`, `email`, `role`) 
+VALUES ('admin', 'admin123', '管理员', 'admin@fastiot.com', 'owner')
+ON DUPLICATE KEY UPDATE `account` = `account`;
+
+-- 为默认账号创建对应的用户记录
+INSERT INTO `user` (`account_id`) 
+SELECT `id` FROM `account` WHERE `account` = 'admin' AND `role` = 'owner'
+ON DUPLICATE KEY UPDATE `account_id` = `account_id`;
 
 -- 插入示例设备型号
 INSERT INTO `device_model` (`model_name`, `vendor`, `params`) 

@@ -1,3 +1,4 @@
+from .account import Account
 from .user import User
 from .member import Member
 from .room import Room
@@ -10,6 +11,7 @@ from .room_device import RoomDevice
 from .member_device_permission import MemberDevicePermission
 
 __all__ = [
+    "Account",
     "User",
     "Member", 
     "Room",
