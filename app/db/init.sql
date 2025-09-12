@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS `member_device_permission` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
     `member_id` BIGINT NOT NULL,
     `device_id` BIGINT NOT NULL,
-    `can_control` BOOLEAN DEFAULT FALSE,
+    `can_control` TINYINT(1) DEFAULT 0,
     FOREIGN KEY (`member_id`) REFERENCES `member`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE,
     UNIQUE(`member_id`, `device_id`)
