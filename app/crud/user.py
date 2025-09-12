@@ -1,8 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.db.models.user import User
-from app.models.user import UserCreate, UserUpdate
+from sqlalchemy import select, delete
 from typing import Optional, List
+
+from app.db.models.user import User
+from app.db.models.member import Member
+from app.db.models.account import Account
+from app.models.user import UserCreate, UserUpdate
 
 async def get_user(db: AsyncSession, user_id: int) -> Optional[User]:
     """根据ID获取用户"""
@@ -33,11 +36,28 @@ async def update_user(db: AsyncSession, user_id: int, user: UserUpdate) -> Optio
     return await get_user(db, user_id)
 
 async def delete_user(db: AsyncSession, user_id: int) -> bool:
-    """删除用户"""
+    """删除用户及其所有关联数据（成员、房间、设备、日志、参数、权限等）
+
+    实现方式：
+    - 先删除该用户下所有成员的 account（将级联删除 member 记录）
+    - 再删除该用户自身的 account（将级联删除 user 记录）
+    - 依赖数据库外键的 ON DELETE CASCADE 清理 rooms、devices、room_device、device_*、alerts 等
+    """
     db_user = await get_user(db, user_id)
     if not db_user:
         return False
-    
-    await db.delete(db_user)
+
+    # 1) 删除所有成员的账户，级联删除 member 记录
+    member_accounts = await db.execute(
+        select(Member.account_id).where(Member.user_id == user_id)
+    )
+    member_account_ids: List[int] = [row[0] for row in member_accounts.all() if row[0] is not None]
+    if member_account_ids:
+        await db.execute(delete(Account).where(Account.id.in_(member_account_ids)))
+
+    # 2) 删除用户自身账户，级联删除 user 记录
+    if db_user.account_id is not None:
+        await db.execute(delete(Account).where(Account.id == db_user.account_id))
+
     await db.commit()
     return True
