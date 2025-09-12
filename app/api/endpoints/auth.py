@@ -67,10 +67,11 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 class RegisterRequest(BaseModel):
-    """注册请求体
+    """注册请求体（主账号）
 
     必填字段: account(登录名), password(密码), phone(手机号)
-    可选字段: name, gender, email, avatar, role(默认 member)
+    可选字段: name, gender, email, avatar
+    说明: 不需要填写 role，默认为 owner
     手机号格式: 11 位中国大陆手机号, 以 1 开头
     """
     account: str
@@ -80,15 +81,14 @@ class RegisterRequest(BaseModel):
     gender: AccountGender | None = None
     email: str | None = None
     avatar: str | None = None
-    role: AccountRole | None = None
 
 
 @router.post("/register", response_model=Account)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    """注册账号：根据 role 创建对应 user 或 member 记录
+    """注册主账号：固定创建 owner 账号并生成对应 user 记录
 
     必填: account, password, phone
-    可选: name, gender, email, avatar, role(默认 member)
+    可选: name, gender, email, avatar
     """
     # 唯一性校验
     exists = await get_account_by_account_name(db, req.account)
@@ -105,16 +105,12 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             gender=req.gender,  # type: ignore[arg-type]
             email=req.email,
             avatar=req.avatar,
-            role=req.role or AccountRole.member,
+            role=AccountRole.owner,
         ),
     )
 
-    if acc.role == AccountRole.owner:
-        # 创建 user
-        await create_user(db, user=type("UserCreate", (), {"account_id": acc.id})())
-    else:
-        # 需要归属的主账号，由外部流程创建 member 更合理；此处简单跳过
-        pass
+    # 创建 user（owner 对应记录）
+    await create_user(db, user=type("UserCreate", (), {"account_id": acc.id})())
 
     return Account.model_validate(acc)
 
