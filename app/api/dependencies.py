@@ -4,14 +4,17 @@ from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.core.config import settings
-from app.crud.user import get_user_by_username
-from app.crud.member import get_member
+from app.crud.account import get_account
+from app.crud.user import get_user, get_user_by_account_id
+from app.crud.member import get_member, get_member_by_account_id
 from app.crud.device import get_device
+from app.models.account import Account
 from app.models.user import User
 from app.models.member import Member
 from typing import Optional, Union
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+# 让 Swagger 的 Authorize 使用表单登录端点
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login/form")
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db),
@@ -27,24 +30,57 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_type: str | None = payload.get("user_type")
-        username: str | None = payload.get("username")
+        account_id: int | None = payload.get("account_id")
+        user_id: int | None = payload.get("user_id")
         member_id: int | None = payload.get("member_id")
         
-        if not username:
+        if not account_id:
             raise credentials_exception
             
-        if user_type == "member" and member_id:
+        if user_type == "account" and member_id:
             # 获取成员信息
             member = await get_member(db, member_id)
             if member is None:
                 raise credentials_exception
             return member
-        else:
+        elif user_type == "account" and user_id:
             # 获取用户信息
-            user = await get_user_by_username(db, username=str(username))
+            user = await get_user(db, user_id)
             if user is None:
                 raise credentials_exception
             return user
+        else:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+async def get_current_user_id(
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+) -> int:
+    """获取当前用户或成员的ID（轻量级版本，不查询数据库）"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_type: str | None = payload.get("user_type")
+        user_id: int | None = payload.get("user_id")
+        member_id: int | None = payload.get("member_id")
+        
+        if user_type == "account" and user_id:
+            return user_id
+        elif user_type == "account" and member_id:
+            # 对于成员，我们需要获取其所属的用户ID
+            member = await get_member(db, member_id)
+            if member is None:
+                raise credentials_exception
+            return member.user_id
+        else:
+            raise credentials_exception
     except JWTError:
         raise credentials_exception
 
@@ -107,4 +143,4 @@ async def check_device_alert_permission(
     return False
 
 # 重新导出数据库会话依赖和认证依赖
-__all__ = ["get_db", "get_current_user", "check_alert_permission", "check_device_alert_permission"]
+__all__ = ["get_db", "get_current_user", "get_current_user_id", "check_alert_permission", "check_device_alert_permission"]

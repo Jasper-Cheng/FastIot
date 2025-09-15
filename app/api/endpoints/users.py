@@ -19,7 +19,10 @@ async def list_users(
 
 
 @router.get("/{user_id}", response_model=UserInDB)
-async def get_user_detail(user_id: int, db: AsyncSession = Depends(get_db)):
+async def get_user_detail(
+    user_id: int, 
+    db: AsyncSession = Depends(get_db),
+):
     user = await get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
@@ -27,7 +30,10 @@ async def get_user_detail(user_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/{user_id}")
-async def remove_user(user_id: int, db: AsyncSession = Depends(get_db)):
+async def remove_user(
+    user_id: int, 
+    db: AsyncSession = Depends(get_db),
+):
     ok = await delete_user(db, user_id)
     if not ok:
         raise HTTPException(status_code=404, detail="用户不存在")

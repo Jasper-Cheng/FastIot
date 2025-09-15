@@ -17,12 +17,20 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[MemberInDB])
-async def list_members(user_id: int, db: AsyncSession = Depends(get_db), skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=200)):
+async def list_members(
+    user_id: int, 
+    db: AsyncSession = Depends(get_db), 
+    skip: int = Query(0, ge=0), 
+    limit: int = Query(100, ge=1, le=200),
+):
     return await get_members_by_user(db, user_id=user_id, skip=skip, limit=limit)
 
 
 @router.get("/{member_id}", response_model=MemberInDB)
-async def get_member_detail(member_id: int, db: AsyncSession = Depends(get_db)):
+async def get_member_detail(
+    member_id: int, 
+    db: AsyncSession = Depends(get_db),
+):
     m = await get_member(db, member_id)
     if not m:
         raise HTTPException(status_code=404, detail="成员不存在")
@@ -47,7 +55,10 @@ class MemberRegisterRequest(BaseModel):
 
 
 @router.post("/", response_model=MemberInDB)
-async def create_member_for_user(payload: MemberRegisterRequest, db: AsyncSession = Depends(get_db)):
+async def create_member_for_user(
+    payload: MemberRegisterRequest, 
+    db: AsyncSession = Depends(get_db),
+):
     # 校验 user 是否存在
     owner = await get_user(db, payload.user_id)
     if not owner:
@@ -128,7 +139,11 @@ class MemberUpdateRequest(BaseModel):
 
 
 @router.put("/{member_id}", response_model=MemberInDB)
-async def update_member_detail(member_id: int, payload: MemberUpdateRequest, db: AsyncSession = Depends(get_db)):
+async def update_member_detail(
+    member_id: int, 
+    payload: MemberUpdateRequest, 
+    db: AsyncSession = Depends(get_db),
+):
     # 读取成员
     m = await get_member(db, member_id)
     if not m:
@@ -208,7 +223,10 @@ async def update_member_detail(member_id: int, payload: MemberUpdateRequest, db:
 
 
 @router.delete("/{member_id}")
-async def remove_member(member_id: int, db: AsyncSession = Depends(get_db)):
+async def remove_member(
+    member_id: int, 
+    db: AsyncSession = Depends(get_db),
+):
     # 先查询成员
     m = await get_member(db, member_id)
     if not m:

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 from typing import Literal
@@ -45,6 +46,42 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         acc = await get_account_by_phone(db, payload.account)
 
     if not acc or not verify_password(payload.password, acc.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    extra_claims = {
+        "user_type": "account",
+        "account_id": acc.id,
+        "account": acc.account,
+        "role": acc.role,
+    }
+    # 附带 user_id/member_id 便于后续权限判断
+    user = await get_user_by_account_id(db, acc.id)
+    if user:
+        extra_claims["user_id"] = user.id
+    member = await get_member_by_account_id(db, acc.id)
+    if member:
+        extra_claims["member_id"] = member.id
+
+    token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
+
+    return TokenResponse(access_token=token, role=acc.role, account=Account.model_validate(acc))
+
+
+@router.post("/login/form", response_model=TokenResponse, include_in_schema=False)
+async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    """表单登录：兼容 Swagger Authorize（OAuth2 Password flow）
+
+    - username 支持传登录名或手机号
+    - password 为明文密码
+    - 忽略 scope 和 client 相关字段
+    """
+    # 先按账号查找，未找到则按手机号查找
+    acc = await get_account_by_account_name(db, form_data.username)
+    if not acc:
+        acc = await get_account_by_phone(db, form_data.username)
+
+    if not acc or not verify_password(form_data.password, acc.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
