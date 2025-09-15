@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.db.session import get_db
 from app.crud.room import get_room, get_rooms_by_user, create_room, update_room, delete_room
 from app.models.room import Room, RoomCreate, RoomUpdate, RoomInDB
+from app.crud.user import get_user
 
 router = APIRouter()
 
@@ -56,8 +57,13 @@ async def create_new_room(
     """
     创建新房间
     """
-    # 验证用户ID是否存在（这里可以添加用户存在性检查）
-    # 目前简化为直接创建
+    # 验证用户ID是否存在
+    owner = await get_user(db, room.user_id)
+    if not owner:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="归属的用户不存在，请使用有效的 user_id"
+        )
     
     db_room = await create_room(db, room)
     return db_room
@@ -79,8 +85,14 @@ async def update_room_info(
             detail="房间不存在"
         )
     
-    # 这里可以添加权限验证，检查当前用户是否有权限修改该房间
-    # 目前简化为允许修改
+    # 可选：当更新包含 user_id 时，验证用户存在
+    if hasattr(room_update, "user_id") and room_update.user_id is not None:
+        owner = await get_user(db, room_update.user_id)
+        if not owner:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="归属的用户不存在，请使用有效的 user_id"
+            )
     
     updated_room = await update_room(db, room_id, room_update)
     if not updated_room:
