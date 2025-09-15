@@ -88,20 +88,3 @@ app.add_middleware(
 from app.api.router import api_router
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
-
-# ----------------------
-# Dev: always refresh OpenAPI schema
-# ----------------------
-if settings.DEBUG:
-    from fastapi.openapi.utils import get_openapi
-
-    def _dev_openapi():
-        # 不使用缓存，每次调用都基于当前 routes 生成
-        return get_openapi(
-            title=app.title,
-            version=app.version,
-            routes=app.routes,
-            description=app.description,
-        )
-
-    app.openapi = _dev_openapi
