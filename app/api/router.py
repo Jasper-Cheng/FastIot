@@ -13,6 +13,8 @@ from app.api.endpoints import devices as devices_endpoints
 from app.api.endpoints import room_devices as room_devices_endpoints
 from app.api.endpoints import device_params as device_params_endpoints
 from app.api.endpoints import device_networks as device_networks_endpoints
+from app.api.endpoints import device_logs as device_logs_endpoints
+from app.api.endpoints import alerts as alerts_endpoints
 
 api_router.include_router(auth_endpoints.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users_endpoints.router, prefix="/users", tags=["users"])
@@ -24,6 +26,8 @@ api_router.include_router(devices_endpoints.router, prefix="/devices", tags=["de
 api_router.include_router(room_devices_endpoints.router, prefix="/room-devices", tags=["room-devices"])
 api_router.include_router(device_params_endpoints.router, prefix="/device-params", tags=["device-params"])
 api_router.include_router(device_networks_endpoints.router, prefix="/device-networks", tags=["device-networks"])
+api_router.include_router(device_logs_endpoints.router, prefix="/device-logs", tags=["device-logs"])
+api_router.include_router(alerts_endpoints.router, prefix="/alerts", tags=["alerts"])
 
 # 基础路由 - 可以在这里添加简单的健康检查等
 @api_router.get("/health")

@@ -49,7 +49,7 @@ async def update_device_log(db: AsyncSession, log_id: int, log: DeviceLogUpdate)
     if not db_log:
         return None
     
-    update_data = log.dict(exclude_unset=True)
+    update_data = log.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_log, field, value)
     
