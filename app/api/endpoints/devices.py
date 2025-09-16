@@ -178,7 +178,7 @@ async def activate_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depend
     
     await db.commit()
     await db.refresh(device)
-    
+
     return device
 
 
@@ -232,3 +232,4 @@ async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
     return device
 
 
+ 

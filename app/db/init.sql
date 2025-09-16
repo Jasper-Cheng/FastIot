@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS `device_network` (
     `extra` JSON NULL COMMENT '扩展字段，用于存储其他网络相关信息：蓝牙：配网模式、固件版本等；Wi-Fi：网关信息、是否 2.4G/5G 等',
     `last_update` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后一次更新时间',
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE,
-    UNIQUE KEY `uq_device_network_type` (`device_id`, `net_type`) COMMENT '保证同一设备同一网络类型只有一条最新记录'
+    UNIQUE KEY `uq_device_network_device` (`device_id`) COMMENT '保证每个设备仅有一条网络记录'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备网络信息表，存储设备的实时网络状态，可支持 Wi-Fi / 蓝牙 / 蜂窝 / Zigbee 等类型';
 
 -- 插入默认账号和用户（密码: admin123）

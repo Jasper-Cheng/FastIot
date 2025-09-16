@@ -17,12 +17,12 @@ class DeviceNetwork(Base):
     extra = Column(JSON, nullable=True, comment="扩展字段，用于存储其他网络相关信息：蓝牙：配网模式、固件版本等；Wi-Fi：网关信息、是否 2.4G/5G 等")
     last_update = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="记录最后一次更新时间")
 
-    # 关系
-    device = relationship("Device", back_populates="networks")
+    # 关系：与设备一对一
+    device = relationship("Device", back_populates="network")
 
-    # 唯一约束：保证同一设备同一网络类型只有一条最新记录
+    # 唯一约束：保证每个设备仅有一条网络记录（设备与网络一对一）
     __table_args__ = (
-        UniqueConstraint('device_id', 'net_type', name='uq_device_network_type'),
+        UniqueConstraint('device_id', name='uq_device_network_device'),
     )
 
     def __repr__(self):

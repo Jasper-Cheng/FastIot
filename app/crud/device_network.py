@@ -26,23 +26,19 @@ async def get_device_networks_by_device(db: AsyncSession, device_id: int, skip: 
     )
     return result.scalars().all()
 
-async def get_device_network_by_type(db: AsyncSession, device_id: int, net_type: str) -> Optional[DeviceNetwork]:
-    """根据设备ID和网络类型获取网络信息"""
+async def get_device_network_by_type(db: AsyncSession, device_id: int, net_type) -> Optional[DeviceNetwork]:
+    """根据设备ID获取网络信息（兼容旧签名，忽略net_type）。"""
     result = await db.execute(
-        select(DeviceNetwork).filter(
-            and_(
-                DeviceNetwork.device_id == device_id,
-                DeviceNetwork.net_type == net_type
-            )
-        )
+        select(DeviceNetwork).filter(DeviceNetwork.device_id == device_id)
     )
     return result.scalar_one_or_none()
 
-async def get_device_networks_by_type(db: AsyncSession, net_type: str, skip: int = 0, limit: int = 100) -> List[DeviceNetwork]:
+async def get_device_networks_by_type(db: AsyncSession, net_type, skip: int = 0, limit: int = 100) -> List[DeviceNetwork]:
     """根据网络类型获取网络信息"""
+    net_type_value = getattr(net_type, "value", net_type)
     result = await db.execute(
         select(DeviceNetwork)
-        .filter(DeviceNetwork.net_type == net_type)
+        .filter(DeviceNetwork.net_type == net_type_value)
         .offset(skip)
         .limit(limit)
     )
@@ -60,11 +56,12 @@ async def get_connected_device_networks(db: AsyncSession, device_id: Optional[in
 
 async def create_device_network(db: AsyncSession, network: DeviceNetworkCreate) -> DeviceNetwork:
     """创建设备网络信息"""
-    # 检查是否已存在相同设备和网络类型的记录
-    existing = await get_device_network_by_type(db, network.device_id, network.net_type)
+    # 一对一：检查设备是否已有记录（忽略网络类型）
+    existing = await get_device_network_by_type(db, network.device_id, getattr(network.net_type, "value", network.net_type))
     if existing:
         # 如果存在，则更新现有记录
-        update_data = network.dict(exclude_unset=True)
+        # 使用 Pydantic v2 的 model_dump 转为可序列化的原始类型，避免 Enum 写入错误
+        update_data = network.model_dump(exclude_unset=True, mode="json")
         for field, value in update_data.items():
             setattr(existing, field, value)
         await db.commit()
@@ -72,7 +69,8 @@ async def create_device_network(db: AsyncSession, network: DeviceNetworkCreate) 
         return existing
     else:
         # 如果不存在，则创建新记录
-        db_network = DeviceNetwork(**network.dict())
+        payload = network.model_dump(mode="json")
+        db_network = DeviceNetwork(**payload)
         db.add(db_network)
         await db.commit()
         await db.refresh(db_network)
@@ -84,7 +82,7 @@ async def update_device_network(db: AsyncSession, network_id: int, network: Devi
     if not db_network:
         return None
     
-    update_data = network.dict(exclude_unset=True)
+    update_data = network.model_dump(exclude_unset=True, mode="json")
     for field, value in update_data.items():
         setattr(db_network, field, value)
     
@@ -93,12 +91,12 @@ async def update_device_network(db: AsyncSession, network_id: int, network: Devi
     return db_network
 
 async def update_device_network_by_type(db: AsyncSession, device_id: int, net_type: str, network: DeviceNetworkUpdate) -> Optional[DeviceNetwork]:
-    """根据设备ID和网络类型更新网络信息"""
+    """根据设备ID更新网络信息（兼容旧签名，忽略net_type）。"""
     db_network = await get_device_network_by_type(db, device_id, net_type)
     if not db_network:
         return None
     
-    update_data = network.dict(exclude_unset=True)
+    update_data = network.model_dump(exclude_unset=True, mode="json")
     for field, value in update_data.items():
         setattr(db_network, field, value)
     
@@ -116,8 +114,8 @@ async def delete_device_network(db: AsyncSession, network_id: int) -> bool:
     await db.commit()
     return True
 
-async def delete_device_network_by_type(db: AsyncSession, device_id: int, net_type: str) -> bool:
-    """根据设备ID和网络类型删除网络信息"""
+async def delete_device_network_by_type(db: AsyncSession, device_id: int, net_type) -> bool:
+    """根据设备ID删除网络信息（兼容旧签名，忽略net_type）。"""
     db_network = await get_device_network_by_type(db, device_id, net_type)
     if not db_network:
         return False

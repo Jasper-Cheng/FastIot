@@ -16,7 +16,7 @@ class Device(Base):
 
     # 关系
     user = relationship("User", back_populates="devices")
-    networks = relationship("DeviceNetwork", back_populates="device", cascade="all, delete-orphan")
+    network = relationship("DeviceNetwork", back_populates="device", cascade="all, delete-orphan", uselist=False)
 
     def __repr__(self):
         return f"<Device(id={self.id}, name='{self.name}', sn='{self.sn}', status='{self.status}')>"
