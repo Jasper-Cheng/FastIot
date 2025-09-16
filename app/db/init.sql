@@ -13,9 +13,17 @@ CREATE TABLE IF NOT EXISTS `account` (
     `phone` VARCHAR(32) NOT NULL UNIQUE COMMENT '手机号',
     `email` VARCHAR(128) UNIQUE COMMENT '邮箱',
     `avatar` VARCHAR(255) NULL COMMENT '头像URL',
-    `role` ENUM('owner','member') NOT NULL DEFAULT 'member' COMMENT '角色: 主账号/子账号',
+    `role` ENUM('owner','member','admin') NOT NULL DEFAULT 'member' COMMENT '角色: 主账号/子账号/管理员',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账号表';
+
+-- 管理员表：与 account 一一对应
+CREATE TABLE IF NOT EXISTS `admin` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '管理员ID',
+    `account_id` BIGINT NOT NULL UNIQUE COMMENT '对应 account.id',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='管理员表';
 
 -- 用户表：主账号（家庭/组织的拥有者），和 account 一一对应
 CREATE TABLE IF NOT EXISTS `user` (
@@ -148,13 +156,15 @@ CREATE TABLE IF NOT EXISTS `device_network` (
 
 -- 插入默认账号和用户（密码: admin123）
 INSERT INTO `account` (`account`, `password_hash`, `name`, `email`, `role`) 
-VALUES ('admin', 'admin123', '管理员', 'admin@fastiot.com', 'owner')
+VALUES ('admin', 'admin123', '管理员', 'admin@fastiot.com', 'admin')
 ON DUPLICATE KEY UPDATE `account` = `account`;
 
--- 为默认账号创建对应的用户记录
-INSERT INTO `user` (`account_id`) 
-SELECT `id` FROM `account` WHERE `account` = 'admin' AND `role` = 'owner'
+-- 为默认管理员创建对应的 admin 记录
+INSERT INTO `admin` (`account_id`)
+SELECT `id` FROM `account` WHERE `account` = 'admin' AND `role` = 'admin'
 ON DUPLICATE KEY UPDATE `account_id` = `account_id`;
+
+-- 管理员账号不自动创建 user 记录
 
 -- 插入示例物模型
 INSERT INTO `thing_model` (`name`, `description`, `properties`, `services`, `events`) 

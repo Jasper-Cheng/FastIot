@@ -9,6 +9,7 @@ from .device_log import DeviceLog
 from .alert import Alert
 from .room_device import RoomDevice
 from .member_device_permission import MemberDevicePermission
+from .admin import Admin
 
 __all__ = [
     "Account",

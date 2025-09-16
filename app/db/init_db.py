@@ -6,6 +6,7 @@ from sqlalchemy import text
 from app.db.base import Base
 from app.db.session import engine
 from app.db.models.account import Account
+from app.db.models.admin import Admin
 from app.db.models.user import User
 from app.db.models.member import Member
 from app.db.models.room import Room
@@ -39,8 +40,10 @@ async def insert_initial_data(session: AsyncSession) -> None:
     if count == 0:
         print("开始创建测试数据...")
         
-        # 1. 创建账号
+        # 1. 创建账号（含一个管理员）
         accounts = await create_accounts(session)
+        # 1.1 创建管理员记录
+        await create_admins(session, accounts)
         
         # 2. 创建用户
         users = await create_users(session, accounts)
@@ -86,6 +89,19 @@ async def create_accounts(session: AsyncSession):
     print("创建账号...")
     accounts = []
     
+    # 创建1个管理员账号
+    admin_account = Account(
+        account="admin",
+        password_hash=get_password_hash("admin123"),
+        name="管理员",
+        gender='other',
+        phone="13700000000",
+        email="admin@fastiot.com",
+        role='admin'
+    )
+    session.add(admin_account)
+    accounts.append(admin_account)
+
     # 创建5个主账号
     for i in range(5):
         account = Account(
@@ -116,6 +132,19 @@ async def create_accounts(session: AsyncSession):
     
     await session.flush()
     return accounts
+
+async def create_admins(session: AsyncSession, accounts):
+    """根据 admin 账号创建管理员记录"""
+    print("创建管理员...")
+    from sqlalchemy import select
+    for acc in accounts:
+        if acc.role == 'admin':
+            # 检查是否已存在对应 Admin 记录
+            result = await session.execute(select(Admin).where(Admin.account_id == acc.id))
+            exists = result.scalar_one_or_none()
+            if exists is None:
+                session.add(Admin(account_id=acc.id))
+    await session.flush()
 
 async def create_users(session: AsyncSession, accounts):
     """创建用户"""

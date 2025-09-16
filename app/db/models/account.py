@@ -14,12 +14,13 @@ class Account(Base):
     phone = Column(String(32), unique=True, nullable=False)
     email = Column(String(128), unique=True, nullable=True)
     avatar = Column(String(255), nullable=True)
-    role = Column(Enum('owner', 'member', name='role_enum'), nullable=False, default='member')
+    role = Column(Enum('owner', 'member', 'admin', name='role_enum'), nullable=False, default='member')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # 关系
     user = relationship("User", back_populates="account", uselist=False)
     member = relationship("Member", back_populates="account", uselist=False)
+    admin = relationship("Admin", back_populates="account", uselist=False)
     
     def __repr__(self):
         return f"<Account(id={self.id}, account={self.account}, name={self.name}, role={self.role})>"

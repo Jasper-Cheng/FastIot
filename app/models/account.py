@@ -6,6 +6,7 @@ from enum import Enum
 class AccountRole(str, Enum):
     owner = "owner"
     member = "member"
+    admin = "admin"
 
 class AccountGender(str, Enum):
     male = "male"
