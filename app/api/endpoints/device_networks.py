@@ -15,7 +15,6 @@ from app.crud.device_network import (
     update_device_network_by_type,
     delete_device_network,
     delete_device_network_by_type,
-    delete_device_networks_by_device,
 )
 from app.crud.device import get_device
 from app.models.device_network import (
@@ -58,14 +57,10 @@ async def get_device_network_detail(network_id: int, db: AsyncSession = Depends(
     return network
 
 
-@router.get("/device/{device_id}/type/{net_type}", response_model=DeviceNetworkInDB)
-async def get_device_network_by_device_and_type(
-    device_id: int, 
-    net_type: NetworkType, 
-    db: AsyncSession = Depends(get_db)
-):
-    """根据设备ID和网络类型获取网络信息"""
-    network = await get_device_network_by_type(db, device_id, net_type)
+@router.get("/device/{device_id}", response_model=DeviceNetworkInDB)
+async def get_device_network_by_device(device_id: int, db: AsyncSession = Depends(get_db)):
+    """根据设备ID获取网络信息（设备与网络一对一）。"""
+    network = await get_device_network_by_type(db, device_id, None)
     if not network:
         raise HTTPException(status_code=404, detail="设备网络信息不存在")
     return network
@@ -119,15 +114,14 @@ async def update_device_network_item(network_id: int, payload: DeviceNetworkUpda
     return updated
 
 
-@router.put("/device/{device_id}/type/{net_type}", response_model=DeviceNetworkInDB)
-async def update_device_network_by_device_and_type(
-    device_id: int, 
-    net_type: NetworkType, 
-    payload: DeviceNetworkUpdate, 
+@router.put("/device/{device_id}", response_model=DeviceNetworkInDB)
+async def update_device_network_by_device(
+    device_id: int,
+    payload: DeviceNetworkUpdate,
     db: AsyncSession = Depends(get_db)
 ):
-    """根据设备ID和网络类型更新网络信息"""
-    updated = await update_device_network_by_type(db, device_id, net_type, payload)
+    """根据设备ID更新网络信息（设备与网络一对一）。"""
+    updated = await update_device_network_by_type(db, device_id, "", payload)
     if not updated:
         raise HTTPException(status_code=404, detail="设备网络信息不存在")
     return updated
@@ -142,21 +136,16 @@ async def delete_device_network_item(network_id: int, db: AsyncSession = Depends
     return {"message": "删除成功"}
 
 
-@router.delete("/device/{device_id}/type/{net_type}")
-async def delete_device_network_by_device_and_type(
-    device_id: int, 
-    net_type: NetworkType, 
+@router.delete("/device/{device_id}")
+async def delete_device_network_by_device(
+    device_id: int,
     db: AsyncSession = Depends(get_db)
 ):
-    """根据设备ID和网络类型删除网络信息"""
-    ok = await delete_device_network_by_type(db, device_id, net_type)
+    """根据设备ID删除网络信息（设备与网络一对一）。"""
+    ok = await delete_device_network_by_type(db, device_id, "")
     if not ok:
         raise HTTPException(status_code=404, detail="设备网络信息不存在")
     return {"message": "删除成功"}
 
 
-@router.delete("/device/{device_id}/all")
-async def delete_all_device_networks(device_id: int, db: AsyncSession = Depends(get_db)):
-    """删除设备的所有网络信息"""
-    count = await delete_device_networks_by_device(db, device_id)
-    return {"message": f"成功删除 {count} 条网络信息记录"}
+# 按设备一对一关系，不再提供删除所有网络信息的批量接口
