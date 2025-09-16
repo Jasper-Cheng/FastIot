@@ -12,9 +12,7 @@ from app.crud.device_network import (
     get_device_network,
     create_device_network,
     update_device_network,
-    update_device_network_by_type,
     delete_device_network,
-    delete_device_network_by_type,
 )
 from app.crud.device import get_device
 from app.models.device_network import (
@@ -22,7 +20,6 @@ from app.models.device_network import (
     DeviceNetworkUpdate,
     DeviceNetworkInDB,
     NetworkType,
-    ConnectState,
 )
 
 router = APIRouter()
@@ -114,19 +111,6 @@ async def update_device_network_item(network_id: int, payload: DeviceNetworkUpda
     return updated
 
 
-@router.put("/device/{device_id}", response_model=DeviceNetworkInDB)
-async def update_device_network_by_device(
-    device_id: int,
-    payload: DeviceNetworkUpdate,
-    db: AsyncSession = Depends(get_db)
-):
-    """根据设备ID更新网络信息（设备与网络一对一）。"""
-    updated = await update_device_network_by_type(db, device_id, "", payload)
-    if not updated:
-        raise HTTPException(status_code=404, detail="设备网络信息不存在")
-    return updated
-
-
 @router.delete("/{network_id}")
 async def delete_device_network_item(network_id: int, db: AsyncSession = Depends(get_db)):
     """删除设备网络信息"""
@@ -134,18 +118,3 @@ async def delete_device_network_item(network_id: int, db: AsyncSession = Depends
     if not ok:
         raise HTTPException(status_code=404, detail="设备网络信息不存在")
     return {"message": "删除成功"}
-
-
-@router.delete("/device/{device_id}")
-async def delete_device_network_by_device(
-    device_id: int,
-    db: AsyncSession = Depends(get_db)
-):
-    """根据设备ID删除网络信息（设备与网络一对一）。"""
-    ok = await delete_device_network_by_type(db, device_id, "")
-    if not ok:
-        raise HTTPException(status_code=404, detail="设备网络信息不存在")
-    return {"message": "删除成功"}
-
-
-# 按设备一对一关系，不再提供删除所有网络信息的批量接口

@@ -9,14 +9,11 @@ from app.crud.device_log import (
     get_device_logs_by_device,
     get_device_logs_by_event_type,
     create_device_log,
-    update_device_log,
-    delete_device_log,
 )
 from app.db.models.device_log import DeviceLog
 from app.crud.device import get_device
 from app.models.device_log import (
     DeviceLogCreate,
-    DeviceLogUpdate,
     DeviceLogInDB,
 )
 
@@ -81,34 +78,6 @@ async def create_device_log_item(payload: DeviceLogCreate, db: AsyncSession = De
         raise HTTPException(status_code=400, detail="设备不存在")
     
     return await create_device_log(db, payload)
-
-
-@router.put("/{log_id}", response_model=DeviceLogInDB)
-async def update_device_log_item(log_id: int, payload: DeviceLogUpdate, db: AsyncSession = Depends(get_db)):
-    """更新设备日志
-    
-    示例请求体：
-    {
-      "event_type": "power_off",
-      "params": {
-        "reason": "manual_shutdown",
-        "duration": 3600
-      }
-    }
-    """
-    updated = await update_device_log(db, log_id, payload)
-    if not updated:
-        raise HTTPException(status_code=404, detail="设备日志不存在")
-    return updated
-
-
-@router.delete("/{log_id}")
-async def delete_device_log_item(log_id: int, db: AsyncSession = Depends(get_db)):
-    """删除设备日志"""
-    ok = await delete_device_log(db, log_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="设备日志不存在")
-    return {"message": "删除成功"}
 
 
 @router.get("/device/{device_id}/events", response_model=List[str])
