@@ -56,11 +56,11 @@ CREATE TABLE IF NOT EXISTS `device_model` (
 -- 设备表：具体的物联网设备实例
 CREATE TABLE IF NOT EXISTS `device` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '设备ID',
-    `user_id` BIGINT NOT NULL COMMENT '所属用户ID',
+    `user_id` BIGINT NULL COMMENT '所属用户ID',
     `model_id` BIGINT NOT NULL COMMENT '设备型号ID',
     `name` VARCHAR(100) NOT NULL COMMENT '设备名称',
     `sn` VARCHAR(100) UNIQUE NOT NULL COMMENT '设备序列号',
-    `status` ENUM('online','offline') DEFAULT 'offline' COMMENT '设备状态',
+    `status` ENUM('unconfigured','unbound','bound','online','offline','upgrading','fault') DEFAULT 'unconfigured' COMMENT '设备状态',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`model_id`) REFERENCES `device_model`(`id`)

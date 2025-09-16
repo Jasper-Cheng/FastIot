@@ -7,11 +7,11 @@ class Device(Base):
     __tablename__ = "device"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=True, index=True)
     model_id = Column(BigInteger, ForeignKey("device_model.id"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     sn = Column(String(100), unique=True, index=True, nullable=False)
-    status = Column(Enum('online', 'offline', name='device_status'), default='offline')
+    status = Column(Enum('unconfigured', 'unbound', 'bound', 'online', 'offline', 'upgrading', 'fault', name='device_status'), default='unconfigured')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # 关系

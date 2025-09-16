@@ -42,10 +42,11 @@ async def get_device_detail(device_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/", response_model=DeviceInDB)
 async def create_device_item(payload: DeviceCreate, db: AsyncSession = Depends(get_db)):
-    # 验证 user 存在
-    owner = await get_user(db, payload.user_id)
-    if not owner:
-        raise HTTPException(status_code=400, detail="归属的用户不存在")
+    # 验证 user 存在（如果提供了 user_id）
+    if payload.user_id is not None:
+        owner = await get_user(db, payload.user_id)
+        if not owner:
+            raise HTTPException(status_code=400, detail="归属的用户不存在")
     # 验证 device_model 存在
     model = await get_device_model(db, payload.model_id)
     if not model:

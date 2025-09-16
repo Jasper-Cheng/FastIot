@@ -193,6 +193,20 @@ async def create_devices(session: AsyncSession, users, device_models):
     print("创建设备...")
     devices = []
     
+    # 创建一些未绑定的设备（user_id=None）
+    unbound_count = 5
+    for i in range(unbound_count):
+        device = Device(
+            user_id=None,
+            model_id=random.choice(device_models).id,
+            name=f"未绑定设备{i+1}",
+            sn=f"UNBOUND{i+1:03d}",
+            status=random.choice(['unconfigured', 'unbound'])
+        )
+        session.add(device)
+        devices.append(device)
+    
+    # 为每个用户创建设备
     for user in users:
         # 每个用户创建3-5个设备
         num_devices = random.randint(3, 5)
@@ -202,7 +216,7 @@ async def create_devices(session: AsyncSession, users, device_models):
                 model_id=random.choice(device_models).id,
                 name=f"设备{i+1}",
                 sn=f"SN{user.id:03d}{i+1:03d}",
-                status=random.choice(['online', 'offline'])
+                status=random.choice(['bound', 'online', 'offline', 'upgrading', 'fault'])
             )
             session.add(device)
             devices.append(device)
@@ -214,26 +228,28 @@ async def create_room_devices(session: AsyncSession, rooms, devices):
     """创建房间设备关联"""
     print("创建房间设备关联...")
     
-    # 将设备随机分配到房间
+    # 将设备随机分配到房间（只处理已绑定用户的设备）
     for device in devices:
-        # 找到该用户的所有房间
-        user_rooms = [room for room in rooms if room.user_id == device.user_id]
-        if user_rooms:
-            room = random.choice(user_rooms)
-            room_device = RoomDevice(
-                room_id=room.id,
-                device_id=device.id,
-                sort_order=random.randint(0, 10)
-            )
-            session.add(room_device)
+        # 只处理已绑定用户的设备
+        if device.user_id is not None:
+            # 找到该用户的所有房间
+            user_rooms = [room for room in rooms if room.user_id == device.user_id]
+            if user_rooms:
+                room = random.choice(user_rooms)
+                room_device = RoomDevice(
+                    room_id=room.id,
+                    device_id=device.id,
+                    sort_order=random.randint(0, 10)
+                )
+                session.add(room_device)
 
 async def create_member_device_permissions(session: AsyncSession, members, devices):
     """创建成员设备权限"""
     print("创建成员设备权限...")
     
     for member in members:
-        # 为每个成员随机分配一些设备的控制权限
-        user_devices = [device for device in devices if device.user_id == member.user_id]
+        # 为每个成员随机分配一些设备的控制权限（只处理已绑定用户的设备）
+        user_devices = [device for device in devices if device.user_id == member.user_id and device.user_id is not None]
         if user_devices:
             # 随机选择1-3个设备给成员权限
             num_devices = random.randint(1, min(3, len(user_devices)))

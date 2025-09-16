@@ -4,16 +4,21 @@ from datetime import datetime
 from enum import Enum
 
 class DeviceStatus(str, Enum):
-    online = "online"
-    offline = "offline"
+    unconfigured = "unconfigured"  # 未配网
+    unbound = "unbound"            # 未绑定
+    bound = "bound"                # 已绑定
+    online = "online"              # 在线
+    offline = "offline"            # 离线
+    upgrading = "upgrading"        # 升级中
+    fault = "fault"                # 故障
 
 class DeviceBase(BaseModel):
     name: str
     sn: str
-    status: DeviceStatus = DeviceStatus.offline
+    status: DeviceStatus = DeviceStatus.unconfigured
 
 class DeviceCreate(DeviceBase):
-    user_id: int
+    user_id: Optional[int] = None
     model_id: int
 
 class DeviceUpdate(BaseModel):
@@ -23,7 +28,7 @@ class DeviceUpdate(BaseModel):
 
 class DeviceInDB(DeviceBase):
     id: int
-    user_id: int
+    user_id: Optional[int] = None
     model_id: int
     created_at: datetime
 
