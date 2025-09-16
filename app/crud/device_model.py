@@ -26,8 +26,10 @@ async def get_device_models_by_vendor(db: AsyncSession, vendor: str, skip: int =
 async def create_device_model(db: AsyncSession, model: DeviceModelCreate) -> DeviceModel:
     """创建设备型号"""
     db_model = DeviceModel(
-        model_name=model.model_name,
+        model_code=model.model_code,
+        name=model.name,
         vendor=model.vendor,
+        thing_model_id=model.thing_model_id,
         params=model.params
     )
     db.add(db_model)

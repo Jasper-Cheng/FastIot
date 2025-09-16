@@ -10,6 +10,7 @@ from app.db.models.user import User
 from app.db.models.member import Member
 from app.db.models.room import Room
 from app.db.models.device import Device
+from app.db.models.thing_model import ThingModel
 from app.db.models.device_model import DeviceModel
 from app.db.models.device_param import DeviceParam
 from app.db.models.device_log import DeviceLog
@@ -49,25 +50,28 @@ async def insert_initial_data(session: AsyncSession) -> None:
         # 4. 创建房间
         rooms = await create_rooms(session, users)
         
-        # 5. 创建设备型号
-        device_models = await create_device_models(session)
+        # 5. 创建物模型
+        thing_models = await create_thing_models(session)
         
-        # 6. 创建设备
+        # 6. 创建设备型号
+        device_models = await create_device_models(session, thing_models)
+        
+        # 7. 创建设备
         devices = await create_devices(session, users, device_models)
         
-        # 7. 创建房间设备关联
+        # 8. 创建房间设备关联
         await create_room_devices(session, rooms, devices)
         
-        # 8. 创建成员设备权限
+        # 9. 创建成员设备权限
         await create_member_device_permissions(session, members, devices)
         
-        # 9. 创建设备参数
+        # 10. 创建设备参数
         await create_device_params(session, devices)
         
-        # 10. 创建设备日志
+        # 11. 创建设备日志
         await create_device_logs(session, devices)
         
-        # 11. 创建告警
+        # 12. 创建告警
         await create_alerts(session, devices)
         
         await session.commit()
@@ -160,26 +164,115 @@ async def create_rooms(session: AsyncSession, users):
     await session.flush()
     return rooms
 
-async def create_device_models(session: AsyncSession):
+async def create_thing_models(session: AsyncSession):
+    """创建物模型"""
+    print("创建物模型...")
+    thing_models = []
+    
+    thing_models_data = [
+        ("温度传感器物模型", "基础温度传感器功能定义", 
+         {"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85}},
+         ["read_temperature", "calibrate"],
+         ["temperature_alert", "sensor_fault"]),
+        ("湿度传感器物模型", "基础湿度传感器功能定义",
+         {"humidity": {"type": "float", "unit": "%", "min": 0, "max": 100}},
+         ["read_humidity", "calibrate"],
+         ["humidity_alert", "sensor_fault"]),
+        ("智能开关物模型", "智能开关功能定义",
+         {"power": {"type": "boolean", "unit": "on/off"}},
+         ["toggle", "reset"],
+         ["power_fault", "overload"]),
+        ("智能灯泡物模型", "智能灯泡功能定义",
+         {"brightness": {"type": "int", "unit": "%", "min": 0, "max": 100}, "color": {"type": "string", "unit": "hex"}},
+         ["set_brightness", "set_color", "toggle"],
+         ["bulb_fault", "overheating"]),
+        ("烟雾报警器物模型", "烟雾报警器功能定义",
+         {"smoke_level": {"type": "float", "unit": "ppm", "min": 0, "max": 1000}},
+         ["test_alarm", "reset"],
+         ["smoke_detected", "low_battery", "sensor_fault"]),
+        ("门锁物模型", "智能门锁功能定义",
+         {"locked": {"type": "boolean", "unit": "locked/unlocked"}},
+         ["lock", "unlock", "reset"],
+         ["lock_fault", "low_battery", "tamper_detected"]),
+        ("摄像头物模型", "智能摄像头功能定义",
+         {"recording": {"type": "boolean", "unit": "on/off"}, "motion_detected": {"type": "boolean", "unit": "yes/no"}},
+         ["start_recording", "stop_recording", "take_photo"],
+         ["motion_detected", "storage_full", "camera_fault"]),
+        ("空气质量监测器物模型", "空气质量监测器功能定义",
+         {"pm25": {"type": "float", "unit": "μg/m³", "min": 0, "max": 500}, "co2": {"type": "float", "unit": "ppm", "min": 300, "max": 5000}},
+         ["read_air_quality", "calibrate"],
+         ["air_quality_alert", "sensor_fault", "data_anomaly"])
+    ]
+    
+    for name, description, properties, services, events in thing_models_data:
+        thing_model = ThingModel(
+            name=name,
+            description=description,
+            properties=properties,
+            services=services,
+            events=events
+        )
+        session.add(thing_model)
+        thing_models.append(thing_model)
+    
+    await session.flush()
+    return thing_models
+
+async def create_device_models(session: AsyncSession, thing_models):
     """创建设备型号"""
     print("创建设备型号...")
     device_models = []
     
     models_data = [
-        ("温度传感器", "IoT Corp", {"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85}}),
-        ("湿度传感器", "IoT Corp", {"humidity": {"type": "float", "unit": "%", "min": 0, "max": 100}}),
-        ("智能开关", "SmartHome Inc", {"power": {"type": "boolean", "unit": "on/off"}}),
-        ("智能灯泡", "LightTech", {"brightness": {"type": "int", "unit": "%", "min": 0, "max": 100}, "color": {"type": "string", "unit": "hex"}}),
-        ("烟雾报警器", "SafetyFirst", {"smoke_level": {"type": "float", "unit": "ppm", "min": 0, "max": 1000}}),
-        ("门锁", "SecureLock", {"locked": {"type": "boolean", "unit": "locked/unlocked"}}),
-        ("摄像头", "VisionCam", {"recording": {"type": "boolean", "unit": "on/off"}, "motion_detected": {"type": "boolean", "unit": "yes/no"}}),
-        ("空气质量监测器", "AirQuality", {"pm25": {"type": "float", "unit": "μg/m³", "min": 0, "max": 500}, "co2": {"type": "float", "unit": "ppm", "min": 300, "max": 5000}})
+        ("TEMP001", "温度传感器", "IoT Corp", 0, {
+            "temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1, "default": 20}
+        }),
+        ("HUM001", "湿度传感器", "IoT Corp", 1, {
+            "humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1, "default": 50}
+        }),
+        ("SWITCH001", "智能开关", "SmartHome Inc", 2, {
+            "power": {"type": "boolean", "unit": "on/off", "default": False},
+            "voltage": {"type": "float", "unit": "V", "min": 0, "max": 250, "precision": 1},
+            "current": {"type": "float", "unit": "A", "min": 0, "max": 16, "precision": 2}
+        }),
+        ("BULB001", "智能灯泡", "LightTech", 3, {
+            "brightness": {"type": "int", "unit": "%", "min": 0, "max": 100, "default": 50},
+            "color": {"type": "string", "unit": "hex", "default": "#FFFFFF"},
+            "color_temp": {"type": "int", "unit": "K", "min": 2700, "max": 6500, "default": 4000}
+        }),
+        ("SMOKE001", "烟雾报警器", "SafetyFirst", 4, {
+            "smoke_level": {"type": "float", "unit": "ppm", "min": 0, "max": 1000, "precision": 1},
+            "battery_level": {"type": "int", "unit": "%", "min": 0, "max": 100},
+            "test_mode": {"type": "boolean", "unit": "on/off", "default": False}
+        }),
+        ("LOCK001", "智能门锁", "SecureLock", 5, {
+            "locked": {"type": "boolean", "unit": "locked/unlocked", "default": True},
+            "battery_level": {"type": "int", "unit": "%", "min": 0, "max": 100},
+            "auto_lock": {"type": "boolean", "unit": "enabled/disabled", "default": True},
+            "auto_lock_delay": {"type": "int", "unit": "seconds", "min": 30, "max": 300, "default": 60}
+        }),
+        ("CAM001", "智能摄像头", "VisionCam", 6, {
+            "recording": {"type": "boolean", "unit": "on/off", "default": False},
+            "motion_detected": {"type": "boolean", "unit": "yes/no", "default": False},
+            "night_vision": {"type": "boolean", "unit": "on/off", "default": True},
+            "resolution": {"type": "string", "unit": "pixels", "default": "1920x1080"},
+            "storage_used": {"type": "float", "unit": "GB", "min": 0, "max": 1000, "precision": 2}
+        }),
+        ("AIR001", "空气质量监测器", "AirQuality", 7, {
+            "pm25": {"type": "float", "unit": "μg/m³", "min": 0, "max": 500, "precision": 1},
+            "co2": {"type": "float", "unit": "ppm", "min": 300, "max": 5000, "precision": 0},
+            "tvoc": {"type": "float", "unit": "ppb", "min": 0, "max": 1000, "precision": 1},
+            "temperature": {"type": "float", "unit": "°C", "min": -10, "max": 60, "precision": 1},
+            "humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1}
+        })
     ]
     
-    for model_name, vendor, params in models_data:
+    for model_code, name, vendor, thing_model_index, params in models_data:
         device_model = DeviceModel(
-            model_name=model_name,
+            model_code=model_code,
+            name=name,
             vendor=vendor,
+            thing_model_id=thing_models[thing_model_index].id,
             params=params
         )
         session.add(device_model)

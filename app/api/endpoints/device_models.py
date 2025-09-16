@@ -12,6 +12,7 @@ from app.crud.device_model import (
     update_device_model,
     delete_device_model,
 )
+from app.crud.thing_model import get_thing_model
 from app.models.device_model import (
     DeviceModelCreate,
     DeviceModelUpdate,
@@ -44,6 +45,21 @@ async def get_device_model_detail(model_id: int, db: AsyncSession = Depends(get_
 
 @router.post("/", response_model=DeviceModelInDB)
 async def create_device_model_item(payload: DeviceModelCreate, db: AsyncSession = Depends(get_db)):
+    """创建设备型号
+    
+    示例请求体：
+    {
+      "model_code": "SN01",
+      "name": "插座1000W",
+      "vendor": "SmartHome Inc",
+      "thing_model_id": 1
+    }
+    """
+    # 验证物模型存在
+    thing_model = await get_thing_model(db, payload.thing_model_id)
+    if not thing_model:
+        raise HTTPException(status_code=400, detail="物模型不存在")
+    
     return await create_device_model(db, payload)
 
 

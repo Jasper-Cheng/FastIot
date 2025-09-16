@@ -3,16 +3,20 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 
 class DeviceModelBase(BaseModel):
-    model_name: str
+    model_code: str
+    name: str
     vendor: Optional[str] = None
+    thing_model_id: int
     params: Dict[str, Any]
 
 class DeviceModelCreate(DeviceModelBase):
     pass
 
 class DeviceModelUpdate(BaseModel):
-    model_name: Optional[str] = None
+    model_code: Optional[str] = None
+    name: Optional[str] = None
     vendor: Optional[str] = None
+    thing_model_id: Optional[int] = None
     params: Optional[Dict[str, Any]] = None
 
 class DeviceModelInDB(DeviceModelBase):

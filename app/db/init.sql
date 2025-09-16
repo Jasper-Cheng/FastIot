@@ -44,13 +44,27 @@ CREATE TABLE IF NOT EXISTS `room` (
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='房间表';
 
--- 设备型号表：定义设备类型和参数规范
+-- 物模型表：定义设备功能能力（属性/服务/事件）
+CREATE TABLE IF NOT EXISTS `thing_model` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '物模型ID',
+    `name` VARCHAR(100) NOT NULL COMMENT '物模型名称',
+    `description` VARCHAR(500) COMMENT '物模型描述',
+    `properties` JSON NOT NULL COMMENT '属性定义JSON',
+    `services` JSON NOT NULL COMMENT '服务定义JSON',
+    `events` JSON NOT NULL COMMENT '事件定义JSON',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='物模型表';
+
+-- 设备型号表：具体型号，关联物模型
 CREATE TABLE IF NOT EXISTS `device_model` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '设备型号ID',
-    `model_name` VARCHAR(100) NOT NULL COMMENT '型号名称',
+    `model_code` VARCHAR(50) NOT NULL UNIQUE COMMENT '型号代码',
+    `name` VARCHAR(100) NOT NULL COMMENT '型号名称',
     `vendor` VARCHAR(100) COMMENT '厂商',
-    `params` JSON NOT NULL COMMENT '参数定义JSON',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+    `thing_model_id` BIGINT NOT NULL COMMENT '物模型ID',
+    `params` JSON NOT NULL COMMENT '该型号设备的完整参数定义',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    FOREIGN KEY (`thing_model_id`) REFERENCES `thing_model`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备型号表';
 
 -- 设备表：具体的物联网设备实例
@@ -127,13 +141,30 @@ INSERT INTO `user` (`account_id`)
 SELECT `id` FROM `account` WHERE `account` = 'admin' AND `role` = 'owner'
 ON DUPLICATE KEY UPDATE `account_id` = `account_id`;
 
--- 插入示例设备型号
-INSERT INTO `device_model` (`model_name`, `vendor`, `params`) 
+-- 插入示例物模型
+INSERT INTO `thing_model` (`name`, `description`, `properties`, `services`, `events`) 
 VALUES 
-('温度传感器', 'IoT Corp', '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85}}'),
-('湿度传感器', 'IoT Corp', '{"humidity": {"type": "float", "unit": "%", "min": 0, "max": 100}}'),
-('环境监测器', 'Smart Devices', '{"temperature": {"type": "float", "unit": "°C"}, "humidity": {"type": "float", "unit": "%"}, "pressure": {"type": "float", "unit": "hPa"}}')
-ON DUPLICATE KEY UPDATE `model_name` = VALUES(`model_name`);
+('温度传感器物模型', '基础温度传感器功能定义', 
+ '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85}}',
+ '["read_temperature", "calibrate"]',
+ '["temperature_alert", "sensor_fault"]'),
+('湿度传感器物模型', '基础湿度传感器功能定义',
+ '{"humidity": {"type": "float", "unit": "%", "min": 0, "max": 100}}',
+ '["read_humidity", "calibrate"]',
+ '["humidity_alert", "sensor_fault"]'),
+('环境监测器物模型', '多功能环境监测设备功能定义',
+ '{"temperature": {"type": "float", "unit": "°C"}, "humidity": {"type": "float", "unit": "%"}, "pressure": {"type": "float", "unit": "hPa"}}',
+ '["read_all", "calibrate", "reset"]',
+ '["environment_alert", "sensor_fault", "data_anomaly"]')
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+
+-- 插入示例设备型号
+INSERT INTO `device_model` (`model_code`, `name`, `vendor`, `thing_model_id`, `params`) 
+VALUES 
+('TEMP001', '温度传感器', 'IoT Corp', 1, '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1, "default": 20}}'),
+('HUM001', '湿度传感器', 'IoT Corp', 2, '{"humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1, "default": 50}}'),
+('ENV001', '环境监测器', 'Smart Devices', 3, '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1}, "humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1}, "pressure": {"type": "float", "unit": "hPa", "min": 800, "max": 1200, "precision": 1}}')
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- 插入示例设备
 INSERT INTO `device` (`user_id`, `model_id`, `name`, `sn`, `status`) 
