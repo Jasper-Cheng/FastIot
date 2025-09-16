@@ -182,3 +182,53 @@ async def activate_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depend
     return device
 
 
+@router.post("/{device_id}/unbind", response_model=DeviceInDB)
+async def unbind_device(device_id: int, db: AsyncSession = Depends(get_db)):
+    """解绑设备，将设备从用户中移除
+    
+    - device_id: 设备ID
+    """
+    # 验证设备存在
+    device = await get_device(db, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    
+    # 检查设备是否已绑定
+    if device.user_id is None:
+        raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
+    
+    # 解绑设备：清除用户ID并更新状态
+    device.user_id = None
+    device.status = 'unbound'  # 解绑后状态变为未绑定
+    
+    await db.commit()
+    await db.refresh(device)
+    
+    return device
+
+
+@router.post("/unbind-by-sn", response_model=DeviceInDB)
+async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
+    """通过序列号解绑设备，将设备从用户中移除
+    
+    - sn: 设备序列号
+    """
+    # 通过序列号查找设备
+    device = await get_device_by_sn(db, sn)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    
+    # 检查设备是否已绑定
+    if device.user_id is None:
+        raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
+    
+    # 解绑设备：清除用户ID并更新状态
+    device.user_id = None
+    device.status = 'unbound'  # 解绑后状态变为未绑定
+    
+    await db.commit()
+    await db.refresh(device)
+    
+    return device
+
+
