@@ -19,6 +19,7 @@ from app.models.device_model import (
     DeviceModelInDB,
 )
 from app.db.models.device import Device
+from app.db.models.device_model import DeviceModel
 
 router = APIRouter()
 
@@ -52,7 +53,11 @@ async def create_device_model_item(payload: DeviceModelCreate, db: AsyncSession 
       "model_code": "SN01",
       "name": "插座1000W",
       "vendor": "SmartHome Inc",
-      "thing_model_id": 1
+      "thing_model_id": 1,
+      "params": {
+        "power": {"type": "boolean", "unit": "on/off", "default": false},
+        "voltage": {"type": "float", "unit": "V", "min": 0, "max": 250, "precision": 1}
+      }
     }
     """
     # 验证物模型存在
@@ -60,11 +65,44 @@ async def create_device_model_item(payload: DeviceModelCreate, db: AsyncSession 
     if not thing_model:
         raise HTTPException(status_code=400, detail="物模型不存在")
     
+    # 验证型号代码唯一性
+    existing_model = await db.execute(select(DeviceModel).filter(DeviceModel.model_code == payload.model_code))
+    if existing_model.first() is not None:
+        raise HTTPException(status_code=400, detail="型号代码已存在")
+    
     return await create_device_model(db, payload)
 
 
 @router.put("/{model_id}", response_model=DeviceModelInDB)
 async def update_device_model_item(model_id: int, payload: DeviceModelUpdate, db: AsyncSession = Depends(get_db)):
+    """更新设备型号
+    
+    示例请求体：
+    {
+      "model_code": "SN01",
+      "name": "插座1000W",
+      "vendor": "SmartHome Inc",
+      "thing_model_id": 1,
+      "params": {"power": {"type": "boolean", "unit": "on/off"}}
+    }
+    """
+    # 如果提供了thing_model_id，验证物模型存在
+    if payload.thing_model_id is not None:
+        thing_model = await get_thing_model(db, payload.thing_model_id)
+        if not thing_model:
+            raise HTTPException(status_code=400, detail="物模型不存在")
+    
+    # 如果提供了model_code，验证唯一性（排除当前记录）
+    if payload.model_code is not None:
+        existing_model = await db.execute(
+            select(DeviceModel).filter(
+                DeviceModel.model_code == payload.model_code,
+                DeviceModel.id != model_id
+            )
+        )
+        if existing_model.first() is not None:
+            raise HTTPException(status_code=400, detail="型号代码已存在")
+    
     updated = await update_device_model(db, model_id, payload)
     if not updated:
         raise HTTPException(status_code=404, detail="设备型号不存在")
