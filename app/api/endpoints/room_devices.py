@@ -48,7 +48,7 @@ async def list_by_device(device_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=RoomDeviceInDB)
-async def create_relation(payload: RoomDeviceCreate, db: AsyncSession = Depends(get_db)):
+async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = Depends(get_db)):
     # 验证房间和设备存在
     room = await get_room(db, payload.room_id)
     if not room:
@@ -59,19 +59,19 @@ async def create_relation(payload: RoomDeviceCreate, db: AsyncSession = Depends(
     return await create_room_device(db, payload)
 
 
-@router.put("/relation/{relation_id}", response_model=RoomDeviceInDB)
-async def update_relation(relation_id: int, payload: RoomDeviceUpdate, db: AsyncSession = Depends(get_db)):
-    updated = await update_room_device(db, relation_id, payload)
+@router.put("/{id}", response_model=RoomDeviceInDB)
+async def update_room_device_item(id: int, payload: RoomDeviceUpdate, db: AsyncSession = Depends(get_db)):
+    updated = await update_room_device(db, id, payload)
     if not updated:
-        raise HTTPException(status_code=404, detail="关系不存在")
+        raise HTTPException(status_code=404, detail="记录不存在")
     return updated
 
 
-@router.delete("/relation/{relation_id}")
-async def delete_relation(relation_id: int, db: AsyncSession = Depends(get_db)):
-    ok = await delete_room_device(db, relation_id)
+@router.delete("/{id}")
+async def delete_room_device_item(id: int, db: AsyncSession = Depends(get_db)):
+    ok = await delete_room_device(db, id)
     if not ok:
-        raise HTTPException(status_code=404, detail="关系不存在")
+        raise HTTPException(status_code=404, detail="记录不存在")
     return {"message": "删除成功"}
 
 
@@ -96,18 +96,18 @@ async def batch_update_sort(payload: RoomDeviceBatchSort, db: AsyncSession = Dep
             RoomDeviceORM.device_id.in_(device_ids)
         )
     )
-    relations_by_device = {rd.device_id: rd for rd in result.scalars().all()}
+    room_devices_by_device = {rd.device_id: rd for rd in result.scalars().all()}
 
-    if len(relations_by_device) != len(device_ids):
-        raise HTTPException(status_code=400, detail="存在不属于该房间或不存在的设备关系")
+    if len(room_devices_by_device) != len(device_ids):
+        raise HTTPException(status_code=400, detail="存在不属于该房间或不存在的房间设备记录")
 
     for item in payload.orders:
-        rd = relations_by_device[item.device_id]
+        rd = room_devices_by_device[item.device_id]
         rd.sort_order = item.sort_order
 
     await db.commit()
 
-    # 返回更新后的房间关系（按排序）
+    # 返回更新后的房间设备（按排序）
     return await get_room_devices_by_room(db, payload.room_id)
 
 
