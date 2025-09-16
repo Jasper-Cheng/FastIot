@@ -59,3 +59,13 @@ async def update_or_create_device_param(db: AsyncSession, device_id: int, params
         await db.commit()
         await db.refresh(new_param)
         return new_param
+
+async def delete_device_param(db: AsyncSession, param_id: int) -> bool:
+    """删除设备参数"""
+    db_param = await get_device_param(db, param_id)
+    if not db_param:
+        return False
+    
+    await db.delete(db_param)
+    await db.commit()
+    return True
