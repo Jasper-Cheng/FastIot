@@ -114,7 +114,6 @@ CREATE TABLE IF NOT EXISTS `member_device_permission` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '权限ID',
     `member_id` BIGINT NOT NULL COMMENT '成员ID',
     `device_id` BIGINT NOT NULL COMMENT '设备ID',
-    `can_control` TINYINT(1) DEFAULT 0 COMMENT '是否可控制设备(0=否,1=是)',
     FOREIGN KEY (`member_id`) REFERENCES `member`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE,
     UNIQUE(`member_id`, `device_id`)

@@ -353,12 +353,13 @@ async def create_member_device_permissions(session: AsyncSession, members, devic
             selected_devices = random.sample(user_devices, num_devices)
             
             for device in selected_devices:
-                permission = MemberDevicePermission(
-                    member_id=member.id,
-                    device_id=device.id,
-                    can_control=random.choice([0, 1])
-                )
-                session.add(permission)
+                # 仅为部分设备创建权限记录（存在即有权限，无字段）
+                if random.choice([True, False]):
+                    permission = MemberDevicePermission(
+                        member_id=member.id,
+                        device_id=device.id
+                    )
+                    session.add(permission)
 
 async def create_device_params(session: AsyncSession, devices):
     """创建设备参数"""

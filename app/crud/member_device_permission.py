@@ -43,8 +43,7 @@ async def create_member_device_permission(db: AsyncSession, permission: MemberDe
     """创建成员设备权限"""
     db_permission = MemberDevicePermission(
         member_id=permission.member_id,
-        device_id=permission.device_id,
-        can_control=permission.can_control
+        device_id=permission.device_id
     )
     db.add(db_permission)
     await db.commit()
@@ -57,7 +56,7 @@ async def update_member_device_permission(db: AsyncSession, permission_id: int, 
     if not db_permission:
         return None
     
-    update_data = permission.dict(exclude_unset=True)
+    update_data = permission.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_permission, field, value)
     
