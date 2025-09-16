@@ -110,9 +110,9 @@ async def check_alert_permission(
             return True
     elif isinstance(current_user, Member):
         # 成员：检查是否有设备权限
-        from app.crud.member_device_permission import get_member_device_permission
-        permission = await get_member_device_permission(db, current_user.id, device.id)
-        if permission and permission.can_control:
+        from app.crud.member_device_permission import get_permission_by_member_and_device
+        permission = await get_permission_by_member_and_device(db, current_user.id, device.id)
+        if permission:
             return True
     
     return False
@@ -135,9 +135,9 @@ async def check_device_alert_permission(
             return True
     elif isinstance(current_user, Member):
         # 成员：检查是否有设备权限
-        from app.crud.member_device_permission import get_member_device_permission
-        permission = await get_member_device_permission(db, current_user.id, device.id)
-        if permission and permission.can_control:
+        from app.crud.member_device_permission import get_permission_by_member_and_device
+        permission = await get_permission_by_member_and_device(db, current_user.id, device.id)
+        if permission:
             return True
     
     return False
