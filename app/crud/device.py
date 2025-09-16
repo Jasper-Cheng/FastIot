@@ -41,7 +41,7 @@ async def update_device(db: AsyncSession, device_id: int, device: DeviceUpdate) 
     
     update_data = device.dict(exclude_unset=True)
     # 允许更新的字段白名单
-    allowed_fields = {"name", "sn", "status"}
+    allowed_fields = {"name", "sn", "status", "user_id"}
     for field, value in update_data.items():
         if field not in allowed_fields:
             continue
