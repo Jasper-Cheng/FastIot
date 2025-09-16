@@ -22,4 +22,3 @@ class MemberInDB(MemberBase):
 
 class Member(MemberInDB):
     account: Optional[Account] = None
-    user: Optional[dict] = None  # 避免循环导入

@@ -16,7 +16,7 @@ from app.models.account import AccountCreate, AccountRole, AccountGender, Accoun
 router = APIRouter()
 
 
-@router.get("/", response_model=List[MemberInDB])
+@router.get("/", response_model=List[Member], response_model_exclude={"user"})
 async def list_members(
     user_id: int, 
     db: AsyncSession = Depends(get_db), 
@@ -26,7 +26,7 @@ async def list_members(
     return await get_members_by_user(db, user_id=user_id, skip=skip, limit=limit)
 
 
-@router.get("/{member_id}", response_model=MemberInDB)
+@router.get("/{member_id}", response_model=Member, response_model_exclude={"user"})
 async def get_member_detail(
     member_id: int, 
     db: AsyncSession = Depends(get_db),

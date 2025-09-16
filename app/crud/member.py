@@ -1,23 +1,36 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.db.models.member import Member
 from app.models.member import MemberCreate, MemberUpdate
 from typing import Optional, List
 
 async def get_member(db: AsyncSession, member_id: int) -> Optional[Member]:
     """根据ID获取成员"""
-    result = await db.execute(select(Member).filter(Member.id == member_id))
+    result = await db.execute(
+        select(Member)
+        .options(selectinload(Member.account))
+        .filter(Member.id == member_id)
+    )
     return result.scalar_one_or_none()
 
 async def get_member_by_account_id(db: AsyncSession, account_id: int) -> Optional[Member]:
     """根据账号ID获取成员"""
-    result = await db.execute(select(Member).filter(Member.account_id == account_id))
+    result = await db.execute(
+        select(Member)
+        .options(selectinload(Member.account))
+        .filter(Member.account_id == account_id)
+    )
     return result.scalar_one_or_none()
 
 async def get_members_by_user(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Member]:
     """获取用户下的所有成员"""
     result = await db.execute(
-        select(Member).filter(Member.user_id == user_id).offset(skip).limit(limit)
+        select(Member)
+        .options(selectinload(Member.account))
+        .filter(Member.user_id == user_id)
+        .offset(skip)
+        .limit(limit)
     )
     return result.scalars().all()
 

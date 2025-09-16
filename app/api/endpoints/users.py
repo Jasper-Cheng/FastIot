@@ -9,7 +9,7 @@ from app.models.user import User, UserCreate, UserInDB
 router = APIRouter()
 
 
-@router.get("/", response_model=List[UserInDB])
+@router.get("/", response_model=List[User])
 async def list_users(
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0),
@@ -18,7 +18,7 @@ async def list_users(
     return await get_users(db, skip=skip, limit=limit)
 
 
-@router.get("/{user_id}", response_model=UserInDB)
+@router.get("/{user_id}", response_model=User)
 async def get_user_detail(
     user_id: int, 
     db: AsyncSession = Depends(get_db),

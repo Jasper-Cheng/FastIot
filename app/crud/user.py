@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
+from sqlalchemy.orm import selectinload
 from typing import Optional, List
 
 from app.db.models.user import User
@@ -10,17 +11,30 @@ from app.models.user import UserCreate, UserUpdate
 
 async def get_user(db: AsyncSession, user_id: int) -> Optional[User]:
     """根据ID获取用户"""
-    result = await db.execute(select(User).filter(User.id == user_id))
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.account))
+        .filter(User.id == user_id)
+    )
     return result.scalar_one_or_none()
 
 async def get_user_by_account_id(db: AsyncSession, account_id: int) -> Optional[User]:
     """根据账号ID获取用户"""
-    result = await db.execute(select(User).filter(User.account_id == account_id))
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.account))
+        .filter(User.account_id == account_id)
+    )
     return result.scalar_one_or_none()
 
 async def get_users(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[User]:
     """获取用户列表"""
-    result = await db.execute(select(User).offset(skip).limit(limit))
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.account))
+        .offset(skip)
+        .limit(limit)
+    )
     return result.scalars().all()
 
 async def create_user(db: AsyncSession, user: UserCreate) -> User:
