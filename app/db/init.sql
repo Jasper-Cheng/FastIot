@@ -131,6 +131,22 @@ CREATE TABLE IF NOT EXISTS `alert` (
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='告警表';
 
+-- 设备网络信息表：存储设备的实时网络状态
+CREATE TABLE IF NOT EXISTS `device_network` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '自增主键',
+    `device_id` BIGINT NOT NULL COMMENT '关联设备表 device 的 ID，标识具体设备实例',
+    `net_type` VARCHAR(20) NOT NULL COMMENT '网络类型：wifi/ble/cellular/zigbee 等',
+    `name` VARCHAR(128) NULL COMMENT '网络名称：蓝牙信息：存蓝牙广播名称（如 "Xiaomi Light 01"）；Wi-Fi 信息：存 Wi-Fi SSID',
+    `ip` VARCHAR(64) NULL COMMENT '设备 IP 地址，仅 Wi-Fi 或蜂窝网络使用',
+    `mac` VARCHAR(64) NULL COMMENT '设备网络接口 MAC 地址：蓝牙：蓝牙唯一标识；Wi-Fi：设备 Wi-Fi 网卡 MAC',
+    `rssi` INT NULL COMMENT '信号强度：蓝牙：接收信号强度；Wi-Fi：RSSI',
+    `connect_state` TINYINT DEFAULT 0 COMMENT '连接状态：0=断开, 1=连接中, 2=已连接',
+    `extra` JSON NULL COMMENT '扩展字段，用于存储其他网络相关信息：蓝牙：配网模式、固件版本等；Wi-Fi：网关信息、是否 2.4G/5G 等',
+    `last_update` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后一次更新时间',
+    FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE,
+    UNIQUE KEY `uq_device_network_type` (`device_id`, `net_type`) COMMENT '保证同一设备同一网络类型只有一条最新记录'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备网络信息表，存储设备的实时网络状态，可支持 Wi-Fi / 蓝牙 / 蜂窝 / Zigbee 等类型';
+
 -- 插入默认账号和用户（密码: admin123）
 INSERT INTO `account` (`account`, `password_hash`, `name`, `email`, `role`) 
 VALUES ('admin', 'admin123', '管理员', 'admin@fastiot.com', 'owner')

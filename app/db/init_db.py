@@ -17,6 +17,7 @@ from app.db.models.device_log import DeviceLog
 from app.db.models.alert import Alert
 from app.db.models.room_device import RoomDevice
 from app.db.models.member_device_permission import MemberDevicePermission
+from app.db.models.device_network import DeviceNetwork
 from app.core.security import get_password_hash
 
 async def init_db() -> None:
@@ -73,6 +74,9 @@ async def insert_initial_data(session: AsyncSession) -> None:
         
         # 12. 创建告警
         await create_alerts(session, devices)
+        
+        # 13. 创建设备网络信息
+        await create_device_networks(session, devices)
         
         await session.commit()
         print("测试数据创建完成！")
@@ -424,6 +428,76 @@ async def create_alerts(session: AsyncSession, devices):
                 message=random.choice(alert_messages)
             )
             session.add(alert)
+
+async def create_device_networks(session: AsyncSession, devices):
+    """创建设备网络信息"""
+    print("创建设备网络信息...")
+    
+    network_types = ['wifi', 'ble', 'cellular', 'zigbee']
+    connect_states = [0, 1, 2]  # 断开、连接中、已连接
+    
+    for device in devices:
+        # 为每个设备创建1-3个网络连接
+        num_networks = random.randint(1, 3)
+        selected_types = random.sample(network_types, num_networks)
+        
+        for net_type in selected_types:
+            # 根据网络类型生成不同的数据
+            if net_type == 'wifi':
+                network_data = {
+                    "name": f"WiFi_{random.randint(1, 100)}",
+                    "ip": f"192.168.{random.randint(1, 255)}.{random.randint(1, 255)}",
+                    "mac": f"{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}",
+                    "rssi": random.randint(-80, -20),
+                    "extra": {
+                        "gateway": f"192.168.{random.randint(1, 255)}.1",
+                        "frequency": random.choice(["2.4G", "5G"]),
+                        "channel": random.randint(1, 13)
+                    }
+                }
+            elif net_type == 'ble':
+                network_data = {
+                    "name": f"BLE_Device_{random.randint(1, 100)}",
+                    "mac": f"{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}",
+                    "rssi": random.randint(-100, -30),
+                    "extra": {
+                        "firmware_version": f"v{random.randint(1, 5)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
+                        "battery_level": random.randint(10, 100),
+                        "pairing_mode": random.choice([True, False])
+                    }
+                }
+            elif net_type == 'cellular':
+                network_data = {
+                    "ip": f"{random.randint(10, 172)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}",
+                    "rssi": random.randint(-120, -50),
+                    "extra": {
+                        "carrier": random.choice(["中国移动", "中国联通", "中国电信"]),
+                        "signal_type": random.choice(["4G", "5G", "3G"]),
+                        "data_usage": random.randint(100, 10000)  # MB
+                    }
+                }
+            else:  # zigbee
+                network_data = {
+                    "name": f"Zigbee_Network_{random.randint(1, 10)}",
+                    "rssi": random.randint(-90, -20),
+                    "extra": {
+                        "pan_id": f"0x{random.randint(1000, 9999):04x}",
+                        "channel": random.randint(11, 26),
+                        "coordinator": random.choice([True, False])
+                    }
+                }
+            
+            device_network = DeviceNetwork(
+                device_id=device.id,
+                net_type=net_type,
+                name=network_data.get("name"),
+                ip=network_data.get("ip"),
+                mac=network_data.get("mac"),
+                rssi=network_data.get("rssi"),
+                connect_state=random.choice(connect_states),
+                extra=network_data.get("extra")
+            )
+            session.add(device_network)
 
 if __name__ == "__main__":
     asyncio.run(init_db())
