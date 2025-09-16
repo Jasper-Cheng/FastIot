@@ -16,8 +16,9 @@ from app.models.device_log import (
     DeviceLogCreate,
     DeviceLogInDB,
 )
+from app.api.dependencies import get_current_guard, ensure_owner_or_admin, require_roles
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_roles(["member", "owner", "admin"]))])
 
 
 @router.get("/", response_model=List[DeviceLogInDB])
@@ -28,6 +29,7 @@ async def list_device_logs(
     device_id: Optional[int] = Query(None, description="按设备ID筛选"),
     event_type: Optional[str] = Query(None, description="按事件类型筛选"),
     days: Optional[int] = Query(None, ge=1, le=365, description="最近N天的日志"),
+    guard: dict = Depends(get_current_guard),
 ):
     """获取设备日志列表
     
@@ -39,6 +41,8 @@ async def list_device_logs(
         if not device:
             raise HTTPException(status_code=404, detail="设备不存在")
         
+        if device.user_id is not None:
+            ensure_owner_or_admin(device.user_id, guard)
         if event_type:
             return await get_device_logs_by_event_type(db, device_id, event_type, skip, limit)
         else:
@@ -49,16 +53,19 @@ async def list_device_logs(
 
 
 @router.get("/{log_id}", response_model=DeviceLogInDB)
-async def get_device_log_detail(log_id: int, db: AsyncSession = Depends(get_db)):
+async def get_device_log_detail(log_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """获取设备日志详情"""
     log = await get_device_log(db, log_id)
     if not log:
         raise HTTPException(status_code=404, detail="设备日志不存在")
+    device = await get_device(db, log.device_id)
+    if device and device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     return log
 
 
 @router.post("/", response_model=DeviceLogInDB)
-async def create_device_log_item(payload: DeviceLogCreate, db: AsyncSession = Depends(get_db)):
+async def create_device_log_item(payload: DeviceLogCreate, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """创建设备日志
     
     示例请求体：
@@ -76,17 +83,21 @@ async def create_device_log_item(payload: DeviceLogCreate, db: AsyncSession = De
     device = await get_device(db, payload.device_id)
     if not device:
         raise HTTPException(status_code=400, detail="设备不存在")
+    if device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     
     return await create_device_log(db, payload)
 
 
 @router.get("/device/{device_id}/events", response_model=List[str])
-async def get_device_event_types(device_id: int, db: AsyncSession = Depends(get_db)):
+async def get_device_event_types(device_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """获取设备的所有事件类型列表"""
     # 验证设备存在
     device = await get_device(db, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
+    if device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     
     # 查询该设备的所有事件类型
     from sqlalchemy import select, distinct
@@ -100,12 +111,14 @@ async def get_device_event_types(device_id: int, db: AsyncSession = Depends(get_
 
 
 @router.get("/device/{device_id}/stats", response_model=dict)
-async def get_device_log_stats(device_id: int, db: AsyncSession = Depends(get_db)):
+async def get_device_log_stats(device_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """获取设备日志统计信息"""
     # 验证设备存在
     device = await get_device(db, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
+    if device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     
     from sqlalchemy import select, func, text
     

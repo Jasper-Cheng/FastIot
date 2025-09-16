@@ -24,8 +24,9 @@ from app.models.alert import (
     AlertLevel,
     AlertStatus,
 )
+from app.api.dependencies import get_current_guard, ensure_owner_or_admin, require_roles, check_device_alert_permission
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_roles(["member", "owner", "admin"]))])
 
 
 @router.get("/", response_model=List[AlertInDB])
@@ -38,6 +39,7 @@ async def list_alerts(
     level: Optional[AlertLevel] = Query(None, description="按告警级别筛选"),
     status: Optional[AlertStatus] = Query(None, description="按告警状态筛选"),
     days: Optional[int] = Query(None, ge=1, le=365, description="最近N天的告警"),
+    guard: dict = Depends(get_current_guard),
 ):
     """获取告警列表
     
@@ -48,12 +50,19 @@ async def list_alerts(
         device = await get_device(db, device_id)
         if not device:
             raise HTTPException(status_code=404, detail="设备不存在")
+        if device.user_id is not None:
+            ensure_owner_or_admin(device.user_id, guard)
         
         alerts = await get_device_alerts(db, device_id, limit)
     elif user_id:
+        ensure_owner_or_admin(user_id, guard)
         alerts = await get_user_alerts(db, user_id, limit)
     else:
-        alerts = await get_all_alerts(db, limit)
+        # admin 可查全部；其他仅查自己
+        if guard.get("role") == "admin":
+            alerts = await get_all_alerts(db, limit)
+        else:
+            alerts = await get_user_alerts(db, guard.get("user_id"), limit)
     
     # 应用筛选条件
     filtered_alerts = []
@@ -77,16 +86,20 @@ async def list_alerts(
 
 
 @router.get("/{alert_id}", response_model=AlertInDB)
-async def get_alert_detail(alert_id: int, db: AsyncSession = Depends(get_db)):
+async def get_alert_detail(alert_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """获取告警详情"""
     alert = await get_alert(db, alert_id)
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
+    # 校验权限（基于设备归属）
+    device = await get_device(db, alert.device_id)
+    if device and device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     return alert
 
 
 @router.post("/", response_model=AlertInDB)
-async def create_alert_item(payload: AlertCreate, db: AsyncSession = Depends(get_db)):
+async def create_alert_item(payload: AlertCreate, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """创建告警
     
     示例请求体：
@@ -100,12 +113,14 @@ async def create_alert_item(payload: AlertCreate, db: AsyncSession = Depends(get
     device = await get_device(db, payload.device_id)
     if not device:
         raise HTTPException(status_code=400, detail="设备不存在")
+    if device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     
     return await create_alert(db, payload)
 
 
 @router.put("/{alert_id}", response_model=AlertInDB)
-async def update_alert_item(alert_id: int, payload: AlertUpdate, db: AsyncSession = Depends(get_db)):
+async def update_alert_item(alert_id: int, payload: AlertUpdate, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """更新告警信息
     
     示例请求体：
@@ -118,6 +133,9 @@ async def update_alert_item(alert_id: int, payload: AlertUpdate, db: AsyncSessio
     updated = await update_alert_full(db, alert_id, payload)
     if not updated:
         raise HTTPException(status_code=404, detail="告警不存在")
+    device = await get_device(db, updated.device_id)
+    if device and device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     return updated
 
 
@@ -125,12 +143,16 @@ async def update_alert_item(alert_id: int, payload: AlertUpdate, db: AsyncSessio
 async def update_alert_status_item(
     alert_id: int, 
     status: AlertStatus, 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    guard: dict = Depends(get_current_guard),
 ):
     """更新告警状态"""
     updated = await update_alert_status(db, alert_id, status)
     if not updated:
         raise HTTPException(status_code=404, detail="告警不存在")
+    device = await get_device(db, updated.device_id)
+    if device and device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     return updated
 
 
@@ -139,21 +161,28 @@ async def update_alert_content_item(
     alert_id: int,
     level: Optional[AlertLevel] = None,
     message: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    guard: dict = Depends(get_current_guard),
 ):
     """更新告警内容（级别和消息）"""
     updated = await update_alert_content(db, alert_id, level, message)
     if not updated:
         raise HTTPException(status_code=404, detail="告警不存在")
+    device = await get_device(db, updated.device_id)
+    if device and device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     return updated
 
 
 @router.delete("/{alert_id}")
-async def delete_alert_item(alert_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_alert_item(alert_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """删除告警"""
     alert = await get_alert(db, alert_id)
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
+    device = await get_device(db, alert.device_id)
+    if device and device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     
     await db.delete(alert)
     await db.commit()
@@ -161,15 +190,17 @@ async def delete_alert_item(alert_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/user/{user_id}/unread-count")
-async def get_user_unread_count(user_id: int, db: AsyncSession = Depends(get_db)):
+async def get_user_unread_count(user_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """获取用户未读告警数量"""
+    ensure_owner_or_admin(user_id, guard)
     count = await get_unread_alerts_count(db, user_id)
     return {"user_id": user_id, "unread_count": count}
 
 
 @router.patch("/user/{user_id}/mark-all-read")
-async def mark_user_all_alerts_read(user_id: int, db: AsyncSession = Depends(get_db)):
+async def mark_user_all_alerts_read(user_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """一键标记用户所有未读告警为已读"""
+    ensure_owner_or_admin(user_id, guard)
     from app.crud.user import get_user
     from sqlalchemy import select, update
     from app.db.models.device import Device
@@ -205,12 +236,14 @@ async def mark_user_all_alerts_read(user_id: int, db: AsyncSession = Depends(get
 
 
 @router.get("/device/{device_id}/stats", response_model=dict)
-async def get_device_alert_stats(device_id: int, db: AsyncSession = Depends(get_db)):
+async def get_device_alert_stats(device_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """获取设备告警统计信息"""
     # 验证设备存在
     device = await get_device(db, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
+    if device.user_id is not None:
+        ensure_owner_or_admin(device.user_id, guard)
     
     from sqlalchemy import select, func
     from app.db.models.alert import Alert
@@ -274,8 +307,9 @@ async def get_device_alert_stats(device_id: int, db: AsyncSession = Depends(get_
 
 
 @router.get("/user/{user_id}/stats", response_model=dict)
-async def get_user_alert_stats(user_id: int, db: AsyncSession = Depends(get_db)):
+async def get_user_alert_stats(user_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """获取用户告警统计信息"""
+    ensure_owner_or_admin(user_id, guard)
     from sqlalchemy import select, func
     from app.db.models.device import Device
     from app.db.models.alert import Alert

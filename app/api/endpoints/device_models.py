@@ -20,8 +20,9 @@ from app.models.device_model import (
 )
 from app.db.models.device import Device
 from app.db.models.device_model import DeviceModel
+from app.api.dependencies import require_roles
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_roles(["admin"]))])
 
 
 @router.get("/", response_model=List[DeviceModelInDB])

@@ -12,8 +12,9 @@ from app.db.models.member_device_permission import MemberDevicePermission
 from app.crud.account import create_account, get_account_by_account_name, get_account_by_phone, get_account_by_email, update_account, get_account, delete_account
 from app.models.member import Member, MemberCreate, MemberUpdate, MemberInDB
 from app.models.account import AccountCreate, AccountRole, AccountGender, AccountUpdate
+from app.api.dependencies import get_current_guard, ensure_owner_or_admin, require_roles
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_roles(["member", "owner", "admin"]))])
 
 
 @router.get("/", response_model=List[Member], response_model_exclude={"user"})
@@ -22,7 +23,9 @@ async def list_members(
     db: AsyncSession = Depends(get_db), 
     skip: int = Query(0, ge=0), 
     limit: int = Query(100, ge=1, le=200),
+    guard: dict = Depends(get_current_guard),
 ):
+    ensure_owner_or_admin(user_id, guard)
     return await get_members_by_user(db, user_id=user_id, skip=skip, limit=limit)
 
 
@@ -30,10 +33,15 @@ async def list_members(
 async def get_member_detail(
     member_id: int, 
     db: AsyncSession = Depends(get_db),
+    guard: dict = Depends(get_current_guard),
 ):
     m = await get_member(db, member_id)
     if not m:
         raise HTTPException(status_code=404, detail="成员不存在")
+    # 允许：管理员；该成员本人；或该成员所属用户
+    if guard.get("role") == "admin" or guard.get("member_id") == member_id:
+        return m
+    ensure_owner_or_admin(m.user_id, guard)
     return m
 
 
@@ -58,7 +66,9 @@ class MemberRegisterRequest(BaseModel):
 async def create_member_for_user(
     payload: MemberRegisterRequest, 
     db: AsyncSession = Depends(get_db),
+    guard: dict = Depends(get_current_guard),
 ):
+    ensure_owner_or_admin(payload.user_id, guard)
     # 校验 user 是否存在
     owner = await get_user(db, payload.user_id)
     if not owner:
@@ -115,7 +125,7 @@ async def create_member_for_user(
     device_ids = [row[0] for row in device_ids_result.all()]
     if device_ids:
         db.add_all([
-            MemberDevicePermission(member_id=m.id, device_id=d_id, can_control=0)
+            MemberDevicePermission(member_id=m.id, device_id=d_id)
             for d_id in device_ids
         ])
         await db.commit()
@@ -143,11 +153,15 @@ async def update_member_detail(
     member_id: int, 
     payload: MemberUpdateRequest, 
     db: AsyncSession = Depends(get_db),
+    guard: dict = Depends(get_current_guard),
 ):
     # 读取成员
     m = await get_member(db, member_id)
     if not m:
         raise HTTPException(status_code=404, detail="成员不存在")
+    # 允许：管理员；该成员本人；或该成员所属用户
+    if not (guard.get("role") == "admin" or guard.get("member_id") == member_id):
+        ensure_owner_or_admin(m.user_id, guard)
 
     # 至少提供一个可更新字段
     if not any([
@@ -226,11 +240,13 @@ async def update_member_detail(
 async def remove_member(
     member_id: int, 
     db: AsyncSession = Depends(get_db),
+    guard: dict = Depends(get_current_guard),
 ):
     # 先查询成员
     m = await get_member(db, member_id)
     if not m:
         raise HTTPException(status_code=404, detail="成员不存在")
+    ensure_owner_or_admin(m.user_id, guard)
 
     # 先删除 member（会级联删除权限等依赖）
     await delete_member(db, member_id)

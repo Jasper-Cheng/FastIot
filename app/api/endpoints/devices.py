@@ -16,8 +16,9 @@ from app.crud.device import (
 from app.crud.user import get_user
 from app.crud.device_model import get_device_model
 from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus
+from app.api.dependencies import get_current_guard, ensure_owner_or_admin, require_roles
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_roles(["member", "owner", "admin"]))])
 
 
 @router.get("/", response_model=List[DeviceInDB])
@@ -27,6 +28,7 @@ async def list_devices(
     limit: int = Query(100, ge=1, le=200),
     user_id: Optional[int] = Query(None),
     unbound_only: bool = Query(False, description="只显示未绑定设备"),
+    guard: dict = Depends(get_current_guard),
 ):
     if unbound_only:
         # 查询未绑定设备
@@ -41,20 +43,27 @@ async def list_devices(
         )
         return result.scalars().all()
     elif user_id is not None:
+        ensure_owner_or_admin(user_id, guard)
         return await get_devices_by_user(db, user_id=user_id, skip=skip, limit=limit)
-    return await get_devices(db, skip=skip, limit=limit)
+    # 默认：owner/member 返回自己的设备；admin 返回全部
+    if guard.get("role") == "admin":
+        return await get_devices(db, skip=skip, limit=limit)
+    current_owner_user_id = guard.get("user_id") or guard.get("owner_user_id")
+    return await get_devices_by_user(db, user_id=current_owner_user_id, skip=skip, limit=limit)
 
 
 @router.get("/{device_id}", response_model=DeviceInDB)
-async def get_device_detail(device_id: int, db: AsyncSession = Depends(get_db)):
+async def get_device_detail(device_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     d = await get_device(db, device_id)
     if not d:
         raise HTTPException(status_code=404, detail="设备不存在")
+    if d.user_id is not None:
+        ensure_owner_or_admin(d.user_id, guard)
     return d
 
 
 @router.post("/", response_model=DeviceInDB)
-async def create_device_item(payload: DeviceCreate, db: AsyncSession = Depends(get_db)):
+async def create_device_item(payload: DeviceCreate, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """创建设备
     
     - user_id: 可选，不提供则创建设备为未绑定状态
@@ -65,6 +74,7 @@ async def create_device_item(payload: DeviceCreate, db: AsyncSession = Depends(g
     """
     # 验证 user 存在（如果提供了 user_id）
     if payload.user_id is not None:
+        ensure_owner_or_admin(payload.user_id, guard)
         owner = await get_user(db, payload.user_id)
         if not owner:
             raise HTTPException(status_code=400, detail="归属的用户不存在")
@@ -80,7 +90,7 @@ async def create_device_item(payload: DeviceCreate, db: AsyncSession = Depends(g
 
 
 @router.put("/{device_id}", response_model=DeviceInDB)
-async def update_device_item(device_id: int, payload: DeviceUpdate, db: AsyncSession = Depends(get_db)):
+async def update_device_item(device_id: int, payload: DeviceUpdate, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """更新设备信息
     
     - name: 可选，设备名称
@@ -90,6 +100,7 @@ async def update_device_item(device_id: int, payload: DeviceUpdate, db: AsyncSes
     """
     # 如果修改了 user_id，需要验证用户存在
     if payload.user_id is not None:
+        ensure_owner_or_admin(payload.user_id, guard)
         owner = await get_user(db, payload.user_id)
         if not owner:
             raise HTTPException(status_code=400, detail="归属的用户不存在")
@@ -107,7 +118,12 @@ async def update_device_item(device_id: int, payload: DeviceUpdate, db: AsyncSes
 
 
 @router.delete("/{device_id}")
-async def delete_device_item(device_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_device_item(device_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
+    d = await get_device(db, device_id)
+    if not d:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    if d.user_id is not None:
+        ensure_owner_or_admin(d.user_id, guard)
     ok = await delete_device(db, device_id)
     if not ok:
         raise HTTPException(status_code=404, detail="设备不存在")
@@ -115,7 +131,7 @@ async def delete_device_item(device_id: int, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/{device_id}/bind", response_model=DeviceInDB)
-async def bind_device(device_id: int, user_id: int, db: AsyncSession = Depends(get_db)):
+async def bind_device(device_id: int, user_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """绑定设备到用户
     
     - device_id: 设备ID
@@ -130,6 +146,7 @@ async def bind_device(device_id: int, user_id: int, db: AsyncSession = Depends(g
     user = await get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=400, detail="用户不存在")
+    ensure_owner_or_admin(user_id, guard)
     
     # 检查设备状态是否允许绑定
     if device.user_id is not None:
@@ -149,7 +166,7 @@ async def bind_device(device_id: int, user_id: int, db: AsyncSession = Depends(g
 
 
 @router.post("/bind-by-sn", response_model=DeviceInDB)
-async def bind_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depends(get_db)):
+async def bind_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """通过序列号绑定设备到用户
     
     - sn: 设备序列号
@@ -164,6 +181,7 @@ async def bind_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depends(ge
     user = await get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=400, detail="用户不存在")
+    ensure_owner_or_admin(user_id, guard)
     
     # 检查设备状态是否允许绑定
     if device.user_id is not None:
@@ -183,7 +201,7 @@ async def bind_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depends(ge
 
 
 @router.post("/{device_id}/unbind", response_model=DeviceInDB)
-async def unbind_device(device_id: int, db: AsyncSession = Depends(get_db)):
+async def unbind_device(device_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """解绑设备，将设备从用户中移除
     
     - device_id: 设备ID
@@ -196,6 +214,7 @@ async def unbind_device(device_id: int, db: AsyncSession = Depends(get_db)):
     # 检查设备是否已绑定
     if device.user_id is None:
         raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
+    ensure_owner_or_admin(device.user_id, guard)
     
     # 通过统一更新逻辑处理解绑与清理关联关系
     updated = await update_device(db, device_id, DeviceUpdate(user_id=None, status=DeviceStatus.unbound))
@@ -203,7 +222,7 @@ async def unbind_device(device_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/unbind-by-sn", response_model=DeviceInDB)
-async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
+async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
     """通过序列号解绑设备，将设备从用户中移除
     
     - sn: 设备序列号
@@ -216,6 +235,7 @@ async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
     # 检查设备是否已绑定
     if device.user_id is None:
         raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
+    ensure_owner_or_admin(device.user_id, guard)
     
     # 通过统一更新逻辑处理解绑与清理关联关系
     updated = await update_device(db, device.id, DeviceUpdate(user_id=None, status=DeviceStatus.unbound))

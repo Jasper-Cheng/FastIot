@@ -166,7 +166,7 @@ async def create_members(session: AsyncSession, users, accounts):
     members = []
     
     # 为后10个账号（member角色）创建成员
-    member_accounts = accounts[5:]  # 后10个账号
+    member_accounts = accounts[6:]  # 后10个账号
     for i, account in enumerate(member_accounts):
         # 随机分配给某个用户
         user = random.choice(users)

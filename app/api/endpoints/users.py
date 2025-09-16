@@ -5,8 +5,9 @@ from typing import List
 from app.db.session import get_db
 from app.crud.user import get_users, get_user, create_user, delete_user
 from app.models.user import User, UserCreate, UserInDB
+from app.api.dependencies import get_current_guard, ensure_owner_or_admin, require_roles
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_roles(["member", "owner", "admin"]))])
 
 
 @router.get("/", response_model=List[User])
@@ -14,15 +15,24 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
+    guard: dict = Depends(get_current_guard),
 ):
-    return await get_users(db, skip=skip, limit=limit)
+    # admin 可查看任意；owner 仅查看自己
+    if guard.get("role") == "admin":
+        return await get_users(db, skip=skip, limit=limit)
+    user = await get_user(db, guard.get("user_id") or guard.get("owner_user_id"))
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return [user]
 
 
 @router.get("/{user_id}", response_model=User)
 async def get_user_detail(
     user_id: int, 
     db: AsyncSession = Depends(get_db),
+    guard: dict = Depends(get_current_guard),
 ):
+    ensure_owner_or_admin(user_id, guard)
     user = await get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
@@ -33,7 +43,9 @@ async def get_user_detail(
 async def remove_user(
     user_id: int, 
     db: AsyncSession = Depends(get_db),
+    guard: dict = Depends(get_current_guard),
 ):
+    ensure_owner_or_admin(user_id, guard)
     """删除用户
     
     删除用户时会：
