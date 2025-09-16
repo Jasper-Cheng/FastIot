@@ -15,7 +15,7 @@ from app.crud.device import (
 )
 from app.crud.user import get_user
 from app.crud.device_model import get_device_model
-from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB
+from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus
 
 router = APIRouter()
 
@@ -197,14 +197,9 @@ async def unbind_device(device_id: int, db: AsyncSession = Depends(get_db)):
     if device.user_id is None:
         raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
     
-    # 解绑设备：清除用户ID并更新状态
-    device.user_id = None
-    device.status = 'unbound'  # 解绑后状态变为未绑定
-    
-    await db.commit()
-    await db.refresh(device)
-    
-    return device
+    # 通过统一更新逻辑处理解绑与清理关联关系
+    updated = await update_device(db, device_id, DeviceUpdate(user_id=None, status=DeviceStatus.unbound))
+    return updated
 
 
 @router.post("/unbind-by-sn", response_model=DeviceInDB)
@@ -222,14 +217,9 @@ async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
     if device.user_id is None:
         raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
     
-    # 解绑设备：清除用户ID并更新状态
-    device.user_id = None
-    device.status = 'unbound'  # 解绑后状态变为未绑定
-    
-    await db.commit()
-    await db.refresh(device)
-    
-    return device
+    # 通过统一更新逻辑处理解绑与清理关联关系
+    updated = await update_device(db, device.id, DeviceUpdate(user_id=None, status=DeviceStatus.unbound))
+    return updated
 
 
  
