@@ -7,7 +7,7 @@ class Device(Base):
     __tablename__ = "device"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=True, index=True)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="SET NULL"), nullable=True, index=True)
     model_id = Column(BigInteger, ForeignKey("device_model.id"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     sn = Column(String(100), unique=True, index=True, nullable=False)

@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS `device` (
     `sn` VARCHAR(100) UNIQUE NOT NULL COMMENT '设备序列号',
     `status` ENUM('unconfigured','unbound','bound','online','offline','upgrading','fault') DEFAULT 'unconfigured' COMMENT '设备状态',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`model_id`) REFERENCES `device_model`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备表';
 

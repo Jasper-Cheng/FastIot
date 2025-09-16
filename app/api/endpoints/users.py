@@ -34,9 +34,18 @@ async def remove_user(
     user_id: int, 
     db: AsyncSession = Depends(get_db),
 ):
+    """删除用户
+    
+    删除用户时会：
+    - 将该用户的所有设备状态更新为 unbound，user_id 设为 NULL
+    - 删除该用户下的所有成员
+    - 删除该用户的所有房间
+    - 删除该用户的账号信息
+    - 设备保留但变为未绑定状态，可以被其他用户重新激活
+    """
     ok = await delete_user(db, user_id)
     if not ok:
         raise HTTPException(status_code=404, detail="用户不存在")
-    return {"message": "删除成功"}
+    return {"message": "删除成功，该用户的设备已变为未绑定状态"}
 
 
