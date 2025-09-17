@@ -44,15 +44,6 @@ async def list_device_networks(
         return await get_device_networks(db, skip=skip, limit=limit)
 
 
-@router.get("/{network_id}", response_model=DeviceNetworkInDB)
-async def get_device_network_detail(network_id: int, db: AsyncSession = Depends(get_db)):
-    """获取设备网络信息详情"""
-    network = await get_device_network(db, network_id)
-    if not network:
-        raise HTTPException(status_code=404, detail="设备网络信息不存在")
-    return network
-
-
 @router.get("/device/{device_id}", response_model=DeviceNetworkInDB)
 async def get_device_network_by_device(device_id: int, db: AsyncSession = Depends(get_db)):
     """根据设备ID获取网络信息（设备与网络一对一）。"""

@@ -58,22 +58,6 @@ async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = 
     return await create_room_device(db, payload)
 
 
-@router.put("/{id}", response_model=RoomDeviceInDB)
-async def update_room_device_item(id: int, payload: RoomDeviceUpdate, db: AsyncSession = Depends(get_db)):
-    updated = await update_room_device(db, id, payload)
-    if not updated:
-        raise HTTPException(status_code=404, detail="记录不存在")
-    return updated
-
-
-@router.delete("/{id}")
-async def delete_room_device_item(id: int, db: AsyncSession = Depends(get_db)):
-    ok = await delete_room_device(db, id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="记录不存在")
-    return {"message": "删除成功"}
-
-
 @router.put("/batch-sort", response_model=List[RoomDeviceInDB])
 async def batch_update_sort(payload: RoomDeviceBatchSort, db: AsyncSession = Depends(get_db)):
     # 验证房间存在
@@ -108,5 +92,14 @@ async def batch_update_sort(payload: RoomDeviceBatchSort, db: AsyncSession = Dep
 
     # 返回更新后的房间设备（按排序）
     return await get_room_devices_by_room(db, payload.room_id)
+
+
+@router.delete("/{id}")
+async def delete_room_device_item(id: int, db: AsyncSession = Depends(get_db)):
+    ok = await delete_room_device(db, id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return {"message": "删除成功"}
+
 
 

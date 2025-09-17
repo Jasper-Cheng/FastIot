@@ -133,19 +133,6 @@ async def update_alert_status_item(
     return updated
 
 
-@router.patch("/{alert_id}/content", response_model=AlertInDB)
-async def update_alert_content_item(
-    alert_id: int,
-    level: Optional[AlertLevel] = None,
-    message: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """更新告警内容（级别和消息）"""
-    updated = await update_alert_content(db, alert_id, level, message)
-    if not updated:
-        raise HTTPException(status_code=404, detail="告警不存在")
-    return updated
-
 
 @router.delete("/{alert_id}")
 async def delete_alert_item(alert_id: int, db: AsyncSession = Depends(get_db)):
@@ -157,13 +144,6 @@ async def delete_alert_item(alert_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(alert)
     await db.commit()
     return {"message": "删除成功"}
-
-
-@router.get("/user/{user_id}/unread-count")
-async def get_user_unread_count(user_id: int, db: AsyncSession = Depends(get_db)):
-    """获取用户未读告警数量"""
-    count = await get_unread_alerts_count(db, user_id)
-    return {"user_id": user_id, "unread_count": count}
 
 
 @router.patch("/user/{user_id}/mark-all-read")

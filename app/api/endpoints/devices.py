@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from typing import List, Optional
 
 from app.db.session import get_db
@@ -114,40 +113,6 @@ async def delete_device_item(device_id: int, db: AsyncSession = Depends(get_db))
     return {"message": "删除成功"}
 
 
-@router.post("/{device_id}/bind", response_model=DeviceInDB)
-async def bind_device(device_id: int, user_id: int, db: AsyncSession = Depends(get_db)):
-    """绑定设备到用户
-    
-    - device_id: 设备ID
-    - user_id: 要绑定的用户ID
-    """
-    # 验证设备存在
-    device = await get_device(db, device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    
-    # 验证用户存在
-    user = await get_user(db, user_id)
-    if not user:
-        raise HTTPException(status_code=400, detail="用户不存在")
-    
-    # 检查设备状态是否允许绑定
-    if device.user_id is not None:
-        raise HTTPException(status_code=400, detail="设备已被其他用户绑定")
-    
-    if device.status not in ['unconfigured', 'unbound']:
-        raise HTTPException(status_code=400, detail="设备状态不允许激活，当前状态：" + device.status)
-    
-    # 绑定设备：绑定用户并更新状态
-    device.user_id = user_id
-    device.status = 'bound'  # 激活后状态变为已绑定
-    
-    await db.commit()
-    await db.refresh(device)
-    
-    return device
-
-
 @router.post("/bind-by-sn", response_model=DeviceInDB)
 async def bind_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depends(get_db)):
     """通过序列号绑定设备到用户
@@ -181,25 +146,6 @@ async def bind_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depends(ge
 
     return device
 
-
-@router.post("/{device_id}/unbind", response_model=DeviceInDB)
-async def unbind_device(device_id: int, db: AsyncSession = Depends(get_db)):
-    """解绑设备，将设备从用户中移除
-    
-    - device_id: 设备ID
-    """
-    # 验证设备存在
-    device = await get_device(db, device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    
-    # 检查设备是否已绑定
-    if device.user_id is None:
-        raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
-    
-    # 通过统一更新逻辑处理解绑与清理关联关系
-    updated = await update_device(db, device_id, DeviceUpdate(user_id=None, status=DeviceStatus.unbound))
-    return updated
 
 
 @router.post("/unbind-by-sn", response_model=DeviceInDB)

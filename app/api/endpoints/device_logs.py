@@ -80,25 +80,6 @@ async def create_device_log_item(payload: DeviceLogCreate, db: AsyncSession = De
     return await create_device_log(db, payload)
 
 
-@router.get("/device/{device_id}/events", response_model=List[str])
-async def get_device_event_types(device_id: int, db: AsyncSession = Depends(get_db)):
-    """获取设备的所有事件类型列表"""
-    # 验证设备存在
-    device = await get_device(db, device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    
-    # 查询该设备的所有事件类型
-    from sqlalchemy import select, distinct
-    result = await db.execute(
-        select(distinct(DeviceLog.event_type))
-        .filter(DeviceLog.device_id == device_id)
-        .filter(DeviceLog.event_type.isnot(None))
-    )
-    event_types = [row[0] for row in result.fetchall()]
-    return event_types
-
-
 @router.get("/device/{device_id}/stats", response_model=dict)
 async def get_device_log_stats(device_id: int, db: AsyncSession = Depends(get_db)):
     """获取设备日志统计信息"""

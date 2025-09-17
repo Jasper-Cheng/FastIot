@@ -47,15 +47,6 @@ async def create_device_param_item(payload: DeviceParamCreate, db: AsyncSession 
     return await create_device_param(db, payload)
 
 
-@router.put("/{param_id}", response_model=DeviceParamInDB)
-async def update_device_param_item(param_id: int, payload: DeviceParamUpdate, db: AsyncSession = Depends(get_db)):
-    """更新设备参数"""
-    updated = await update_device_param(db, param_id, payload)
-    if not updated:
-        raise HTTPException(status_code=404, detail="设备参数不存在")
-    return updated
-
-
 @router.put("/device/{device_id}/upsert", response_model=DeviceParamInDB)
 async def upsert_device_param(device_id: int, params: Dict[str, Any], db: AsyncSession = Depends(get_db)):
     """更新或创建设备参数（推荐用于设备上报数据）"""
