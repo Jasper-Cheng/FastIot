@@ -1,37 +1,88 @@
 FastIoT 项目结构 - 物联网设备管理平台
 ├── app/                                    # 主应用目录
 │   ├── api/                                # API接口层
-│   │   ├── dependencies.py                 # 依赖注入和认证中间件
-│   │   └── router.py                       # API路由配置
+│   │   ├── dependencies.py                 # 依赖注入和认证中间件（已移除权限控制）
+│   │   ├── router.py                       # API路由配置
+│   │   └── endpoints/                      # API端点模块
+│   │       ├── auth.py                     # 认证相关端点
+│   │       ├── users.py                    # 用户管理端点
+│   │       ├── members.py                  # 成员管理端点
+│   │       ├── devices.py                  # 设备管理端点
+│   │       ├── rooms.py                    # 房间管理端点
+│   │       ├── room_devices.py             # 房间设备关联端点
+│   │       ├── device_networks.py          # 设备网络信息端点
+│   │       ├── device_logs.py              # 设备日志端点
+│   │       ├── device_params.py            # 设备参数端点
+│   │       ├── alerts.py                   # 告警管理端点
+│   │       ├── member_device_permissions.py # 成员设备权限端点
+│   │       ├── thing_models.py             # 物模型管理端点
+│   │       ├── device_models.py            # 设备型号管理端点
+│   │       └── admins.py                   # 管理员管理端点
 │   ├── core/                               # 核心配置模块
 │   │   ├── config.py                       # 应用配置管理
 │   │   └── security.py                     # 安全工具 (JWT、密码加密)
 │   ├── crud/                               # 数据库操作层
 │   │   ├── base.py                         # 基础CRUD操作
+│   │   ├── account.py                      # 账号数据库操作
+│   │   ├── user.py                         # 用户数据库操作
+│   │   ├── member.py                       # 成员数据库操作
 │   │   ├── device.py                       # 设备数据库操作
 │   │   ├── device_data.py                  # 设备数据数据库操作
-│   │   └── user.py                         # 用户数据库操作（支持邮箱查询）
+│   │   ├── device_model.py                 # 设备型号数据库操作
+│   │   ├── device_network.py               # 设备网络数据库操作
+│   │   ├── device_log.py                   # 设备日志数据库操作
+│   │   ├── device_param.py                 # 设备参数数据库操作
+│   │   ├── room.py                         # 房间数据库操作
+│   │   ├── room_device.py                  # 房间设备关联数据库操作
+│   │   ├── alert.py                        # 告警数据库操作
+│   │   ├── member_device_permission.py     # 成员设备权限数据库操作
+│   │   ├── thing_model.py                  # 物模型数据库操作
+│   │   └── admin.py                        # 管理员数据库操作
 │   ├── db/                                 # 数据库模块
 │   │   ├── base.py                         # 数据库基础配置
 │   │   ├── session.py                      # 数据库会话管理
 │   │   ├── init_db.py                      # 数据库初始化脚本
 │   │   ├── init.sql                        # 数据库表结构SQL
 │   │   └── models/                         # 数据库模型 (SQLAlchemy)
+│   │       ├── account.py                  # 账号数据模型
+│   │       ├── user.py                     # 用户数据模型
+│   │       ├── member.py                   # 成员数据模型
 │   │       ├── device.py                   # 设备数据模型
 │   │       ├── device_data.py              # 设备传感器数据模型
-│   │       ├── user.py                     # 用户数据模型（包含email字段）
-│   │       └── alert.py                    # 告警数据模型
+│   │       ├── device_model.py             # 设备型号数据模型
+│   │       ├── device_network.py           # 设备网络数据模型
+│   │       ├── device_log.py               # 设备日志数据模型
+│   │       ├── device_param.py             # 设备参数数据模型
+│   │       ├── room.py                     # 房间数据模型
+│   │       ├── room_device.py              # 房间设备关联数据模型
+│   │       ├── alert.py                    # 告警数据模型
+│   │       ├── member_device_permission.py # 成员设备权限数据模型
+│   │       ├── thing_model.py              # 物模型数据模型
+│   │       └── admin.py                    # 管理员数据模型
 │   ├── models/                             # Pydantic数据模型
+│   │   ├── account.py                      # 账号请求/响应模型
+│   │   ├── user.py                         # 用户请求/响应模型
+│   │   ├── member.py                       # 成员请求/响应模型
 │   │   ├── device.py                       # 设备请求/响应模型
 │   │   ├── device_data.py                  # 设备数据请求/响应模型
-│   │   ├── user.py                         # 用户请求/响应模型（支持邮箱验证）
+│   │   ├── device_model.py                 # 设备型号请求/响应模型
+│   │   ├── device_network.py               # 设备网络请求/响应模型
+│   │   ├── device_log.py                   # 设备日志请求/响应模型
+│   │   ├── device_param.py                 # 设备参数请求/响应模型
+│   │   ├── room.py                         # 房间请求/响应模型
+│   │   ├── room_device.py                  # 房间设备关联请求/响应模型
 │   │   ├── alert.py                        # 告警请求/响应模型
+│   │   ├── member_device_permission.py     # 成员设备权限请求/响应模型
+│   │   ├── thing_model.py                  # 物模型请求/响应模型
+│   │   ├── admin.py                        # 管理员请求/响应模型
 │   │   └── token.py                        # 认证令牌模型
 │   ├── services/                           # 业务逻辑服务层
+│   │   ├── alert_service.py                # 告警处理服务
 │   │   ├── data_service.py                 # 数据处理服务
 │   │   ├── device_service.py               # 设备管理服务
 │   │   ├── mqtt_client.py                  # MQTT客户端
 │   │   ├── mqtt_handlers.py                # MQTT消息处理
+│   │   ├── redis_service.py                # Redis缓存服务
 │   │   └── websocket_service.py            # WebSocket通信服务
 │   ├── main.py                             # FastAPI应用入口
 │   └── worker.py                           # 后台任务处理
@@ -41,13 +92,31 @@ FastIoT 项目结构 - 物联网设备管理平台
 ├── pyproject.toml                          # Python项目配置
 ├── poetry.lock                             # 依赖锁定文件
 ├── project_structure.txt                   # 项目结构文档
-└── README.md                               # 项目说明文档
+├── README.md                               # 项目说明文档
+└── REDIS_CONFIG.md                         # Redis配置说明
 
 # 技术栈:
 # - FastAPI: Web框架
 # - SQLAlchemy: ORM框架
-# - Pydantic: 数据验证（支持邮箱验证）
+# - Pydantic: 数据验证
 # - MQTT: 物联网通信
 # - WebSocket: 实时通信
+# - Redis: 缓存和消息队列
 # - Docker: 容器化部署
 # - Poetry: 依赖管理
+
+# 权限控制状态:
+# - 已移除所有基于角色的访问控制 (RBAC)
+# - 已移除所有权限制检查
+# - 所有认证用户均可访问所有端点
+# - 仅保留基本的资源存在性验证
+
+# 主要功能模块:
+# 1. 用户管理: 账号、用户、成员、管理员
+# 2. 设备管理: 设备、设备型号、设备网络、设备日志、设备参数
+# 3. 房间管理: 房间、房间设备关联
+# 4. 告警管理: 告警、告警统计
+# 5. 权限管理: 成员设备权限（已简化）
+# 6. 物模型管理: 物模型、设备型号
+# 7. 实时通信: WebSocket、MQTT
+# 8. 数据存储: MySQL、Redis
