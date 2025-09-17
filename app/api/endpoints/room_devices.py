@@ -15,9 +15,7 @@ from app.crud.room_device import (
 from app.crud.room import get_room
 from app.crud.device import get_device
 from app.models.room_device import RoomDeviceCreate, RoomDeviceUpdate, RoomDeviceInDB
-from app.api.dependencies import get_current_guard, ensure_owner_or_admin, require_roles
-
-router = APIRouter(dependencies=[Depends(require_roles(["member", "owner", "admin"]))])
+router = APIRouter()
 
 
 class RoomDeviceOrderItem(BaseModel):
@@ -31,73 +29,57 @@ class RoomDeviceBatchSort(BaseModel):
 
 
 @router.get("/by-room/{room_id}", response_model=List[RoomDeviceInDB])
-async def list_by_room(room_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
+async def list_by_room(room_id: int, db: AsyncSession = Depends(get_db)):
     # 验证房间存在
     room = await get_room(db, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="房间不存在")
-    ensure_owner_or_admin(room.user_id, guard)
     return await get_room_devices_by_room(db, room_id)
 
 
 @router.get("/by-device/{device_id}", response_model=List[RoomDeviceInDB])
-async def list_by_device(device_id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
+async def list_by_device(device_id: int, db: AsyncSession = Depends(get_db)):
     # 验证设备存在
     dev = await get_device(db, device_id)
     if not dev:
         raise HTTPException(status_code=404, detail="设备不存在")
-    ensure_owner_or_admin(dev.user_id, guard)
     return await get_room_devices_by_device(db, device_id)
 
 
 @router.post("/", response_model=RoomDeviceInDB)
-async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
+async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = Depends(get_db)):
     # 验证房间和设备存在
     room = await get_room(db, payload.room_id)
     if not room:
         raise HTTPException(status_code=400, detail="房间不存在")
-    ensure_owner_or_admin(room.user_id, guard)
     dev = await get_device(db, payload.device_id)
     if not dev:
         raise HTTPException(status_code=400, detail="设备不存在")
-    ensure_owner_or_admin(dev.user_id, guard)
     return await create_room_device(db, payload)
 
 
 @router.put("/{id}", response_model=RoomDeviceInDB)
-async def update_room_device_item(id: int, payload: RoomDeviceUpdate, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
+async def update_room_device_item(id: int, payload: RoomDeviceUpdate, db: AsyncSession = Depends(get_db)):
     updated = await update_room_device(db, id, payload)
     if not updated:
         raise HTTPException(status_code=404, detail="记录不存在")
-    # 权限校验：根据更新后的记录所属房间校验
-    room = await get_room(db, updated.room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail="房间不存在")
-    ensure_owner_or_admin(room.user_id, guard)
     return updated
 
 
 @router.delete("/{id}")
-async def delete_room_device_item(id: int, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
+async def delete_room_device_item(id: int, db: AsyncSession = Depends(get_db)):
     ok = await delete_room_device(db, id)
     if not ok:
         raise HTTPException(status_code=404, detail="记录不存在")
-    # 简化：删除前先查记录进行校验
-    rd = await get_room_device(db, id)
-    if rd:
-        room = await get_room(db, rd.room_id)
-        if room:
-            ensure_owner_or_admin(room.user_id, guard)
     return {"message": "删除成功"}
 
 
 @router.put("/batch-sort", response_model=List[RoomDeviceInDB])
-async def batch_update_sort(payload: RoomDeviceBatchSort, db: AsyncSession = Depends(get_db), guard: dict = Depends(get_current_guard)):
+async def batch_update_sort(payload: RoomDeviceBatchSort, db: AsyncSession = Depends(get_db)):
     # 验证房间存在
     room = await get_room(db, payload.room_id)
     if not room:
         raise HTTPException(status_code=404, detail="房间不存在")
-    ensure_owner_or_admin(room.user_id, guard)
 
     if not payload.orders:
         return await get_room_devices_by_room(db, payload.room_id)

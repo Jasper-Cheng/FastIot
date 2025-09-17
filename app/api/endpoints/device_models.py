@@ -20,9 +20,8 @@ from app.models.device_model import (
 )
 from app.db.models.device import Device
 from app.db.models.device_model import DeviceModel
-from app.api.dependencies import require_roles
 
-router = APIRouter(dependencies=[Depends(require_roles(["admin"]))])
+router = APIRouter()
 
 
 @router.get("/", response_model=List[DeviceModelInDB])
@@ -120,5 +119,3 @@ async def delete_device_model_item(model_id: int, db: AsyncSession = Depends(get
     if not ok:
         raise HTTPException(status_code=404, detail="设备型号不存在")
     return {"message": "删除成功"}
-
-

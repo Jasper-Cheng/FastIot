@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from app.db.session import get_db
-from app.api.dependencies import get_current_user, require_roles
 from app.models.admin import Admin as AdminModel, AdminInDB, AdminBase, Admin
 from app.crud.admin import (
     get_admins,
@@ -13,7 +12,7 @@ from app.crud.admin import (
     delete_admin,
 )
 
-router = APIRouter(dependencies=[Depends(require_roles(["admin"]))])
+router = APIRouter()
 
 
 @router.get("/", response_model=List[Admin])
@@ -47,5 +46,3 @@ async def delete_admin_item(admin_id: int, db: AsyncSession = Depends(get_db)):
     if not ok:
         raise HTTPException(status_code=404, detail="管理员不存在")
     return {"message": "删除成功"}
-
-

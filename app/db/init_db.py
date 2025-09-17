@@ -96,7 +96,7 @@ async def create_accounts(session: AsyncSession):
         name="管理员",
         gender='other',
         phone="13700000000",
-        email="admin@fastiot.com",
+            email="admin@fastiot.com",
         role='admin'
     )
     session.add(admin_account)
@@ -445,9 +445,9 @@ async def create_alerts(session: AsyncSession, devices):
         "信号弱",
         "设备故障",
         "数据异常"
-    ]
-    
-    for device in devices:
+        ]
+        
+        for device in devices:
         # 为每个设备创建1-5条告警
         num_alerts = random.randint(1, 5)
         for i in range(num_alerts):

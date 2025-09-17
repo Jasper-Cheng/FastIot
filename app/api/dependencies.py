@@ -100,23 +100,6 @@ async def get_current_guard(
         raise credentials_exception
 
 
-def ensure_owner_or_admin(resource_user_id: int, guard: dict) -> None:
-    """如果当前调用者既不是管理员也不是资源所属用户，则抛出 403。"""
-    role = guard.get("role")
-    current_user_id = guard.get("user_id") or guard.get("owner_user_id")
-    if role == "admin":
-        return
-    if current_user_id != resource_user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作该资源")
-
-
-def require_roles(roles: list[str]):
-    """依赖工厂：限制调用者的账号角色。用法：dependencies=[Depends(require_roles(["admin"]))]"""
-    async def _checker(guard: dict = Depends(get_current_guard)) -> None:
-        role = guard.get("role")
-        if role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问")
-    return _checker
 
 async def get_current_user_id(
     db: AsyncSession = Depends(get_db),
@@ -212,7 +195,6 @@ __all__ = [
     "get_current_user",
     "get_current_user_id",
     "get_current_guard",
-    "ensure_owner_or_admin",
     "check_alert_permission",
     "check_device_alert_permission",
 ]

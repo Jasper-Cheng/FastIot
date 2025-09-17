@@ -11,9 +11,8 @@ from app.crud.thing_model import (
     delete_thing_model,
 )
 from app.models.thing_model import ThingModelCreate, ThingModelUpdate, ThingModelInDB
-from app.api.dependencies import require_roles
 
-router = APIRouter(dependencies=[Depends(require_roles(["admin"]))])
+router = APIRouter()
 
 
 @router.get("/", response_model=List[ThingModelInDB])
