@@ -7,10 +7,12 @@ from app.core.config import settings
 from app.crud.account import get_account
 from app.crud.user import get_user, get_user_by_account_id
 from app.crud.member import get_member, get_member_by_account_id
+from app.crud.admin import get_admin
 from app.crud.device import get_device
 from app.models.account import Account
 from app.models.user import User
 from app.models.member import Member
+from app.models.admin import Admin
 from typing import Optional, Union
 
 # 让 Swagger 的 Authorize 使用表单登录端点
@@ -19,7 +21,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login/form")
 async def get_current_user(
     db: AsyncSession = Depends(get_db),
     token: str = Depends(oauth2_scheme)
-) -> Union[User, Member]:
+) -> Union[User, Member, Admin]:
     """获取当前用户或成员（从数据库读取完整信息）"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -29,26 +31,32 @@ async def get_current_user(
 
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        user_type: str | None = payload.get("user_type")
         account_id: int | None = payload.get("account_id")
-        user_id: int | None = payload.get("user_id")
-        member_id: int | None = payload.get("member_id")
+        user_id: int | None = payload.get("id")  # 使用统一的id字段
+        role: str | None = payload.get("role")  # 直接使用token中的role字段
         
-        if not account_id:
+        if not account_id or not user_id or not role:
             raise credentials_exception
             
-        if user_type == "account" and member_id:
+        # 直接根据token中的role字段确定是用户、成员还是管理员
+        if role == "member":
             # 获取成员信息
-            member = await get_member(db, member_id)
+            member = await get_member(db, user_id)
             if member is None:
                 raise credentials_exception
             return member
-        elif user_type == "account" and user_id:
+        elif role == "owner":
             # 获取用户信息
             user = await get_user(db, user_id)
             if user is None:
                 raise credentials_exception
             return user
+        elif role == "admin":
+            # 获取管理员信息
+            admin = await get_admin(db, user_id)
+            if admin is None:
+                raise credentials_exception
+            return admin
         else:
             raise credentials_exception
     except JWTError:
@@ -76,23 +84,23 @@ async def get_current_guard(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         account_id: int | None = payload.get("account_id")
-        user_id: int | None = payload.get("user_id")
-        member_id: int | None = payload.get("member_id")
-        if not account_id:
+        user_id: int | None = payload.get("id")  # 使用统一的id字段
+        role: str | None = payload.get("role")  # 直接使用token中的role字段
+        
+        if not account_id or not user_id or not role:
             raise credentials_exception
-        account = await get_account(db, account_id)
-        if not account:
-            raise credentials_exception
+            
         owner_user_id = None
-        if member_id and not user_id:
+        if role == "member" and user_id:
             # 解析成员所属的主用户ID，使成员具备与owner等同的资源归属判断
-            member = await get_member(db, member_id)
+            member = await get_member(db, user_id)
             if member:
                 owner_user_id = member.user_id
+                
         return {
-            "role": getattr(account, "role", None),
-            "user_id": user_id,
-            "member_id": member_id,
+            "role": role,
+            "user_id": user_id if role in ["owner", "admin"] else None,
+            "member_id": user_id if role == "member" else None,
             "owner_user_id": owner_user_id,
             "account_id": account_id,
         }
@@ -114,20 +122,23 @@ async def get_current_user_id(
 
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        user_type: str | None = payload.get("user_type")
-        user_id: int | None = payload.get("user_id")
-        member_id: int | None = payload.get("member_id")
+        account_id: int | None = payload.get("account_id")
+        user_id: int | None = payload.get("id")  # 使用统一的id字段
+        role: str | None = payload.get("role")  # 直接使用token中的role字段
         
-        if user_type == "account" and user_id:
-            return user_id
-        elif user_type == "account" and member_id:
+        if not account_id or not user_id or not role:
+            raise credentials_exception
+            
+        # 直接根据token中的role字段确定返回的ID
+        if role == "member":
             # 对于成员，我们需要获取其所属的用户ID
-            member = await get_member(db, member_id)
+            member = await get_member(db, user_id)
             if member is None:
                 raise credentials_exception
             return member.user_id
         else:
-            raise credentials_exception
+            # owner 和 admin 直接返回用户ID
+            return user_id
     except JWTError:
         raise credentials_exception
 
