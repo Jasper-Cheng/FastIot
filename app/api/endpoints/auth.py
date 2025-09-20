@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 from typing import Literal
 from pydantic import BaseModel, constr
+import re
 
 from app.db.session import get_db
 from app.core.config import settings
@@ -114,7 +115,7 @@ class RegisterRequest(BaseModel):
     """
     account: str
     password: str
-    phone: constr(pattern=r"^1\d{10}$")  # CN mobile: 1XXXXXXXXXX
+    phone: str  # 手机号，在方法中手动验证格式
     name: str | None = None
     gender: AccountGender | None = None
     email: str | None = None
@@ -128,6 +129,11 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     必填: account, password, phone
     可选: name, gender, email, avatar
     """
+    # 手机号格式校验
+    phone_pattern = r"^1\d{10}$"
+    if not re.match(phone_pattern, req.phone):
+        raise HTTPException(status_code=400, detail="手机号格式不正确")
+    
     # 唯一性校验
     exists = await get_account_by_account_name(db, req.account)
     if exists:
