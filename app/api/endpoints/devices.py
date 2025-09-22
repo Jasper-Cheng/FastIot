@@ -24,21 +24,8 @@ async def list_devices(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     user_id: Optional[int] = Query(None),
-    unbound_only: bool = Query(False, description="只显示未绑定设备"),
 ):
-    if unbound_only:
-        # 查询未绑定设备
-        from sqlalchemy import select
-        from app.db.models.device import Device
-        result = await db.execute(
-            select(Device)
-            .filter(Device.user_id.is_(None))
-            .filter(Device.status.in_(['unconfigured', 'unbound']))
-            .offset(skip)
-            .limit(limit)
-        )
-        return result.scalars().all()
-    elif user_id is not None:
+    if user_id is not None:
         return await get_devices_by_user(db, user_id=user_id, skip=skip, limit=limit)
     else:
         return await get_devices(db, skip=skip, limit=limit)
