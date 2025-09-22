@@ -24,56 +24,60 @@ from app.core.security import get_password_hash
 
 async def init_db(reset=False) -> None:
     """初始化数据库"""
-    if reset:
-        print("🔄 开始重置数据库...")
-        # 删除所有表
-        async with engine.begin() as conn:
-            print("🗑️  删除现有表...")
-            await conn.run_sync(lambda sync_conn: sync_conn.execute(text("SET FOREIGN_KEY_CHECKS = 0")))
-            
-            # 获取所有表名
-            result = await conn.execute(text("SHOW TABLES"))
-            tables = [row[0] for row in result.fetchall()]
-            
+    try:
+        if reset:
+            print("🔄 开始重置数据库...")
             # 删除所有表
-            for table in tables:
-                await conn.execute(text(f"DROP TABLE IF EXISTS `{table}`"))
-                print(f"   ✅ 删除表: {table}")
-            
-            await conn.run_sync(lambda sync_conn: sync_conn.execute(text("SET FOREIGN_KEY_CHECKS = 1")))
-            print("✅ 所有表已删除")
-    
-    # 创建所有表
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    # 插入初始数据
-    async with AsyncSession(engine) as session:
-        await insert_initial_data(session)
-    
-    if reset:
-        print("🎉 数据库重置完成！")
-        print("\n📊 创建的测试数据包括:")
-        print("   👤 3个管理员账号")
-        print("   👤 15个主账号")
-        print("   👤 35个成员账号")
-        print("   🏠 多个房间")
-        print("   📱 11种物模型类型")
-        print("   🔧 33种设备型号")
-        print("   🔧 50+个设备")
-        print("   🔗 房间设备关联")
-        print("   🔐 成员设备权限")
-        print("   📊 设备参数数据")
-        print("   📝 设备日志记录")
-        print("   ⚠️  告警记录")
-        print("\n📋 数据库结构说明：")
-        print("   • account 表：统一管理所有登录账号（管理员、主账号和子账号）")
-        print("   • admin 表：管理员，与 account 一一对应")
-        print("   • user 表：主账号，与 account 一一对应")
-        print("   • member 表：子账号，与 account 一一对应，属于某个 user")
-        print("   • thing_model 表：物模型定义")
-        print("   • device_model 表：设备型号定义")
-        print("   • device 表：具体设备实例")
+            async with engine.begin() as conn:
+                print("🗑️  删除现有表...")
+                await conn.run_sync(lambda sync_conn: sync_conn.execute(text("SET FOREIGN_KEY_CHECKS = 0")))
+                
+                # 获取所有表名
+                result = await conn.execute(text("SHOW TABLES"))
+                tables = [row[0] for row in result.fetchall()]
+                
+                # 删除所有表
+                for table in tables:
+                    await conn.execute(text(f"DROP TABLE IF EXISTS `{table}`"))
+                    print(f"   ✅ 删除表: {table}")
+                
+                await conn.run_sync(lambda sync_conn: sync_conn.execute(text("SET FOREIGN_KEY_CHECKS = 1")))
+                print("✅ 所有表已删除")
+        
+        # 创建所有表
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        
+        # 插入初始数据
+        async with AsyncSession(engine) as session:
+            await insert_initial_data(session)
+        
+        if reset:
+            print("🎉 数据库重置完成！")
+            print("\n📊 创建的测试数据包括:")
+            print("   👤 3个管理员账号")
+            print("   👤 15个主账号")
+            print("   👤 35个成员账号")
+            print("   🏠 多个房间")
+            print("   📱 11种物模型类型")
+            print("   🔧 33种设备型号")
+            print("   🔧 50+个设备")
+            print("   🔗 房间设备关联")
+            print("   🔐 成员设备权限")
+            print("   📊 设备参数数据")
+            print("   📝 设备日志记录")
+            print("   ⚠️  告警记录")
+            print("\n📋 数据库结构说明：")
+            print("   • account 表：统一管理所有登录账号（管理员、主账号和子账号）")
+            print("   • admin 表：管理员，与 account 一一对应")
+            print("   • user 表：主账号，与 account 一一对应")
+            print("   • member 表：子账号，与 account 一一对应，属于某个 user")
+            print("   • thing_model 表：物模型定义")
+            print("   • device_model 表：设备型号定义")
+            print("   • device 表：具体设备实例")
+    finally:
+        # 确保引擎正确关闭
+        await engine.dispose()
 
 async def insert_initial_data(session: AsyncSession) -> None:
     """插入丰富的测试数据"""
@@ -663,15 +667,32 @@ async def create_devices(session: AsyncSession, users, device_models):
     """创建设备"""
     print("创建设备...")
     devices = []
+    
+    # 用于跟踪每个型号的流水号
+    model_serial_counters = {}
 
     # 创建一些未绑定的设备（user_id=None）
     unbound_count = 10
     for i in range(unbound_count):
+        device_model = random.choice(device_models)
+        model_code = device_model.model_code
+        
+        # 获取或初始化该型号的流水号计数器
+        if model_code not in model_serial_counters:
+            model_serial_counters[model_code] = 0
+        model_serial_counters[model_code] += 1
+        
+        # 生成生产日期（随机生成2022-2024年的日期）
+        production_date = f"{random.randint(22, 24):02d}{random.randint(1, 12):02d}{random.randint(1, 28):02d}"
+        
+        # 生成序列号：型号代码 + 生产日期 + 流水号
+        sn = f"{model_code}-{production_date}-{model_serial_counters[model_code]:06d}"
+        
         device = Device(
             user_id=None,
-            model_id=random.choice(device_models).id,
+            model_id=device_model.id,
             name=f"未绑定设备{i+1}",
-            sn=f"UNBOUND{i+1:03d}",
+            sn=sn,
             status=random.choice(['unconfigured', 'unbound'])
         )
         session.add(device)
@@ -704,11 +725,25 @@ async def create_devices(session: AsyncSession, users, device_models):
             else:
                 status = 'fault'
 
+            device_model = random.choice(device_models)
+            model_code = device_model.model_code
+            
+            # 获取或初始化该型号的流水号计数器
+            if model_code not in model_serial_counters:
+                model_serial_counters[model_code] = 0
+            model_serial_counters[model_code] += 1
+            
+            # 生成生产日期（随机生成2022-2024年的日期）
+            production_date = f"{random.randint(22, 24):02d}{random.randint(1, 12):02d}{random.randint(1, 28):02d}"
+            
+            # 生成序列号：型号代码 + 生产日期 + 流水号
+            sn = f"{model_code}-{production_date}-{model_serial_counters[model_code]:06d}"
+
             device = Device(
                 user_id=user.id,
-                model_id=random.choice(device_models).id,
+                model_id=device_model.id,
                 name=f"设备{i+1}",
-                sn=f"SN{user.id:03d}{i+1:03d}",
+                sn=sn,
                 status=status
             )
             session.add(device)
@@ -721,11 +756,25 @@ async def create_devices(session: AsyncSession, users, device_models):
     # 如果还没达到目标数量，继续创建
     while device_count < target_count:
         user = random.choice(users)
+        device_model = random.choice(device_models)
+        model_code = device_model.model_code
+        
+        # 获取或初始化该型号的流水号计数器
+        if model_code not in model_serial_counters:
+            model_serial_counters[model_code] = 0
+        model_serial_counters[model_code] += 1
+        
+        # 生成生产日期（随机生成2022-2024年的日期）
+        production_date = f"{random.randint(22, 24):02d}{random.randint(1, 12):02d}{random.randint(1, 28):02d}"
+        
+        # 生成序列号：型号代码 + 生产日期 + 流水号
+        sn = f"{model_code}-{production_date}-{model_serial_counters[model_code]:06d}"
+        
         device = Device(
             user_id=user.id,
-            model_id=random.choice(device_models).id,
+            model_id=device_model.id,
             name=f"额外设备{device_count+1}",
-            sn=f"SN{user.id:03d}{device_count+1:03d}",
+            sn=sn,
             status=random.choice(['bound', 'online', 'offline', 'upgrading', 'fault'])
         )
         session.add(device)
@@ -918,14 +967,24 @@ async def reset_database():
         print(f"❌ 数据库重置失败: {e}")
         sys.exit(1)
 
-if __name__ == "__main__":
+async def main():
+    """主函数"""
     import argparse
 
     parser = argparse.ArgumentParser(description='数据库初始化工具')
     parser.add_argument('--reset', action='store_true', help='重置数据库（删除所有表后重新创建）')
     args = parser.parse_args()
 
-    if args.reset:
-        asyncio.run(reset_database())
-    else:
-        asyncio.run(init_db())
+    try:
+        if args.reset:
+            await reset_database()
+        else:
+            await init_db()
+    except KeyboardInterrupt:
+        print("\n⚠️  操作被用户中断")
+    except Exception as e:
+        print(f"❌ 操作失败: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    asyncio.run(main())
