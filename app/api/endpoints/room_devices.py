@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Union
 from pydantic import BaseModel
 
 from app.db.session import get_db
+from app.api.dependencies import get_current_user_id
 from app.crud.room_device import (
     get_room_devices_by_room,
     get_room_devices_by_device,
@@ -11,21 +12,20 @@ from app.crud.room_device import (
     create_room_device,
     update_room_device,
     delete_room_device,
+    batch_update_room_devices,
 )
 from app.crud.room import get_room
 from app.crud.device import get_device
-from app.models.room_device import RoomDeviceCreate, RoomDeviceUpdate, RoomDeviceInDB
+from app.models.room_device import (
+    RoomDeviceCreate, 
+    RoomDeviceUpdate, 
+    RoomDeviceInDB,
+    RoomDeviceBatchSortRequest,
+    RoomDeviceBatchSortResponse
+)
 router = APIRouter()
 
 
-class RoomDeviceOrderItem(BaseModel):
-    device_id: int
-    sort_order: int
-
-
-class RoomDeviceBatchSort(BaseModel):
-    room_id: int
-    orders: List[RoomDeviceOrderItem]
 
 
 @router.get("/by-room/{room_id}", response_model=List[RoomDeviceInDB])
@@ -58,40 +58,70 @@ async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = 
     return await create_room_device(db, payload)
 
 
-@router.put("/batch-sort", response_model=List[RoomDeviceInDB])
-async def batch_update_sort(payload: RoomDeviceBatchSort, db: AsyncSession = Depends(get_db)):
-    # 验证房间存在
-    room = await get_room(db, payload.room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail="房间不存在")
-
-    if not payload.orders:
-        return await get_room_devices_by_room(db, payload.room_id)
-
-    # 读取并校验所有 device_id 都属于该房间
-    device_ids = [item.device_id for item in payload.orders]
-    from sqlalchemy import select
-    from app.db.models.room_device import RoomDevice as RoomDeviceORM
-
-    result = await db.execute(
-        select(RoomDeviceORM).where(
-            RoomDeviceORM.room_id == payload.room_id,
-            RoomDeviceORM.device_id.in_(device_ids)
+@router.put(
+    "/batch-sort", 
+    response_model=RoomDeviceBatchSortResponse,
+    summary="批量更新房间设备关联排序",
+    description="""
+    批量更新房间设备关联排序
+    
+    根据用户传来的列表更新room_device表，其中device_id必须要是当前用户所拥有的设备id，
+    room_id必须是当前用户所拥有的房间id。
+    
+    业务逻辑：
+    - 如果之前存在传入的列表不存在则删除
+    - 如果之前不存在传入的列表存在则添加
+    - 如果既存在又传入则更新排序
+    
+    权限验证：
+    - 需要用户登录认证
+    - 验证所有设备ID都属于当前用户
+    - 验证房间ID属于当前用户
+    """,
+    response_description="返回更新后的房间设备关联列表",
+    tags=["房间设备管理"]
+)
+async def batch_update_sort(
+    payload: RoomDeviceBatchSortRequest, 
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
+    """
+    批量更新房间设备关联排序
+    
+    根据用户传来的列表更新room_device表，其中device_id必须要是当前用户所拥有的设备id，
+    room_id必须是当前用户所拥有的房间id。
+    
+    如果之前存在传入的列表不存在则删除，
+    如果之前不存在传入的列表存在则添加。
+    
+    Args:
+        payload: 批量排序请求数据
+        db: 数据库会话
+        current_user_id: 当前用户ID
+    
+    Returns:
+        更新后的房间设备关联列表
+    """
+    try:
+        # 调用CRUD函数进行批量更新
+        updated_room_devices = await batch_update_room_devices(
+            db=db,
+            room_id=payload.room_id,
+            devices=payload.devices,
+            user_id=current_user_id
         )
-    )
-    room_devices_by_device = {rd.device_id: rd for rd in result.scalars().all()}
-
-    if len(room_devices_by_device) != len(device_ids):
-        raise HTTPException(status_code=400, detail="存在不属于该房间或不存在的房间设备记录")
-
-    for item in payload.orders:
-        rd = room_devices_by_device[item.device_id]
-        rd.sort_order = item.sort_order
-
-    await db.commit()
-
-    # 返回更新后的房间设备（按排序）
-    return await get_room_devices_by_room(db, payload.room_id)
+        
+        return RoomDeviceBatchSortResponse(
+            success=True,
+            message="批量更新成功",
+            data=updated_room_devices
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"批量更新失败: {str(e)}")
 
 
 @router.delete("/{id}")
