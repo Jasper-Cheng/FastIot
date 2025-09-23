@@ -58,50 +58,19 @@ async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = 
     return await create_room_device(db, payload)
 
 
-@router.put(
-    "/batch-sort", 
-    response_model=RoomDeviceBatchSortResponse,
-    summary="批量更新房间设备关联排序",
-    description="""
-    批量更新房间设备关联排序
-    
-    根据用户传来的列表更新room_device表，其中device_id必须要是当前用户所拥有的设备id，
-    room_id必须是当前用户所拥有的房间id。
-    
-    业务逻辑：
-    - 如果之前存在传入的列表不存在则删除
-    - 如果之前不存在传入的列表存在则添加
-    - 如果既存在又传入则更新排序
-    
-    权限验证：
-    - 需要用户登录认证
-    - 验证所有设备ID都属于当前用户
-    - 验证房间ID属于当前用户
-    """,
-    response_description="返回更新后的房间设备关联列表",
-    tags=["房间设备管理"]
-)
+@router.put("/batch-sort", response_model=RoomDeviceBatchSortResponse)
 async def batch_update_sort(
     payload: RoomDeviceBatchSortRequest, 
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id)
 ):
-    """
-    批量更新房间设备关联排序
+    """批量更新房间设备关联排序
     
     根据用户传来的列表更新room_device表，其中device_id必须要是当前用户所拥有的设备id，
     room_id必须是当前用户所拥有的房间id。
     
     如果之前存在传入的列表不存在则删除，
     如果之前不存在传入的列表存在则添加。
-    
-    Args:
-        payload: 批量排序请求数据
-        db: 数据库会话
-        current_user_id: 当前用户ID
-    
-    Returns:
-        更新后的房间设备关联列表
     """
     try:
         # 调用CRUD函数进行批量更新

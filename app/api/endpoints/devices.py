@@ -101,7 +101,11 @@ async def delete_device_item(device_id: int, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/bind-by-sn", response_model=DeviceInDB)
-async def bind_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depends(get_db)):
+async def bind_device_by_sn(
+    sn: str = Query(..., description="设备序列号"),
+    user_id: int = Query(..., description="要绑定的用户ID"),
+    db: AsyncSession = Depends(get_db)
+):
     """通过序列号绑定设备到用户
     
     - sn: 设备序列号
@@ -135,7 +139,7 @@ async def bind_device_by_sn(sn: str, user_id: int, db: AsyncSession = Depends(ge
 
 
 
-@router.post("/unbind-by-sn", response_model=DeviceInDB)
+@router.delete("/unbind-by-sn/{sn}", response_model=DeviceInDB)
 async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
     """通过序列号解绑设备，将设备从用户中移除
     
