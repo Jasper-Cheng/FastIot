@@ -140,6 +140,7 @@ async def bind_device_by_sn(
 
 
 @router.delete("/unbind-by-sn/{sn}", response_model=DeviceInDB)
+@router.delete("/unbind-by-sn/{sn}", response_model=DeviceInDB)
 async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
     """通过序列号解绑设备，将设备从用户中移除
     
