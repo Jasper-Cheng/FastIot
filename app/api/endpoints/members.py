@@ -46,7 +46,7 @@ class MemberRegisterRequest(BaseModel):
     user_id: int
     account: str
     password: str
-    phone: constr(pattern=r"^1\d{10}$")
+    phone: str
     name: str | None = None
     gender: AccountGender | None = None
     email: str | None = None
@@ -75,7 +75,11 @@ async def create_member_for_user(
     if exists:
         raise HTTPException(status_code=400, detail="账号已存在")
 
-    # 校验手机号唯一
+    # 验证手机号格式并校验唯一
+    import re
+    if not re.match(r"^1\d{10}$", payload.phone):
+        raise HTTPException(status_code=400, detail="手机号格式不正确")
+    
     phone_exists = await get_account_by_phone(db, payload.phone)
     if phone_exists:
         raise HTTPException(status_code=400, detail="手机号已被使用")
