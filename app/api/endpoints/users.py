@@ -19,7 +19,7 @@ class UserUpdateRequest(BaseModel):
     account: str | None = None
     name: str | None = None
     gender: AccountGender | None = None
-    phone: constr(pattern=r"^1\d{10}$") | None = None
+    phone: str | None = None
     email: str | None = None
     avatar: str | None = None
     password: str | None = None
@@ -85,8 +85,13 @@ async def update_user_detail(
             if existed and existed.id != u.account_id:
                 raise HTTPException(status_code=400, detail="账号已存在")
 
-    # 变更手机号时检重
+    # 变更手机号时验证格式并检重
     if payload.phone is not None:
+        # 验证手机号格式
+        import re
+        if not re.match(r"^1\d{10}$", payload.phone):
+            raise HTTPException(status_code=400, detail="手机号格式不正确")
+        
         existed_phone = await get_account_by_phone(db, payload.phone)
         if existed_phone and existed_phone.id != u.account_id:
             raise HTTPException(status_code=400, detail="手机号已被使用")
