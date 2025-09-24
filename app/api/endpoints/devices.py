@@ -14,7 +14,7 @@ from app.crud.device import (
 )
 from app.crud.user import get_user
 from app.crud.device_model import get_device_model
-from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus
+from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
 router = APIRouter()
 
 
@@ -100,10 +100,9 @@ async def delete_device_item(device_id: int, db: AsyncSession = Depends(get_db))
     return {"message": "删除成功"}
 
 
-@router.post("/bind-by-sn", response_model=DeviceInDB)
+@router.post("/bind-by-sn/", response_model=DeviceInDB)
 async def bind_device_by_sn(
-    sn: str = Query(..., description="设备序列号"),
-    user_id: int = Query(..., description="要绑定的用户ID"),
+    payload: DeviceBindRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """通过序列号绑定设备到用户
@@ -112,12 +111,12 @@ async def bind_device_by_sn(
     - user_id: 要绑定的用户ID
     """
     # 通过序列号查找设备
-    device = await get_device_by_sn(db, sn)
+    device = await get_device_by_sn(db, payload.sn)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
     # 验证用户存在
-    user = await get_user(db, user_id)
+    user = await get_user(db, payload.user_id)
     if not user:
         raise HTTPException(status_code=400, detail="用户不存在")
     
@@ -129,7 +128,7 @@ async def bind_device_by_sn(
         raise HTTPException(status_code=400, detail="设备状态不允许激活，当前状态：" + device.status)
     
     # 绑定设备：绑定用户并更新状态
-    device.user_id = user_id
+    device.user_id = payload.user_id
     device.status = 'bound'  # 激活后状态变为已绑定
     
     await db.commit()
@@ -139,7 +138,6 @@ async def bind_device_by_sn(
 
 
 
-@router.delete("/unbind-by-sn/{sn}", response_model=DeviceInDB)
 @router.delete("/unbind-by-sn/{sn}", response_model=DeviceInDB)
 async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
     """通过序列号解绑设备，将设备从用户中移除

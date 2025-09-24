@@ -64,3 +64,8 @@ class DeviceCreateInput(BaseModel):
     name: str
     sn: str
     model_id: int
+
+# 设备绑定请求模型
+class DeviceBindRequest(BaseModel):
+    sn: str
+    user_id: int
