@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from app.db.models.member_device_permission import MemberDevicePermission
 from app.models.member_device_permission import MemberDevicePermissionCreate, MemberDevicePermissionUpdate
 from typing import Optional, List
@@ -78,3 +78,47 @@ async def check_member_device_permission(db: AsyncSession, member_id: int, devic
     """检查成员是否有设备控制权限"""
     permission = await get_permission_by_member_and_device(db, member_id, device_id)
     return permission.can_control if permission else False
+
+
+async def batch_update_member_permissions(
+    db: AsyncSession, 
+    member_id: int, 
+    device_ids: List[int]
+) -> List[MemberDevicePermission]:
+    """批量更新成员设备权限
+    
+    先删除该成员的所有权限，然后根据传入的设备ID列表重新添加权限
+    
+    Args:
+        db: 数据库会话
+        member_id: 成员ID
+        device_ids: 设备ID列表
+    
+    Returns:
+        List[MemberDevicePermission]: 更新后的权限列表
+    """
+    # 1. 删除该成员的所有现有权限
+    await db.execute(
+        delete(MemberDevicePermission).where(
+            MemberDevicePermission.member_id == member_id
+        )
+    )
+    
+    # 2. 根据传入的设备ID列表创建新权限
+    new_permissions = []
+    for device_id in device_ids:
+        permission = MemberDevicePermission(
+            member_id=member_id,
+            device_id=device_id
+        )
+        db.add(permission)
+        new_permissions.append(permission)
+    
+    # 3. 提交事务
+    await db.commit()
+    
+    # 4. 刷新所有新创建的权限对象
+    for permission in new_permissions:
+        await db.refresh(permission)
+    
+    return new_permissions

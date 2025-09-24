@@ -9,12 +9,15 @@ from app.crud.member_device_permission import (
     get_permissions_by_device,
     create_member_device_permission,
     delete_member_device_permission,
+    batch_update_member_permissions,
 )
 from app.crud.member import get_member
 from app.crud.device import get_device
 from app.models.member_device_permission import (
     MemberDevicePermissionCreate,
     MemberDevicePermissionInDB,
+    MemberPermissionBatchUpdateRequest,
+    MemberPermissionBatchUpdateResponse,
 )
 
 router = APIRouter()
@@ -112,3 +115,48 @@ async def get_member_permission_stats(member_id: int, db: AsyncSession = Depends
         "member_id": member_id,
         "total_permissions": total_permissions
     }
+
+
+@router.put("/member/{member_id}/batch-update", response_model=MemberPermissionBatchUpdateResponse)
+async def batch_update_member_permissions_endpoint(
+    member_id: int,
+    payload: MemberPermissionBatchUpdateRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """批量更新成员设备权限
+    
+    根据传入的member_id，先删除该成员的所有权限，
+    然后根据传入的设备ID列表重新添加权限
+    
+    请求体示例：
+    {
+        "device_ids": [1, 2, 3]
+    }
+    """
+    # 验证成员存在
+    member = await get_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="成员不存在")
+    
+    # 验证所有设备存在
+    for device_id in payload.device_ids:
+        device = await get_device(db, device_id)
+        if not device:
+            raise HTTPException(status_code=400, detail=f"设备ID {device_id} 不存在")
+    
+    try:
+        # 执行批量更新
+        updated_permissions = await batch_update_member_permissions(
+            db=db,
+            member_id=member_id,
+            device_ids=payload.device_ids
+        )
+        
+        return MemberPermissionBatchUpdateResponse(
+            success=True,
+            message="批量更新成功",
+            data=updated_permissions
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"批量更新失败: {str(e)}")
