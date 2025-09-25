@@ -142,22 +142,22 @@ async def get_current_user_id(
     except JWTError:
         raise credentials_exception
 
-async def check_alert_permission(
+async def check_device_message_permission(
     db: AsyncSession,
     current_user: Union[User, Member],
-    alert_id: int
+    message_id: int
 ) -> bool:
-    """检查用户是否有权限操作告警"""
-    from app.crud.alert import get_alert
+    """检查用户是否有权限操作设备消息"""
+    from app.crud.device_message import get_device_message
     from app.db.models.device import Device
     
-    # 获取告警信息
-    alert = await get_alert(db, alert_id)
-    if not alert:
-        raise HTTPException(status_code=404, detail="告警不存在")
+    # 获取设备消息信息
+    message = await get_device_message(db, message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="设备消息不存在")
     
     # 获取设备信息
-    device = await get_device(db, alert.device_id)
+    device = await get_device(db, message.device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
@@ -175,12 +175,12 @@ async def check_alert_permission(
     
     return False
 
-async def check_device_alert_permission(
+async def check_device_message_permission_by_device(
     db: AsyncSession,
     current_user: Union[User, Member],
     device_id: int
 ) -> bool:
-    """检查用户是否有权限操作设备的告警"""
+    """检查用户是否有权限操作设备的消息"""
     # 获取设备信息
     device = await get_device(db, device_id)
     if not device:
@@ -206,6 +206,6 @@ __all__ = [
     "get_current_user",
     "get_current_user_id",
     "get_current_guard",
-    "check_alert_permission",
-    "check_device_alert_permission",
+    "check_device_message_permission",
+    "check_device_message_permission_by_device",
 ]

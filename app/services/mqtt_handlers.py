@@ -1,10 +1,10 @@
 import json
 from typing import Dict, Any
 from app.services.mqtt_client import mqtt_service
-from app.services.websocket_service import push_alert_notification
-from app.services.alert_service import alert_service
-from app.crud.alert import create_alert
-from app.models.alert import AlertCreate
+from app.services.websocket_service import push_device_message_notification
+from app.services.device_message_service import device_message_service
+from app.crud.device_message import create_device_message
+from app.models.device_message import DeviceMessageCreate
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Helper to extract device_id from topic pattern like: devices/{device_id}/<suffix>
@@ -23,7 +23,7 @@ async def handle_telemetry(topic: str, data: Dict[str, Any], db: AsyncSession | 
     
     # 1) 检查是否有告警条件
     if db is not None:
-        await alert_service.check_telemetry_alerts(device_id, data, db)
+        await device_message_service.check_telemetry_messages(device_id, data, db)
     
     # 2) 广播到应用/Web端
     mqtt_service.publish_json(
@@ -61,30 +61,30 @@ async def handle_ack(topic: str, data: Dict[str, Any]) -> None:
         retain=False,
     )
 
-async def handle_alert(topic: str, data: Dict[str, Any], db: AsyncSession | None = None) -> None:
-    """处理设备告警消息"""
+async def handle_device_message(topic: str, data: Dict[str, Any], db: AsyncSession | None = None) -> None:
+    """处理设备消息"""
     device_id = _extract_device_id(topic)
     if not device_id:
         return
     
     if db is not None:
-        # 使用alert服务创建告警
-        alert_info = await alert_service.create_manual_alert(
+        # 使用设备消息服务创建消息
+        message_info = await device_message_service.create_manual_message(
             device_id=device_id,
-            alert_type=data.get("alert_type", "unknown"),
-            message=data.get("message", "设备告警"),
+            message_type=data.get("message_type", "unknown"),
+            message=data.get("message", "设备消息"),
             db=db
         )
         
-        if alert_info:
-            print(f"✅ [Alert] 设备 {device_id} 告警已记录并推送: {data.get('alert_type', 'unknown')}")
+        if message_info:
+            print(f"✅ [DeviceMessage] 设备 {device_id} 消息已记录并推送: {data.get('message_type', 'unknown')}")
         else:
-            print(f"❌ [Alert] 设备 {device_id} 告警处理失败")
+            print(f"❌ [DeviceMessage] 设备 {device_id} 消息处理失败")
     
-    # 转发告警到应用/Web端
+    # 转发消息到应用/Web端
     mqtt_service.publish_json(
-        topic=f"apps/broadcast/devices/{device_id}/alert",
-        payload={"device_id": device_id, "alert": data},
+        topic=f"apps/broadcast/devices/{device_id}/message",
+        payload={"device_id": device_id, "message": data},
         qos=0,
         retain=False,
     )
@@ -109,4 +109,4 @@ def register_mqtt_subscriptions() -> None:
     mqtt_service.subscribe("devices/+/telemetry", _wrap_async(handle_telemetry), qos=0)
     mqtt_service.subscribe("devices/+/lifecycle", _wrap_async(handle_lifecycle), qos=0)
     mqtt_service.subscribe("devices/+/ack", _wrap_async(handle_ack), qos=0)
-    mqtt_service.subscribe("devices/+/alert", _wrap_async(handle_alert), qos=0)
+    mqtt_service.subscribe("devices/+/message", _wrap_async(handle_device_message), qos=0)

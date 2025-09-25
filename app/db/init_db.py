@@ -15,7 +15,7 @@ from app.db.models.device import Device
 from app.db.models.thing_model import ThingModel
 from app.db.models.device_model import DeviceModel
 from app.db.models.device_log import DeviceLog
-from app.db.models.alert import Alert
+from app.db.models.device_message import DeviceMessage
 from app.db.models.room_device import RoomDevice
 from app.db.models.member_device_permission import MemberDevicePermission
 from app.db.models.device_network import DeviceNetwork
@@ -119,8 +119,8 @@ async def insert_initial_data(session: AsyncSession) -> None:
         # 10. 创建设备日志
         await create_device_logs(session, devices)
         
-        # 11. 创建告警
-        await create_alerts(session, devices)
+        # 11. 创建设备消息
+        await create_device_messages(session, devices)
         
         # 12. 创建设备网络信息
         await create_device_networks(session, devices)
@@ -901,12 +901,12 @@ async def create_device_logs(session: AsyncSession, devices):
             )
             session.add(device_log)
 
-async def create_alerts(session: AsyncSession, devices):
-    """创建告警"""
-    print("创建告警...")
+async def create_device_messages(session: AsyncSession, devices):
+    """创建设备消息"""
+    print("创建设备消息...")
 
-    alert_levels = ['low', 'medium', 'high']
-    alert_messages = [
+    message_levels = ['low', 'medium', 'high']
+    message_contents = [
         "设备离线",
         "温度异常",
         "湿度过高",
@@ -915,17 +915,17 @@ async def create_alerts(session: AsyncSession, devices):
         "设备故障",
         "数据异常"
         ]
-    # 为每个设备创建1-5条告警
+    # 为每个设备创建1-5条消息
     for device in devices:
-        num_alerts = random.randint(1, 5)
-        for i in range(num_alerts):
-            alert = Alert(
+        num_messages = random.randint(1, 5)
+        for i in range(num_messages):
+            message = DeviceMessage(
                 device_id=device.id,
-                level=random.choice(alert_levels),
-                status=random.choice(['new', 'read', 'resolved']),
-                message=random.choice(alert_messages)
+                level=random.choice(message_levels),
+                status=random.choice(['new', 'read']),
+                message=random.choice(message_contents)
             )
-            session.add(alert)
+            session.add(message)
 
 async def create_device_networks(session: AsyncSession, devices):
     """创建设备网络信息（一对一：每个设备仅一条网络记录）"""
