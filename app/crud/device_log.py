@@ -20,11 +20,11 @@ async def get_device_logs_by_device(db: AsyncSession, device_id: int, skip: int 
     )
     return result.scalars().all()
 
-async def get_device_logs_by_event_type(db: AsyncSession, device_id: int, event_type: str, skip: int = 0, limit: int = 100) -> List[DeviceLog]:
-    """根据设备ID和事件类型获取日志"""
+async def get_device_logs_by_type(db: AsyncSession, device_id: int, type: str, skip: int = 0, limit: int = 100) -> List[DeviceLog]:
+    """根据设备ID和类型获取日志"""
     result = await db.execute(
         select(DeviceLog)
-        .filter(DeviceLog.device_id == device_id, DeviceLog.event_type == event_type)
+        .filter(DeviceLog.device_id == device_id, DeviceLog.type == type)
         .order_by(desc(DeviceLog.created_at))
         .offset(skip)
         .limit(limit)
@@ -35,7 +35,7 @@ async def create_device_log(db: AsyncSession, log: DeviceLogCreate) -> DeviceLog
     """创建设备日志"""
     db_log = DeviceLog(
         device_id=log.device_id,
-        event_type=log.event_type,
+        type=log.type,
         params=log.params
     )
     db.add(db_log)

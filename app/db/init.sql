@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS `room_device` (
 CREATE TABLE IF NOT EXISTS `device_log` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
     `device_id` BIGINT NOT NULL COMMENT '设备ID',
-    `event_type` VARCHAR(50) COMMENT '事件类型',
+    `type` ENUM('properties','services','events') NOT NULL COMMENT '事件类型',
     `params` JSON COMMENT '事件参数JSON',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE

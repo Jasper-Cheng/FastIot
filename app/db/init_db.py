@@ -863,21 +863,40 @@ async def create_device_logs(session: AsyncSession, devices):
     """创建设备日志"""
     print("创建设备日志...")
 
-    event_types = ["power_on", "power_off", "data_update", "error", "maintenance", "status_change"]
+    types = ["properties", "services", "events"]
 
     for device in devices:
         # 为每个设备创建10-20条日志
         num_logs = random.randint(10, 20)
         for i in range(num_logs):
-            log_data = {
-                "event": random.choice(event_types),
-                "value": random.uniform(0, 100),
-                "timestamp": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
-            }
+            type = random.choice(types)
+            
+            # 根据类型生成不同的参数
+            if type == "properties":
+                log_data = {
+                    "property_name": random.choice(["temperature", "humidity", "power", "voltage"]),
+                    "value": random.uniform(0, 100),
+                    "unit": random.choice(["°C", "%", "W", "V"]),
+                    "timestamp": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
+                }
+            elif type == "services":
+                log_data = {
+                    "service_name": random.choice(["power_on", "power_off", "set_temperature", "calibrate"]),
+                    "status": random.choice(["success", "failed", "pending"]),
+                    "duration": random.uniform(0.1, 5.0),
+                    "timestamp": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
+                }
+            else:  # events
+                log_data = {
+                    "event_name": random.choice(["device_connected", "device_disconnected", "error_occurred", "maintenance_required"]),
+                    "severity": random.choice(["low", "medium", "high"]),
+                    "message": f"Device event occurred at {datetime.now().isoformat()}",
+                    "timestamp": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
+                }
 
             device_log = DeviceLog(
                 device_id=device.id,
-                event_type=random.choice(event_types),
+                type=type,
                 params=log_data
             )
             session.add(device_log)
