@@ -100,15 +100,6 @@ CREATE TABLE IF NOT EXISTS `room_device` (
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='房间设备关联表';
 
--- 设备参数表：存储设备的实时参数数据
-CREATE TABLE IF NOT EXISTS `device_param` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '参数记录ID',
-    `device_id` BIGINT NOT NULL COMMENT '设备ID',
-    `params` JSON NOT NULL COMMENT '参数数据JSON',
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备参数表';
-
 -- 设备日志表：记录设备运行历史记录和事件
 CREATE TABLE IF NOT EXISTS `device_log` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',

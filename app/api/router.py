@@ -12,7 +12,6 @@ from app.api.endpoints import thing_models as thing_models_endpoints
 from app.api.endpoints import device_models as device_models_endpoints
 from app.api.endpoints import devices as devices_endpoints
 from app.api.endpoints import room_devices as room_devices_endpoints
-from app.api.endpoints import device_params as device_params_endpoints
 from app.api.endpoints import device_networks as device_networks_endpoints
 from app.api.endpoints import device_logs as device_logs_endpoints
 from app.api.endpoints import alerts as alerts_endpoints
@@ -27,7 +26,6 @@ api_router.include_router(thing_models_endpoints.router, prefix="/thing-models",
 api_router.include_router(device_models_endpoints.router, prefix="/device-models", tags=["device-models"], dependencies=[Depends(get_current_user)])
 api_router.include_router(devices_endpoints.router, prefix="/devices", tags=["devices"], dependencies=[Depends(get_current_user)])
 api_router.include_router(room_devices_endpoints.router, prefix="/room-devices", tags=["room-devices"], dependencies=[Depends(get_current_user)])
-api_router.include_router(device_params_endpoints.router, prefix="/device-params", tags=["device-params"], dependencies=[Depends(get_current_user)])
 api_router.include_router(device_networks_endpoints.router, prefix="/device-networks", tags=["device-networks"], dependencies=[Depends(get_current_user)])
 api_router.include_router(device_logs_endpoints.router, prefix="/device-logs", tags=["device-logs"], dependencies=[Depends(get_current_user)])
 api_router.include_router(alerts_endpoints.router, prefix="/alerts", tags=["alerts"], dependencies=[Depends(get_current_user)])

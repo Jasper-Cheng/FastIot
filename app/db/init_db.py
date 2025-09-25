@@ -14,7 +14,6 @@ from app.db.models.room import Room
 from app.db.models.device import Device
 from app.db.models.thing_model import ThingModel
 from app.db.models.device_model import DeviceModel
-from app.db.models.device_param import DeviceParam
 from app.db.models.device_log import DeviceLog
 from app.db.models.alert import Alert
 from app.db.models.room_device import RoomDevice
@@ -117,16 +116,13 @@ async def insert_initial_data(session: AsyncSession) -> None:
         # 9. 创建成员设备权限
         await create_member_device_permissions(session, members, devices)
         
-        # 10. 创建设备参数
-        await create_device_params(session, devices)
-        
-        # 11. 创建设备日志
+        # 10. 创建设备日志
         await create_device_logs(session, devices)
         
-        # 12. 创建告警
+        # 11. 创建告警
         await create_alerts(session, devices)
         
-        # 13. 创建设备网络信息
+        # 12. 创建设备网络信息
         await create_device_networks(session, devices)
         
         await session.commit()
@@ -862,24 +858,6 @@ async def create_member_device_permissions(session: AsyncSession, members, devic
                     )
                     session.add(permission)
 
-async def create_device_params(session: AsyncSession, devices):
-    """创建设备参数"""
-    print("创建设备参数...")
-
-    for device in devices:
-        # 为每个设备创建参数记录
-        param_data = {
-            "timestamp": datetime.now().isoformat(),
-            "status": device.status,
-            "battery": random.randint(20, 100) if device.status in ['configured', 'bound'] else 0,
-            "signal_strength": random.randint(60, 100) if device.status in ['configured', 'bound'] else 0
-        }
-
-        device_param = DeviceParam(
-            device_id=device.id,
-            params=param_data
-        )
-        session.add(device_param)
 
 async def create_device_logs(session: AsyncSession, devices):
     """创建设备日志"""
