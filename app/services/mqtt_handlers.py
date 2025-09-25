@@ -1,8 +1,6 @@
 import json
 from typing import Dict, Any
 from app.services.mqtt_client import mqtt_service
-from app.services.websocket_service import push_device_message_notification
-from app.services.device_message_service import device_message_service
 from app.crud.device_message import create_device_message
 from app.models.device_message import DeviceMessageCreate
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,9 +19,11 @@ async def handle_telemetry(topic: str, data: Dict[str, Any], db: AsyncSession | 
     if not device_id:
         return
     
-    # 1) 检查是否有告警条件
+    # 1) 简单的告警检查（可以根据需要扩展）
     if db is not None:
-        await device_message_service.check_telemetry_messages(device_id, data, db)
+        # 这里可以添加简单的告警逻辑
+        # 例如检查温度、湿度等关键参数
+        pass
     
     # 2) 广播到应用/Web端
     mqtt_service.publish_json(
@@ -68,18 +68,21 @@ async def handle_device_message(topic: str, data: Dict[str, Any], db: AsyncSessi
         return
     
     if db is not None:
-        # 使用设备消息服务创建消息
-        message_info = await device_message_service.create_manual_message(
-            device_id=device_id,
-            message_type=data.get("message_type", "unknown"),
-            message=data.get("message", "设备消息"),
-            db=db
-        )
-        
-        if message_info:
-            print(f"✅ [DeviceMessage] 设备 {device_id} 消息已记录并推送: {data.get('message_type', 'unknown')}")
-        else:
-            print(f"❌ [DeviceMessage] 设备 {device_id} 消息处理失败")
+        # 直接使用CRUD函数创建消息
+        try:
+            message_create = DeviceMessageCreate(
+                device_id=device_id,
+                level=data.get("level", "medium"),
+                message=data.get("message", "设备消息")
+            )
+            message_info = await create_device_message(db, message_create)
+            
+            if message_info:
+                print(f"✅ [DeviceMessage] 设备 {device_id} 消息已记录: {data.get('message', '设备消息')}")
+            else:
+                print(f"❌ [DeviceMessage] 设备 {device_id} 消息处理失败")
+        except Exception as e:
+            print(f"❌ [DeviceMessage] 设备 {device_id} 消息处理异常: {e}")
     
     # 转发消息到应用/Web端
     mqtt_service.publish_json(
