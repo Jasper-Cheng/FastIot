@@ -15,6 +15,11 @@ from app.crud.device import (
 from app.crud.user import get_user
 from app.crud.device_model import get_device_model
 from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
+from pydantic import BaseModel
+
+class DeviceNameUpdate(BaseModel):
+    name: str
+
 router = APIRouter()
 
 
@@ -89,6 +94,22 @@ async def update_device_item(device_id: int, payload: DeviceUpdate, db: AsyncSes
     updated = await update_device(db, device_id, payload)
     if not updated:
         raise HTTPException(status_code=404, detail="设备不存在")
+    return updated
+
+
+@router.patch("/{device_id}/name", response_model=DeviceInDB)
+async def update_device_name(device_id: int, payload: DeviceNameUpdate, db: AsyncSession = Depends(get_db)):
+    """修改设备名称
+    
+    - name: 新的设备名称
+    """
+    # 检查设备是否存在
+    device = await get_device(db, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    
+    # 更新设备名称
+    updated = await update_device(db, device_id, DeviceUpdate(name=payload.name))
     return updated
 
 
