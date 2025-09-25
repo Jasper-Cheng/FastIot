@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS `room` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='房间表';
 
 -- 物模型表：定义设备功能能力（属性/服务/事件）
-CREATE TABLE IF NOT EXISTS `thing_model` (
+CREATE TABLE IF NOT EXISTS `device_thing_model` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '物模型ID',
     `name` VARCHAR(100) NOT NULL COMMENT '物模型名称',
     `description` VARCHAR(500) COMMENT '物模型描述',
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `device_model` (
     `services` JSON NOT NULL COMMENT '服务定义JSON（扩展自物模型）',
     `events` JSON NOT NULL COMMENT '事件定义JSON（扩展自物模型）',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`thing_model_id`) REFERENCES `thing_model`(`id`)
+    FOREIGN KEY (`thing_model_id`) REFERENCES `device_thing_model`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备型号表';
 
 -- 设备表：具体的物联网设备实例
@@ -160,7 +160,7 @@ ON DUPLICATE KEY UPDATE `account_id` = `account_id`;
 -- 管理员账号不自动创建 user 记录
 
 -- 插入示例物模型
-INSERT INTO `thing_model` (`name`, `description`, `properties`, `services`, `events`) 
+INSERT INTO `device_thing_model` (`name`, `description`, `properties`, `services`, `events`) 
 VALUES 
 ('温度传感器物模型', '基础温度传感器功能定义', 
  '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85}}',

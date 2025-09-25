@@ -10,7 +10,7 @@ class DeviceModel(Base):
     model_code = Column(String(50), nullable=False, unique=True, comment="型号代码")
     name = Column(String(100), nullable=False, comment="型号名称")
     vendor = Column(String(100), comment="厂商")
-    thing_model_id = Column(BigInteger, ForeignKey("thing_model.id"), nullable=False, comment="物模型ID")
+    thing_model_id = Column(BigInteger, ForeignKey("device_thing_model.id"), nullable=False, comment="物模型ID")
     properties = Column(JSON, nullable=False, comment="属性定义JSON（扩展自物模型）")
     services = Column(JSON, nullable=False, comment="服务定义JSON（扩展自物模型）")
     events = Column(JSON, nullable=False, comment="事件定义JSON（扩展自物模型）")

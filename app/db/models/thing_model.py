@@ -4,7 +4,7 @@ from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 class ThingModel(Base):
-    __tablename__ = "thing_model"
+    __tablename__ = "device_thing_model"
 
     id = Column(BigInteger, primary_key=True, index=True)
     name = Column(String(100), nullable=False, comment="物模型名称")
