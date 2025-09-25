@@ -4,6 +4,7 @@ from .member import Member
 from .room import Room
 from .device import Device
 from .device_model import DeviceModel
+from .device_thing_model import DeviceThingModel
 from .device_log import DeviceLog
 from .device_message import DeviceMessage
 from .room_device import RoomDevice
@@ -17,6 +18,7 @@ __all__ = [
     "Room",
     "Device",
     "DeviceModel",
+    "DeviceThingModel",
     "DeviceLog",
     "DeviceMessage",
     "RoomDevice",

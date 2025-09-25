@@ -12,7 +12,7 @@ from app.db.models.user import User
 from app.db.models.member import Member
 from app.db.models.room import Room
 from app.db.models.device import Device
-from app.db.models.thing_model import ThingModel
+from app.db.models.device_thing_model import DeviceThingModel
 from app.db.models.device_model import DeviceModel
 from app.db.models.device_log import DeviceLog
 from app.db.models.device_message import DeviceMessage
@@ -365,7 +365,7 @@ async def create_thing_models(session: AsyncSession):
     ]
 
     for name, description, properties, services, events in thing_models_data:
-        thing_model = ThingModel(
+        thing_model = DeviceThingModel(
             name=name,
             description=description,
             properties=properties,

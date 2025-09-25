@@ -12,7 +12,7 @@ from app.crud.device_model import (
     update_device_model,
     delete_device_model,
 )
-from app.crud.thing_model import get_thing_model
+from app.crud.device_thing_model import get_device_thing_model
 from app.models.device_model import (
     DeviceModelCreate,
     DeviceModelUpdate,
@@ -62,10 +62,10 @@ async def create_device_model_item(payload: DeviceModelCreate, db: AsyncSession 
       "events": ["power_changed", "voltage_alert", "device_fault"]
     }
     """
-    # 验证物模型存在
-    thing_model = await get_thing_model(db, payload.thing_model_id)
+    # 验证设备物模型存在
+    thing_model = await get_device_thing_model(db, payload.thing_model_id)
     if not thing_model:
-        raise HTTPException(status_code=400, detail="物模型不存在")
+        raise HTTPException(status_code=400, detail="设备物模型不存在")
     
     # 验证型号代码唯一性
     existing_model = await db.execute(select(DeviceModel).filter(DeviceModel.model_code == payload.model_code))
@@ -90,11 +90,11 @@ async def update_device_model_item(model_id: int, payload: DeviceModelUpdate, db
       "events": ["power_changed", "device_fault"]
     }
     """
-    # 如果提供了thing_model_id，验证物模型存在
+    # 如果提供了thing_model_id，验证设备物模型存在
     if payload.thing_model_id is not None:
-        thing_model = await get_thing_model(db, payload.thing_model_id)
+        thing_model = await get_device_thing_model(db, payload.thing_model_id)
         if not thing_model:
-            raise HTTPException(status_code=400, detail="物模型不存在")
+            raise HTTPException(status_code=400, detail="设备物模型不存在")
     
     # 如果提供了model_code，验证唯一性（排除当前记录）
     if payload.model_code is not None:

@@ -3,7 +3,8 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
-class ThingModel(Base):
+
+class DeviceThingModel(Base):
     __tablename__ = "device_thing_model"
 
     id = Column(BigInteger, primary_key=True, index=True)
@@ -18,4 +19,4 @@ class ThingModel(Base):
     device_models = relationship("DeviceModel", back_populates="thing_model")
 
     def __repr__(self):
-        return f"<ThingModel(id={self.id}, name='{self.name}')>"
+        return f"<DeviceThingModel(id={self.id}, name='{self.name}')>"
