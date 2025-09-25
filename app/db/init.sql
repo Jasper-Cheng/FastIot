@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS `device` (
     `model_id` BIGINT NOT NULL COMMENT '设备型号ID',
     `name` VARCHAR(100) NOT NULL COMMENT '设备名称',
     `sn` VARCHAR(100) UNIQUE NOT NULL COMMENT '设备序列号',
-    `status` ENUM('unconfigured','unbound','bound','online','offline','upgrading','fault') DEFAULT 'unconfigured' COMMENT '设备状态',
+    `status` ENUM('unconfigured','configured','unbound','bound') DEFAULT 'unconfigured' COMMENT '设备状态',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`model_id`) REFERENCES `device_model`(`id`)
@@ -194,7 +194,7 @@ ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 -- 插入示例设备
 INSERT INTO `device` (`user_id`, `model_id`, `name`, `sn`, `status`) 
 VALUES 
-(1, 1, '温度传感器-01', 'TEMP001', 'offline'),
-(1, 2, '湿度传感器-01', 'HUM001', 'offline'),
-(1, 3, '环境监测器-01', 'ENV001', 'offline')
+(1, 1, '温度传感器-01', 'TEMP001', 'bound'),
+(1, 2, '湿度传感器-01', 'HUM001', 'bound'),
+(1, 3, '环境监测器-01', 'ENV001', 'bound')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);

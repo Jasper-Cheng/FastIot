@@ -145,7 +145,7 @@ async def bind_device_by_sn(
     if device.user_id is not None:
         raise HTTPException(status_code=400, detail="设备已被其他用户绑定")
     
-    if device.status not in ['unconfigured', 'unbound']:
+    if device.status not in ['unconfigured', 'configured', 'unbound']:
         raise HTTPException(status_code=400, detail="设备状态不允许激活，当前状态：" + device.status)
     
     # 绑定设备：绑定用户并更新状态

@@ -5,12 +5,9 @@ from enum import Enum
 
 class DeviceStatus(str, Enum):
     unconfigured = "unconfigured"  # 未配网
+    configured = "configured"      # 已配网
     unbound = "unbound"            # 未绑定
     bound = "bound"                # 已绑定
-    online = "online"              # 在线
-    offline = "offline"            # 离线
-    upgrading = "upgrading"        # 升级中
-    fault = "fault"                # 故障
 
 class DeviceBase(BaseModel):
     name: str

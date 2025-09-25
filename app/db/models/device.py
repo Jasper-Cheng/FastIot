@@ -11,7 +11,7 @@ class Device(Base):
     model_id = Column(BigInteger, ForeignKey("device_model.id"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     sn = Column(String(100), unique=True, index=True, nullable=False)
-    status = Column(Enum('unconfigured', 'unbound', 'bound', 'online', 'offline', 'upgrading', 'fault', name='device_status'), default='unconfigured')
+    status = Column(Enum('unconfigured', 'configured', 'unbound', 'bound', name='device_status'), default='unconfigured')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # 关系

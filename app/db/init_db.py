@@ -717,13 +717,13 @@ async def create_devices(session: AsyncSession, users, device_models):
             elif device_count < 30:
                 status = 'bound'
             elif device_count < 40:
-                status = 'online'
+                status = 'configured'
             elif device_count < 45:
-                status = 'offline'
+                status = 'unbound'
             elif device_count < 48:
-                status = 'upgrading'
+                status = 'bound'
             else:
-                status = 'fault'
+                status = 'bound'
 
             device_model = random.choice(device_models)
             model_code = device_model.model_code
@@ -775,7 +775,7 @@ async def create_devices(session: AsyncSession, users, device_models):
             model_id=device_model.id,
             name=f"额外设备{device_count+1}",
             sn=sn,
-            status=random.choice(['bound', 'online', 'offline', 'upgrading', 'fault'])
+            status=random.choice(['unconfigured', 'configured', 'unbound', 'bound'])
         )
         session.add(device)
         devices.append(device)
@@ -833,8 +833,8 @@ async def create_device_params(session: AsyncSession, devices):
         param_data = {
             "timestamp": datetime.now().isoformat(),
             "status": device.status,
-            "battery": random.randint(20, 100) if device.status == 'online' else 0,
-            "signal_strength": random.randint(60, 100) if device.status == 'online' else 0
+            "battery": random.randint(20, 100) if device.status in ['configured', 'bound'] else 0,
+            "signal_strength": random.randint(60, 100) if device.status in ['configured', 'bound'] else 0
         }
 
         device_param = DeviceParam(
