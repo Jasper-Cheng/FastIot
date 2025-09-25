@@ -11,7 +11,9 @@ class DeviceModel(Base):
     name = Column(String(100), nullable=False, comment="型号名称")
     vendor = Column(String(100), comment="厂商")
     thing_model_id = Column(BigInteger, ForeignKey("thing_model.id"), nullable=False, comment="物模型ID")
-    params = Column(JSON, nullable=False, comment="该型号设备的完整参数定义")
+    properties = Column(JSON, nullable=False, comment="属性定义JSON（扩展自物模型）")
+    services = Column(JSON, nullable=False, comment="服务定义JSON（扩展自物模型）")
+    events = Column(JSON, nullable=False, comment="事件定义JSON（扩展自物模型）")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
 
     # 关系

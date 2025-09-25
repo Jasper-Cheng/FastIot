@@ -30,7 +30,9 @@ async def create_device_model(db: AsyncSession, model: DeviceModelCreate) -> Dev
         name=model.name,
         vendor=model.vendor,
         thing_model_id=model.thing_model_id,
-        params=model.params
+        properties=model.properties,
+        services=model.services,
+        events=model.events
     )
     db.add(db_model)
     await db.commit()

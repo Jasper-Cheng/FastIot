@@ -54,10 +54,12 @@ async def create_device_model_item(payload: DeviceModelCreate, db: AsyncSession 
       "name": "插座1000W",
       "vendor": "SmartHome Inc",
       "thing_model_id": 1,
-      "params": {
-        "power": {"type": "boolean", "unit": "on/off", "default": false},
-        "voltage": {"type": "float", "unit": "V", "min": 0, "max": 250, "precision": 1}
-      }
+      "properties": {
+        "power": {"type": "boolean", "unit": "on/off", "default": false, "readable": true, "writable": true},
+        "voltage": {"type": "float", "unit": "V", "min": 0, "max": 250, "precision": 1, "readable": true, "writable": false}
+      },
+      "services": ["power_on", "power_off", "set_voltage", "reset"],
+      "events": ["power_changed", "voltage_alert", "device_fault"]
     }
     """
     # 验证物模型存在
@@ -83,7 +85,9 @@ async def update_device_model_item(model_id: int, payload: DeviceModelUpdate, db
       "name": "插座1000W",
       "vendor": "SmartHome Inc",
       "thing_model_id": 1,
-      "params": {"power": {"type": "boolean", "unit": "on/off"}}
+      "properties": {"power": {"type": "boolean", "unit": "on/off", "readable": true, "writable": true}},
+      "services": ["power_on", "power_off"],
+      "events": ["power_changed", "device_fault"]
     }
     """
     # 如果提供了thing_model_id，验证物模型存在

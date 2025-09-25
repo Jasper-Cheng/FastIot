@@ -386,6 +386,41 @@ async def create_device_models(session: AsyncSession, thing_models):
     """创建设备型号"""
     print("创建设备型号...")
     device_models = []
+    
+    def get_device_services_events(device_type: str, model_code: str):
+        """根据设备类型生成服务和事件"""
+        services_events_map = {
+            "AC": (["power_on", "power_off", "set_temperature", "set_mode", "set_fan_speed", "set_swing", "auto_mode", "timer_set"], 
+                   ["temperature_reached", "filter_clean_reminder", "maintenance_required", "power_fault", "temperature_error", "mode_changed"]),
+            "CAM": (["start_recording", "stop_recording", "take_photo", "set_resolution", "set_night_vision", "pan_tilt", "zoom"], 
+                    ["motion_detected", "storage_full", "camera_fault", "low_light_alert", "recording_started", "recording_stopped"]),
+            "LIGHT": (["power_on", "power_off", "set_brightness", "set_color", "set_color_temp", "set_scene", "dim", "brighten"], 
+                      ["bulb_fault", "overheating", "color_error", "brightness_error", "scene_changed", "power_changed"]),
+            "TV": (["power_on", "power_off", "set_volume", "change_channel", "set_input", "set_resolution", "mute", "unmute"], 
+                   ["no_signal", "audio_fault", "display_fault", "remote_disconnected", "channel_changed", "volume_changed"]),
+            "FALL": (["power_on", "power_off", "set_sensitivity", "test_alarm", "reset_emergency", "calibrate"], 
+                     ["fall_detected", "low_battery", "device_fault", "emergency_triggered", "sensitivity_changed"]),
+            "WIFI": (["power_on", "power_off", "restart", "update_firmware", "set_guest_network", "block_device", "unblock_device"], 
+                     ["wifi_disconnected", "device_connected", "device_disconnected", "signal_weak", "firmware_updated"]),
+            "ROBOT": (["start_cleaning", "stop_cleaning", "return_home", "set_cleaning_mode", "schedule_cleaning", "empty_dustbin"], 
+                      ["cleaning_completed", "dustbin_full", "stuck", "low_battery", "charging_started", "charging_completed"]),
+            "WASH": (["start_washing", "stop_washing", "set_wash_mode", "set_temperature", "set_water_level", "schedule_wash"], 
+                     ["washing_completed", "water_shortage", "door_open", "drainage_fault", "maintenance_required", "cycle_changed"]),
+            "FRIDGE": (["power_on", "power_off", "set_temperature_fresh", "set_temperature_frozen", "set_ice_maker", "set_energy_mode"], 
+                       ["door_open_alert", "temperature_abnormal", "ice_maker_fault", "defrost_required", "temperature_changed"]),
+            "SPEAKER": (["power_on", "power_off", "set_volume", "play_music", "stop_music", "set_voice_assistant", "mute", "unmute"], 
+                        ["music_playing", "voice_command", "wifi_disconnected", "low_battery", "speaker_fault", "volume_changed"]),
+            "AIR": (["power_on", "power_off", "set_fan_speed", "set_auto_mode", "set_timer", "reset_filter", "set_pm25_threshold"], 
+                    ["air_quality_changed", "filter_replacement_needed", "sensor_fault", "purifier_fault", "pm25_high", "filter_changed"])
+        }
+        
+        device_prefix = model_code[:3] if len(model_code) >= 3 else model_code
+        for prefix, (services, events) in services_events_map.items():
+            if device_prefix.startswith(prefix):
+                return services, events
+        
+        # Default fallback
+        return ["power_on", "power_off", "reset"], ["device_fault", "low_battery", "status_changed"]
 
     models_data = [
         ("AC001", "格力空调KFR-35GW", "格力", 0, {
@@ -649,13 +684,16 @@ async def create_device_models(session: AsyncSession, thing_models):
         })
     ]
 
-    for model_code, name, vendor, thing_model_index, params in models_data:
+    for model_code, name, vendor, thing_model_index, properties in models_data:
+        services, events = get_device_services_events(thing_models[thing_model_index].name, model_code)
         device_model = DeviceModel(
             model_code=model_code,
             name=name,
             vendor=vendor,
             thing_model_id=thing_models[thing_model_index].id,
-            params=params
+            properties=properties,
+            services=services,
+            events=events
         )
         session.add(device_model)
         device_models.append(device_model)

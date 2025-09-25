@@ -70,7 +70,9 @@ CREATE TABLE IF NOT EXISTS `device_model` (
     `name` VARCHAR(100) NOT NULL COMMENT '型号名称',
     `vendor` VARCHAR(100) COMMENT '厂商',
     `thing_model_id` BIGINT NOT NULL COMMENT '物模型ID',
-    `params` JSON NOT NULL COMMENT '该型号设备的完整参数定义',
+    `properties` JSON NOT NULL COMMENT '属性定义JSON（扩展自物模型）',
+    `services` JSON NOT NULL COMMENT '服务定义JSON（扩展自物模型）',
+    `events` JSON NOT NULL COMMENT '事件定义JSON（扩展自物模型）',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     FOREIGN KEY (`thing_model_id`) REFERENCES `thing_model`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备型号表';
@@ -184,11 +186,20 @@ VALUES
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- 插入示例设备型号
-INSERT INTO `device_model` (`model_code`, `name`, `vendor`, `thing_model_id`, `params`) 
+INSERT INTO `device_model` (`model_code`, `name`, `vendor`, `thing_model_id`, `properties`, `services`, `events`) 
 VALUES 
-('TEMP001', '温度传感器', 'IoT Corp', 1, '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1, "default": 20}}'),
-('HUM001', '湿度传感器', 'IoT Corp', 2, '{"humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1, "default": 50}}'),
-('ENV001', '环境监测器', 'Smart Devices', 3, '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1}, "humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1}, "pressure": {"type": "float", "unit": "hPa", "min": 800, "max": 1200, "precision": 1}}')
+('TEMP001', '温度传感器', 'IoT Corp', 1, 
+ '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1, "default": 20, "readable": true, "writable": false}}',
+ '["read_temperature", "calibrate", "set_precision", "reset_calibration"]',
+ '["temperature_alert", "sensor_fault", "calibration_complete", "low_battery"]'),
+('HUM001', '湿度传感器', 'IoT Corp', 2, 
+ '{"humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1, "default": 50, "readable": true, "writable": false}}',
+ '["read_humidity", "calibrate", "set_precision", "reset_calibration"]',
+ '["humidity_alert", "sensor_fault", "calibration_complete", "low_battery"]'),
+('ENV001', '环境监测器', 'Smart Devices', 3, 
+ '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1, "readable": true, "writable": false}, "humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1, "readable": true, "writable": false}, "pressure": {"type": "float", "unit": "hPa", "min": 800, "max": 1200, "precision": 1, "readable": true, "writable": false}}',
+ '["read_all", "calibrate", "reset", "set_sampling_rate", "export_data"]',
+ '["environment_alert", "sensor_fault", "data_anomaly", "calibration_complete", "low_battery", "data_exported"]')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- 插入示例设备
