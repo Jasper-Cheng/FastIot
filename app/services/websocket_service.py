@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from typing import Dict, List, Set
 from fastapi import WebSocket
+from app.utils.time_utils import get_local_time
 
 class ConnectionManager:
     def __init__(self):
@@ -56,7 +57,7 @@ async def push_device_status(device_id: int, status_data: dict):
         "type": "device_status",
         "device_id": device_id,
         "status": status_data,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": get_local_time().isoformat()
     })
     await manager.send_to_device_users(device_id, message)
 
@@ -66,7 +67,7 @@ async def push_device_online_status(device_id: int, is_online: bool):
         "type": "device_online_status",
         "device_id": device_id,
         "online": is_online,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": get_local_time().isoformat()
     })
     await manager.send_to_device_users(device_id, message)
 
@@ -76,7 +77,7 @@ async def push_alert_notification(device_id: int, alert_data: dict):
         "type": "alert_notification",
         "device_id": device_id,
         "alert": alert_data,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": get_local_time().isoformat()
     })
     await manager.send_to_device_users(device_id, message)
 
@@ -87,6 +88,6 @@ async def push_alert_update(alert_id: int, device_id: int, alert_data: dict):
         "alert_id": alert_id,
         "device_id": device_id,
         "alert": alert_data,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": get_local_time().isoformat()
     })
     await manager.send_to_device_users(device_id, message)

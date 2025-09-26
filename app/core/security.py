@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional, Dict
 from jose import jwt
 from app.core.config import settings
+from app.utils.time_utils import get_local_time
 
 
 def create_access_token(
@@ -13,9 +14,9 @@ def create_access_token(
     - extra_claims: 额外载荷，如 user_id、username、role 等
     """
     if expires_delta:
-        expire = datetime.now() + expires_delta
+        expire = get_local_time() + expires_delta
     else:
-        expire = datetime.now() + timedelta(
+        expire = get_local_time() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode: Dict[str, Any] = {"exp": expire}

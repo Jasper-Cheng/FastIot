@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from datetime import datetime, timedelta
+from app.utils.time_utils import get_local_time
 import random
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -877,21 +878,21 @@ async def create_device_logs(session: AsyncSession, devices):
                     "property_name": random.choice(["temperature", "humidity", "power", "voltage"]),
                     "value": random.uniform(0, 100),
                     "unit": random.choice(["°C", "%", "W", "V"]),
-                    "timestamp": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
+                    "timestamp": (get_local_time() - timedelta(days=random.randint(0, 30))).isoformat()
                 }
             elif type == "services":
                 log_data = {
                     "service_name": random.choice(["power_on", "power_off", "set_temperature", "calibrate"]),
                     "status": random.choice(["success", "failed", "pending"]),
                     "duration": random.uniform(0.1, 5.0),
-                    "timestamp": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
+                    "timestamp": (get_local_time() - timedelta(days=random.randint(0, 30))).isoformat()
                 }
             else:  # events
                 log_data = {
                     "event_name": random.choice(["device_connected", "device_disconnected", "error_occurred", "maintenance_required"]),
                     "severity": random.choice(["low", "medium", "high"]),
-                    "message": f"Device event occurred at {datetime.now().isoformat()}",
-                    "timestamp": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
+                    "message": f"Device event occurred at {get_local_time().isoformat()}",
+                    "timestamp": (get_local_time() - timedelta(days=random.randint(0, 30))).isoformat()
                 }
 
             device_log = DeviceLog(
@@ -942,14 +943,14 @@ async def create_device_messages(session: AsyncSession, devices):
                 detail = {
                     "status": "operational",
                     "component": random.choice(["All", "System", "Network"]),
-                    "last_check": (datetime.now() - timedelta(minutes=random.randint(1, 60))).isoformat()
+                    "last_check": (get_local_time() - timedelta(minutes=random.randint(1, 60))).isoformat()
                 }
             
             status = random.choice(['new', 'read'])
             updated_at = None
             # 如果状态是 'read'，随机设置 updated_at
             if status == 'read' and random.choice([True, False]):
-                updated_at = datetime.now() - timedelta(minutes=random.randint(1, 1440))  # 1分钟到24小时前
+                updated_at = get_local_time() - timedelta(minutes=random.randint(1, 1440))  # 1分钟到24小时前
             
             message = DeviceMessage(
                 device_id=device.id,

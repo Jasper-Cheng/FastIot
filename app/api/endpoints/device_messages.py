@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from datetime import datetime, timedelta
+from app.utils.time_utils import get_local_time
 
 from app.db.session import get_db
 from app.crud.device_message import (
@@ -79,7 +80,7 @@ async def list_device_messages(
             continue
         # 时间过滤
         if days:
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = get_local_time() - timedelta(days=days)
             if alert.created_at < cutoff_date:
                 continue
         
@@ -228,7 +229,7 @@ async def get_device_message_stats(device_id: int, db: AsyncSession = Depends(ge
     status_stats = {row[0]: row[1] for row in status_stats_result.fetchall()}
     
     # 最近24小时消息数
-    yesterday = datetime.now() - timedelta(days=1)
+    yesterday = get_local_time() - timedelta(days=1)
     recent_result = await db.execute(
         select(func.count(DeviceMessage.id))
         .filter(DeviceMessage.device_id == device_id)

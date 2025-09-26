@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import datetime, timedelta
+from app.utils.time_utils import get_local_time
 
 from app.db.session import get_db
 from app.crud.device_log import (
@@ -111,7 +112,7 @@ async def get_device_log_stats(device_id: int, db: AsyncSession = Depends(get_db
     type_stats = {row[0]: row[1] for row in type_stats_result.fetchall()}
     
     # 最近24小时日志数
-    yesterday = datetime.now() - timedelta(days=1)
+    yesterday = get_local_time() - timedelta(days=1)
     recent_result = await db.execute(
         select(func.count(DeviceLog.id))
         .filter(DeviceLog.device_id == device_id)
