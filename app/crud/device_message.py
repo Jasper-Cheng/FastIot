@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.models.device_message import DeviceMessage
 from app.models.device_message import DeviceMessageCreate, DeviceMessageUpdate, DeviceMessageStatus
 
@@ -67,7 +67,7 @@ async def update_device_message_status(db: AsyncSession, message_id: int, status
     await db.execute(
         update(DeviceMessage)
         .where(DeviceMessage.id == message_id)
-        .values(status=status, updated_at=datetime.utcnow())
+        .values(status=status, updated_at=datetime.now())
     )
     await db.commit()
     
@@ -83,7 +83,7 @@ async def update_device_message_content(db: AsyncSession, message_id: int, level
         update_data["message"] = message
     
     if update_data:
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = datetime.now()
         await db.execute(
             update(DeviceMessage)
             .where(DeviceMessage.id == message_id)
@@ -109,7 +109,7 @@ async def update_device_message_full(db: AsyncSession, message_id: int, message_
         update_data["detail"] = message_update.detail
     
     if update_data:
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = datetime.now()
         await db.execute(
             update(DeviceMessage)
             .where(DeviceMessage.id == message_id)
@@ -135,7 +135,7 @@ async def mark_device_messages_as_read(db: AsyncSession, message_ids: List[int])
     await db.execute(
         update(DeviceMessage)
         .where(DeviceMessage.id.in_(message_ids))
-        .values(status=DeviceMessageStatus.read, updated_at=datetime.utcnow())
+        .values(status=DeviceMessageStatus.read, updated_at=datetime.now())
     )
     await db.commit()
     return True

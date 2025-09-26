@@ -13,9 +13,9 @@ def create_access_token(
     - extra_claims: 额外载荷，如 user_id、username、role 等
     """
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode: Dict[str, Any] = {"exp": expire}

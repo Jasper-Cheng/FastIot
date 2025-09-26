@@ -8,6 +8,9 @@ engine = create_async_engine(
     echo=settings.DEBUG,
     pool_pre_ping=True,
     pool_recycle=300,
+    connect_args={
+        "init_command": "SET time_zone = '+08:00'"
+    }
 )
 
 # 创建异步会话工厂
