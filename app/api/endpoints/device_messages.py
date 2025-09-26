@@ -35,7 +35,7 @@ async def list_device_messages(
     limit: int = Query(100, ge=1, le=500),
     device_id: Optional[int] = Query(None, description="按设备ID筛选"),
     user_id: Optional[int] = Query(None, description="按用户ID筛选"),
-    level: Optional[str] = Query(None, description="按消息级别筛选 (low, medium, high)"),
+    level: Optional[str] = Query(None, description="按消息级别筛选 (normal, error, fatal)"),
     status: Optional[str] = Query(None, description="按消息状态筛选 (new, read)"),
     days: Optional[int] = Query(None, ge=1, le=365, description="最近N天的消息"),
 ):
@@ -45,7 +45,7 @@ async def list_device_messages(
     """
     # 验证 level 参数
     if level is not None:
-        valid_levels = ["low", "medium", "high"]
+        valid_levels = ["normal", "error", "fatal"]
         if level not in valid_levels:
             raise HTTPException(
                 status_code=400, 

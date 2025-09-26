@@ -905,7 +905,7 @@ async def create_device_messages(session: AsyncSession, devices):
     """创建设备消息"""
     print("创建设备消息...")
 
-    message_levels = ['low', 'medium', 'high']
+    message_levels = ['normal', 'error', 'fatal']
     message_contents = [
         "设备离线",
         "温度异常",
@@ -915,15 +915,42 @@ async def create_device_messages(session: AsyncSession, devices):
         "设备故障",
         "数据异常"
         ]
+    
     # 为每个设备创建1-5条消息
     for device in devices:
         num_messages = random.randint(1, 5)
         for i in range(num_messages):
+            level = random.choice(message_levels)
+            message_content = random.choice(message_contents)
+            
+            # 根据级别生成不同的detail信息
+            detail = None
+            if level == 'error':
+                detail = {
+                    "error_code": f"ERR{random.randint(1000, 9999)}",
+                    "component": random.choice(["CPU", "Memory", "Storage", "Network", "Sensor"]),
+                    "severity": random.choice(["medium", "high"])
+                }
+            elif level == 'fatal':
+                detail = {
+                    "error_code": f"FATAL{random.randint(1000, 9999)}",
+                    "component": random.choice(["System", "Hardware", "Critical"]),
+                    "severity": "critical",
+                    "requires_immediate_action": True
+                }
+            elif level == 'normal':
+                detail = {
+                    "status": "operational",
+                    "component": random.choice(["All", "System", "Network"]),
+                    "last_check": (datetime.now() - timedelta(minutes=random.randint(1, 60))).isoformat()
+                }
+            
             message = DeviceMessage(
                 device_id=device.id,
-                level=random.choice(message_levels),
+                level=level,
                 status=random.choice(['new', 'read']),
-                message=random.choice(message_contents)
+                message=message_content,
+                detail=detail
             )
             session.add(message)
 
