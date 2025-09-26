@@ -12,6 +12,7 @@ class DeviceMessage(Base):
     message = Column(String(255))
     detail = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     def __repr__(self):
         return f"<DeviceMessage(id={self.id}, device_id={self.device_id}, level='{self.level}', status='{self.status}')>"

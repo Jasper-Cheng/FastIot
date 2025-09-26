@@ -31,6 +31,7 @@ class DeviceMessageInDB(DeviceMessageBase):
     id: int
     status: DeviceMessageStatus
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

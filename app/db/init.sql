@@ -124,11 +124,15 @@ CREATE TABLE IF NOT EXISTS `member_device_permission` (
 CREATE TABLE IF NOT EXISTS `device_message` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '消息ID',
     `device_id` BIGINT NOT NULL COMMENT '设备ID',
-    `level` ENUM('low','medium','high') NOT NULL COMMENT '消息级别',
+    `level` ENUM('normal','error','fatal') NOT NULL COMMENT '消息级别',
     `status` ENUM('new','read') DEFAULT 'new' COMMENT '消息状态',
     `message` VARCHAR(255) COMMENT '消息内容',
+    `detail` JSON NULL COMMENT '消息详细参数',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE
+    `updated_at` TIMESTAMP NULL COMMENT '更新时间',
+    FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE,
+    INDEX `idx_device_message_created_at` (`created_at`),
+    INDEX `idx_device_message_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备消息表';
 
 -- 设备网络信息表：存储设备的实时网络状态

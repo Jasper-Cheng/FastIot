@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from typing import List, Optional
+from datetime import datetime
 from app.db.models.device_message import DeviceMessage
 from app.models.device_message import DeviceMessageCreate, DeviceMessageUpdate, DeviceMessageStatus
 
@@ -10,6 +11,7 @@ async def create_device_message(db: AsyncSession, message: DeviceMessageCreate) 
         device_id=message.device_id,
         level=message.level,
         message=message.message,
+        detail=message.detail,
         status=DeviceMessageStatus.new
     )
     db.add(db_message)
@@ -27,7 +29,9 @@ async def get_device_messages_by_device(db: AsyncSession, device_id: int, limit:
     result = await db.execute(
         select(DeviceMessage)
         .where(DeviceMessage.device_id == device_id)
-        .order_by(DeviceMessage.created_at.desc())
+        .order_by(
+            func.coalesce(DeviceMessage.updated_at, DeviceMessage.created_at).desc()
+        )
         .limit(limit)
     )
     return result.scalars().all()
@@ -40,7 +44,9 @@ async def get_user_device_messages(db: AsyncSession, user_id: int, limit: int = 
         select(DeviceMessage)
         .join(Device, DeviceMessage.device_id == Device.id)
         .where(Device.user_id == user_id)
-        .order_by(DeviceMessage.created_at.desc())
+        .order_by(
+            func.coalesce(DeviceMessage.updated_at, DeviceMessage.created_at).desc()
+        )
         .limit(limit)
     )
     return result.scalars().all()
@@ -49,7 +55,9 @@ async def get_all_device_messages(db: AsyncSession, limit: int = 100) -> List[De
     """获取所有设备消息记录（Admin专用）"""
     result = await db.execute(
         select(DeviceMessage)
-        .order_by(DeviceMessage.created_at.desc())
+        .order_by(
+            func.coalesce(DeviceMessage.updated_at, DeviceMessage.created_at).desc()
+        )
         .limit(limit)
     )
     return result.scalars().all()
@@ -59,7 +67,7 @@ async def update_device_message_status(db: AsyncSession, message_id: int, status
     await db.execute(
         update(DeviceMessage)
         .where(DeviceMessage.id == message_id)
-        .values(status=status)
+        .values(status=status, updated_at=datetime.utcnow())
     )
     await db.commit()
     
@@ -75,6 +83,7 @@ async def update_device_message_content(db: AsyncSession, message_id: int, level
         update_data["message"] = message
     
     if update_data:
+        update_data["updated_at"] = datetime.utcnow()
         await db.execute(
             update(DeviceMessage)
             .where(DeviceMessage.id == message_id)
@@ -96,8 +105,11 @@ async def update_device_message_full(db: AsyncSession, message_id: int, message_
         update_data["message"] = message_update.message
     if message_update.status is not None:
         update_data["status"] = message_update.status
+    if message_update.detail is not None:
+        update_data["detail"] = message_update.detail
     
     if update_data:
+        update_data["updated_at"] = datetime.utcnow()
         await db.execute(
             update(DeviceMessage)
             .where(DeviceMessage.id == message_id)
@@ -123,7 +135,7 @@ async def mark_device_messages_as_read(db: AsyncSession, message_ids: List[int])
     await db.execute(
         update(DeviceMessage)
         .where(DeviceMessage.id.in_(message_ids))
-        .values(status=DeviceMessageStatus.read)
+        .values(status=DeviceMessageStatus.read, updated_at=datetime.utcnow())
     )
     await db.commit()
     return True

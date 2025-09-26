@@ -85,6 +85,9 @@ async def list_device_messages(
         
         filtered_alerts.append(alert)
     
+    # 按 updated_at 排序，如果 updated_at 为 None 则按 created_at 排序
+    filtered_alerts.sort(key=lambda x: x.updated_at or x.created_at, reverse=True)
+    
     return filtered_alerts[skip:skip + limit]
 
 

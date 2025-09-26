@@ -945,12 +945,19 @@ async def create_device_messages(session: AsyncSession, devices):
                     "last_check": (datetime.now() - timedelta(minutes=random.randint(1, 60))).isoformat()
                 }
             
+            status = random.choice(['new', 'read'])
+            updated_at = None
+            # 如果状态是 'read'，随机设置 updated_at
+            if status == 'read' and random.choice([True, False]):
+                updated_at = datetime.now() - timedelta(minutes=random.randint(1, 1440))  # 1分钟到24小时前
+            
             message = DeviceMessage(
                 device_id=device.id,
                 level=level,
-                status=random.choice(['new', 'read']),
+                status=status,
                 message=message_content,
-                detail=detail
+                detail=detail,
+                updated_at=updated_at
             )
             session.add(message)
 
