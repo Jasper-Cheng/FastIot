@@ -182,7 +182,7 @@ async def mark_user_all_device_messages_read(user_id: int, db: AsyncSession = De
             )
         )
         .where(DeviceMessage.status == DeviceMessageStatus.new)
-        .values(status=DeviceMessageStatus.read)
+        .values(status=DeviceMessageStatus.read, updated_at=get_local_time())
     )
     await db.commit()
     
