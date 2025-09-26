@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 from datetime import datetime, timedelta
 
@@ -34,14 +35,32 @@ async def list_device_messages(
     limit: int = Query(100, ge=1, le=500),
     device_id: Optional[int] = Query(None, description="按设备ID筛选"),
     user_id: Optional[int] = Query(None, description="按用户ID筛选"),
-    level: Optional[DeviceMessageLevel] = Query(None, description="按消息级别筛选"),
-    status: Optional[DeviceMessageStatus] = Query(None, description="按消息状态筛选"),
+    level: Optional[str] = Query(None, description="按消息级别筛选 (low, medium, high)"),
+    status: Optional[str] = Query(None, description="按消息状态筛选 (new, read)"),
     days: Optional[int] = Query(None, ge=1, le=365, description="最近N天的消息"),
 ):
     """获取设备消息列表
     
     支持按设备ID、用户ID、级别、状态、时间范围筛选
     """
+    # 验证 level 参数
+    if level is not None:
+        valid_levels = ["low", "medium", "high"]
+        if level not in valid_levels:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"无效的消息级别 '{level}'。有效值: {', '.join(valid_levels)}"
+            )
+    
+    # 验证 status 参数
+    if status is not None:
+        valid_statuses = ["new", "read"]
+        if status not in valid_statuses:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"无效的消息状态 '{status}'。有效值: {', '.join(valid_statuses)}"
+            )
+    
     if device_id:
         alerts = await get_device_messages_by_device(db, device_id, limit)
     elif user_id:
