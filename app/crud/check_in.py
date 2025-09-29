@@ -9,8 +9,6 @@ from app.db.models.points import Points
 
 async def get_check_in_by_date(db: AsyncSession, account_id: int, check_date: date) -> Optional[CheckIn]:
     """根据日期获取签到记录"""
-    print("account_id", account_id)
-    print("check_date", check_date)
     result = await db.execute(
         select(CheckIn).where(
             and_(
