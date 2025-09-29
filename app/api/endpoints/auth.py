@@ -54,7 +54,6 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     extra_claims = {
         "account_id": acc.id,
-        "account": acc.account,
         "role": acc.role,
     }
     # 根据账号角色获取真正的ID
@@ -104,7 +103,6 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     extra_claims = {
         "account_id": acc.id,
-        "account": acc.account,
         "role": acc.role,
     }
     # 根据账号角色获取真正的ID
