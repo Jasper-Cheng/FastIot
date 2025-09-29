@@ -34,7 +34,6 @@ async def create_check_in(db: AsyncSession, check_in_data: Dict[str, Any]) -> Ch
         "points": check_in.points_earned,
         "type": "check_in",
         "description": f"每日签到奖励（连续{check_in.continuous_days}天）",
-        "source_type": "check_in",
         "extra": {
             "check_in_id": check_in.id,
             "continuous_days": check_in.continuous_days,

@@ -21,7 +21,6 @@ class PointsResponse(BaseModel):
     points: int
     balance: int
     type: str
-    source_type: Optional[str] = None
     description: Optional[str] = None
     extra: Optional[dict] = None
     created_at: datetime

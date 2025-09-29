@@ -175,7 +175,6 @@ CREATE TABLE IF NOT EXISTS `points` (
     `points` INT NOT NULL COMMENT '积分变动数量（正数为增加，负数为减少）',
     `balance` INT NOT NULL COMMENT '变动后积分余额',
     `type` ENUM('check_in','task','reward','exchange','penalty','admin_adjust') NOT NULL COMMENT '积分类型：签到/任务/奖励/兑换/惩罚/管理员调整',
-    `source_type` VARCHAR(50) NULL COMMENT '来源类型（check_in、task、reward等）',
     `description` VARCHAR(255) NULL COMMENT '积分变动描述',
     `extra` JSON NULL COMMENT '扩展信息',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

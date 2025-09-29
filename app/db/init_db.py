@@ -1115,27 +1115,21 @@ async def create_points(session: AsyncSession, accounts):
             if point_type == 'check_in':
                 points_change = random.randint(5, 20)
                 description = "每日签到奖励"
-                source_type = "check_in"
             elif point_type == 'task':
                 points_change = random.randint(10, 50)
                 description = "完成任务奖励"
-                source_type = "task"
             elif point_type == 'reward':
                 points_change = random.randint(20, 100)
                 description = "活动奖励"
-                source_type = "reward"
             elif point_type == 'exchange':
                 points_change = -random.randint(10, 100)  # 负数为消耗
                 description = "积分兑换"
-                source_type = "exchange"
             elif point_type == 'penalty':
                 points_change = -random.randint(5, 30)  # 负数为扣除
                 description = "违规扣除"
-                source_type = "penalty"
             else:  # admin_adjust
                 points_change = random.randint(-50, 100)  # 管理员调整
                 description = "管理员调整"
-                source_type = "admin_adjust"
             
             # 确保余额不为负数
             if current_balance + points_change < 0:
@@ -1152,7 +1146,6 @@ async def create_points(session: AsyncSession, accounts):
                 points=points_change,
                 balance=current_balance,
                 type=point_type,
-                source_type=source_type,
                 description=description,
                 created_at=created_at,  # 提供创建时间
                 extra={

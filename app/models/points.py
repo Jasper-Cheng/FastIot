@@ -19,7 +19,6 @@ class PointsBase(BaseModel):
     points: int
     balance: int
     type: PointsType
-    source_type: Optional[str] = None
     description: Optional[str] = None
     extra: Optional[Dict[str, Any]] = None
 
