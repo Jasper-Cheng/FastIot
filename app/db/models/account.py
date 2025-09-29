@@ -21,6 +21,8 @@ class Account(Base):
     user = relationship("User", back_populates="account", uselist=False)
     member = relationship("Member", back_populates="account", uselist=False)
     admin = relationship("Admin", back_populates="account", uselist=False)
+    check_ins = relationship("CheckIn", back_populates="account")
+    points = relationship("Points", back_populates="account")
     
     def __repr__(self):
         return f"<Account(id={self.id}, account={self.account}, name={self.name}, role={self.role})>"

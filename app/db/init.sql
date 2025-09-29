@@ -151,6 +151,40 @@ CREATE TABLE IF NOT EXISTS `device_network` (
     UNIQUE KEY `uq_device_network_device` (`device_id`) COMMENT '保证每个设备仅有一条网络记录'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备网络信息表，存储设备的实时网络状态，可支持 Wi-Fi / 蓝牙 / 蜂窝 / Zigbee 等类型';
 
+-- 签到表：记录用户的签到记录
+CREATE TABLE IF NOT EXISTS `check_in` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '签到记录ID',
+    `account_id` BIGINT NOT NULL COMMENT '签到用户账号ID',
+    `check_in_date` DATE NOT NULL COMMENT '签到日期',
+    `check_in_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '签到时间',
+    `points_earned` INT DEFAULT 0 COMMENT '本次签到获得积分',
+    `continuous_days` INT DEFAULT 1 COMMENT '连续签到天数',
+    `check_in_type` ENUM('normal','bonus','makeup') DEFAULT 'normal' COMMENT '签到类型：正常/奖励/补签',
+    `extra` JSON NULL COMMENT '扩展信息',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+    UNIQUE KEY `uq_check_in_account_date` (`account_id`, `check_in_date`) COMMENT '每个用户每天只能签到一次',
+    INDEX `idx_check_in_date` (`check_in_date`),
+    INDEX `idx_check_in_account` (`account_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户签到记录表';
+
+-- 积分表：记录用户的积分变动历史
+CREATE TABLE IF NOT EXISTS `points` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '积分记录ID',
+    `account_id` BIGINT NOT NULL COMMENT '用户账号ID',
+    `points` INT NOT NULL COMMENT '积分变动数量（正数为增加，负数为减少）',
+    `balance` INT NOT NULL COMMENT '变动后积分余额',
+    `type` ENUM('check_in','task','reward','exchange','penalty','admin_adjust') NOT NULL COMMENT '积分类型：签到/任务/奖励/兑换/惩罚/管理员调整',
+    `source_type` VARCHAR(50) NULL COMMENT '来源类型（check_in、task、reward等）',
+    `description` VARCHAR(255) NULL COMMENT '积分变动描述',
+    `extra` JSON NULL COMMENT '扩展信息',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+    INDEX `idx_points_account` (`account_id`),
+    INDEX `idx_points_type` (`type`),
+    INDEX `idx_points_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户积分变动记录表';
+
 -- 插入默认账号和用户（密码: admin123）
 INSERT INTO `account` (`account`, `password_hash`, `name`, `email`, `role`) 
 VALUES ('admin', 'admin123', '管理员', 'admin@fastiot.com', 'admin')

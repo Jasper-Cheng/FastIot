@@ -20,6 +20,8 @@ from app.db.models.device_message import DeviceMessage
 from app.db.models.room_device import RoomDevice
 from app.db.models.member_device_permission import MemberDevicePermission
 from app.db.models.device_network import DeviceNetwork
+from app.db.models.check_in import CheckIn
+from app.db.models.points import Points
 from app.core.security import get_password_hash
 
 async def init_db(reset=False) -> None:
@@ -67,6 +69,8 @@ async def init_db(reset=False) -> None:
             print("   📊 设备参数数据")
             print("   📝 设备日志记录")
             print("   ⚠️  告警记录")
+            print("   ✅ 签到记录")
+            print("   🎯 积分记录")
             print("\n📋 数据库结构说明：")
             print("   • account 表：统一管理所有登录账号（管理员、主账号和子账号）")
             print("   • admin 表：管理员，与 account 一一对应")
@@ -125,6 +129,12 @@ async def insert_initial_data(session: AsyncSession) -> None:
         
         # 12. 创建设备网络信息
         await create_device_networks(session, devices)
+        
+        # 13. 创建签到记录
+        await create_check_ins(session, accounts, devices)
+        
+        # 14. 创建积分记录
+        await create_points(session, accounts)
         
         await session.commit()
         print("测试数据创建完成！")
@@ -1028,6 +1038,130 @@ async def create_device_networks(session: AsyncSession, devices):
             extra=network_data.get("extra")
         )
         session.add(device_network)
+
+async def create_check_ins(session: AsyncSession, accounts, devices):
+    """创建签到记录"""
+    print("创建签到记录...")
+    
+    from datetime import date, timedelta
+    import random
+    
+    # 为每个账号创建签到记录
+    for account in accounts:
+        # 随机创建过去30天内的签到记录
+        num_check_ins = random.randint(5, 25)  # 每个账号5-25次签到
+        
+        for i in range(num_check_ins):
+            # 随机选择签到日期（过去30天内）
+            days_ago = random.randint(0, 29)
+            check_in_date = date.today() - timedelta(days=days_ago)
+            
+            # 随机选择签到时间（当天内）
+            check_in_time = get_local_time() - timedelta(days=days_ago, hours=random.randint(0, 23), minutes=random.randint(0, 59))
+            
+            # 计算连续签到天数（简化逻辑）
+            continuous_days = random.randint(1, min(30, num_check_ins - i + 1))
+            
+            # 根据连续签到天数计算积分
+            if continuous_days >= 7:
+                points_earned = 20  # 连续7天以上奖励20积分
+            elif continuous_days >= 3:
+                points_earned = 10  # 连续3-6天奖励10积分
+            else:
+                points_earned = 5   # 普通签到5积分
+            
+            # 随机选择签到类型
+            check_in_type = random.choice(['normal', 'bonus', 'makeup'])
+            if check_in_type == 'bonus':
+                points_earned += 5  # 奖励签到额外5积分
+            elif check_in_type == 'makeup':
+                points_earned = max(1, points_earned - 2)  # 补签减少2积分
+            
+            check_in = CheckIn(
+                account_id=account.id,
+                check_in_date=check_in_date,
+                check_in_time=check_in_time,
+                points_earned=points_earned,
+                continuous_days=continuous_days,
+                check_in_type=check_in_type,
+                created_at=check_in_time,  # 使用签到时间作为创建时间
+                extra={
+                    "ip_address": f"192.168.1.{random.randint(1, 254)}",
+                    "user_agent": "FastIoT Mobile App 1.0.0",
+                    "platform": random.choice(["iOS", "Android", "Web"])
+                }
+            )
+            session.add(check_in)
+
+async def create_points(session: AsyncSession, accounts):
+    """创建积分记录"""
+    print("创建积分记录...")
+    
+    from datetime import timedelta
+    import random
+    
+    # 为每个账号创建积分记录
+    for account in accounts:
+        current_balance = 0
+        
+        # 创建一些历史积分记录
+        num_points_records = random.randint(10, 50)
+        
+        for i in range(num_points_records):
+            # 随机选择积分类型
+            point_type = random.choice(['check_in', 'task', 'reward', 'exchange', 'penalty', 'admin_adjust'])
+            
+            # 根据类型设置积分变动
+            if point_type == 'check_in':
+                points_change = random.randint(5, 20)
+                description = "每日签到奖励"
+                source_type = "check_in"
+            elif point_type == 'task':
+                points_change = random.randint(10, 50)
+                description = "完成任务奖励"
+                source_type = "task"
+            elif point_type == 'reward':
+                points_change = random.randint(20, 100)
+                description = "活动奖励"
+                source_type = "reward"
+            elif point_type == 'exchange':
+                points_change = -random.randint(10, 100)  # 负数为消耗
+                description = "积分兑换"
+                source_type = "exchange"
+            elif point_type == 'penalty':
+                points_change = -random.randint(5, 30)  # 负数为扣除
+                description = "违规扣除"
+                source_type = "penalty"
+            else:  # admin_adjust
+                points_change = random.randint(-50, 100)  # 管理员调整
+                description = "管理员调整"
+                source_type = "admin_adjust"
+            
+            # 确保余额不为负数
+            if current_balance + points_change < 0:
+                points_change = -current_balance  # 最多扣到0
+            
+            current_balance += points_change
+            
+            # 随机选择时间（过去90天内）
+            days_ago = random.randint(0, 89)
+            created_at = get_local_time() - timedelta(days=days_ago, hours=random.randint(0, 23), minutes=random.randint(0, 59))
+            
+            points_record = Points(
+                account_id=account.id,
+                points=points_change,
+                balance=current_balance,
+                type=point_type,
+                source_type=source_type,
+                description=description,
+                created_at=created_at,  # 提供创建时间
+                extra={
+                    "operator": "system" if point_type != 'admin_adjust' else "admin",
+                    "reason": f"积分{point_type}操作",
+                    "timestamp": created_at.isoformat()
+                }
+            )
+            session.add(points_record)
 
 async def reset_database():
     """重置数据库"""

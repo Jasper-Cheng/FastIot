@@ -17,6 +17,8 @@ from app.api.endpoints import device_logs as device_logs_endpoints
 from app.api.endpoints import device_messages as device_messages_endpoints
 from app.api.endpoints import member_device_permissions as member_device_permissions_endpoints
 from app.api.endpoints import admins as admins_endpoints
+from app.api.endpoints import check_in as check_in_endpoints
+from app.api.endpoints import points as points_endpoints
 
 api_router.include_router(auth_endpoints.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users_endpoints.router, prefix="/users", tags=["users"], dependencies=[Depends(get_current_user)])
@@ -31,6 +33,8 @@ api_router.include_router(device_logs_endpoints.router, prefix="/device-logs", t
 api_router.include_router(device_messages_endpoints.router, prefix="/device-messages", tags=["device-messages"], dependencies=[Depends(get_current_user)])
 api_router.include_router(member_device_permissions_endpoints.router, prefix="/member-device-permissions", tags=["member-device-permissions"], dependencies=[Depends(get_current_user)])
 api_router.include_router(admins_endpoints.router, prefix="/admins", tags=["admins"], dependencies=[Depends(get_current_user)])
+api_router.include_router(check_in_endpoints.router, prefix="/check-in", tags=["check-in"], dependencies=[Depends(get_current_user)])
+api_router.include_router(points_endpoints.router, prefix="/points", tags=["points"], dependencies=[Depends(get_current_user)])
 
 # 基础路由 - 可以在这里添加简单的健康检查等
 @api_router.get("/health", dependencies=[Depends(get_current_user)])
