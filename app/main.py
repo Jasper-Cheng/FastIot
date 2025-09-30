@@ -100,6 +100,10 @@ app.add_middleware(
         "Cache-Control",
         "Pragma",
         "Expires",
+        "Sec-WebSocket-Protocol",
+        "Sec-WebSocket-Version",
+        "Sec-WebSocket-Key",
+        "Sec-WebSocket-Extensions",
     ],
     expose_headers=[
         "Content-Length",
