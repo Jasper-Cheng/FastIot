@@ -6,6 +6,7 @@ from datetime import date, datetime
 from app.db.session import get_db
 from app.api.dependencies import get_current_user
 from app.models.account import Account
+from app.utils.time_utils import get_local_time
 from app.crud.check_in import (
     get_check_in_by_date, 
     create_check_in, 
@@ -85,7 +86,7 @@ async def check_in(
     check_in_data = {
         "account_id": current_user.account_id,
         "check_in_date": today,
-        "check_in_time": datetime.now(),
+        "check_in_time": get_local_time(),
         "points_earned": points_earned,
         "continuous_days": continuous_days,
         "check_in_type": "normal",
