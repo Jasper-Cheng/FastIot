@@ -1,12 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import asyncio
 from sqlalchemy import text
 from app.core.config import settings
 from app.services.mqtt_client import mqtt_service
 from app.services.mqtt_handlers import register_mqtt_subscriptions
 from app.db.session import engine
 from app.services.redis_service import redis_service
+from app.services.websocket_tool import websocket_tool
+
+async def heartbeat_checker():
+    """心跳超时检查任务"""
+    while True:
+        try:
+            timeout_count = await websocket_tool.check_heartbeat_timeouts()
+            if timeout_count > 0:
+                print(f"💔 [WebSocket] 已断开 {timeout_count} 个超时连接")
+        except Exception as e:
+            print(f"❌ [WebSocket] 心跳检查异常: {e}")
+        
+        # 每30秒检查一次
+        await asyncio.sleep(30)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,9 +53,22 @@ async def lifespan(app: FastAPI):
             await redis_service.disconnect()
         except Exception:
             pass
+    
+    # 启动心跳检查任务
+    heartbeat_task = asyncio.create_task(heartbeat_checker())
+    print("✅ WebSocket心跳检查任务已启动")
+    
     yield
+    
     # shutdown
     print("🔄 应用关闭中...")
+    heartbeat_task.cancel()
+    try:
+        await heartbeat_task
+    except asyncio.CancelledError:
+        pass
+    print("💔 WebSocket心跳检查任务已停止")
+    
     mqtt_service.disconnect()
     print("🔌 MQTT连接已断开")
 

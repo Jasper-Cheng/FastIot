@@ -26,6 +26,8 @@ class WebSocketTool:
         self.event_subscriptions: Dict[str, Set[str]] = {}  # device_id -> set of client_ids
         # 待处理请求
         self.pending_requests: Dict[str, Dict[str, Any]] = {}  # request_id -> request_info
+        # 心跳超时时间（秒）
+        self.heartbeat_timeout = 60  # 默认60秒超时
         
     async def connect(self, websocket: WebSocket, client_id: str, metadata: Optional[Dict[str, Any]] = None):
         """接受WebSocket连接"""
@@ -33,6 +35,7 @@ class WebSocketTool:
         self.active_connections[client_id] = websocket
         self.connection_metadata[client_id] = {
             "connected_at": get_local_time(),
+            "last_heartbeat": get_local_time(),
             "metadata": metadata or {}
         }
         
@@ -170,6 +173,10 @@ class WebSocketTool:
         """处理心跳包"""
         request_id = data.get("id", "ping")
         
+        # 更新最后心跳时间
+        if client_id in self.connection_metadata:
+            self.connection_metadata[client_id]["last_heartbeat"] = get_local_time()
+        
         # 发送pong响应
         pong_response = {
             "id": request_id,
@@ -240,6 +247,44 @@ class WebSocketTool:
             client_id: self.get_connection_info(client_id)
             for client_id in self.connection_metadata.keys()
         }
+        
+    async def check_heartbeat_timeouts(self):
+        """检查心跳超时并断开连接"""
+        current_time = get_local_time()
+        timeout_clients = []
+        
+        for client_id, metadata in self.connection_metadata.items():
+            if client_id not in self.active_connections:
+                continue
+                
+            last_heartbeat = metadata.get("last_heartbeat")
+            if last_heartbeat:
+                time_since_heartbeat = (current_time - last_heartbeat).total_seconds()
+                if time_since_heartbeat > self.heartbeat_timeout:
+                    timeout_clients.append(client_id)
+        
+        # 断开超时的连接
+        for client_id in timeout_clients:
+            print(f"⚠️ [WebSocket] 客户端 {client_id} 心跳超时，断开连接")
+            await self._force_disconnect(client_id)
+            
+        return len(timeout_clients)
+        
+    async def _force_disconnect(self, client_id: str):
+        """强制断开连接"""
+        if client_id in self.active_connections:
+            try:
+                websocket = self.active_connections[client_id]
+                await websocket.close(code=1000, reason="Heartbeat timeout")
+            except Exception as e:
+                print(f"❌ [WebSocket] 强制断开连接失败: {e}")
+            finally:
+                self.disconnect(client_id)
+                
+    def set_heartbeat_timeout(self, timeout_seconds: int):
+        """设置心跳超时时间"""
+        self.heartbeat_timeout = timeout_seconds
+        print(f"✅ [WebSocket] 心跳超时设置为 {timeout_seconds} 秒")
 
 
 # 全局WebSocket工具实例
