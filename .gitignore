@@ -64,3 +64,4 @@ Thumbs.db
 
 # 上传文件
 uploads/
+app/__pycache__/main.cpython-313.pyc

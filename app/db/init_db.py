@@ -28,10 +28,10 @@ async def init_db(reset=False) -> None:
     """初始化数据库"""
     try:
         if reset:
-            print("🔄 开始重置数据库...")
+            print("开始重置数据库...")
             # 删除所有表
             async with engine.begin() as conn:
-                print("🗑️  删除现有表...")
+                print("删除现有表...")
                 await conn.run_sync(lambda sync_conn: sync_conn.execute(text("SET FOREIGN_KEY_CHECKS = 0")))
                 
                 # 获取所有表名
@@ -41,10 +41,10 @@ async def init_db(reset=False) -> None:
                 # 删除所有表
                 for table in tables:
                     await conn.execute(text(f"DROP TABLE IF EXISTS `{table}`"))
-                    print(f"   ✅ 删除表: {table}")
+                    print(f"   删除表: {table}")
                 
                 await conn.run_sync(lambda sync_conn: sync_conn.execute(text("SET FOREIGN_KEY_CHECKS = 1")))
-                print("✅ 所有表已删除")
+                print("所有表已删除")
         
         # 创建所有表
         async with engine.begin() as conn:
@@ -55,7 +55,7 @@ async def init_db(reset=False) -> None:
             await insert_initial_data(session)
         
         if reset:
-            print("🎉 数据库重置完成！")
+            print("数据库重置完成！")
             print("\n📊 创建的测试数据包括:")
             print("   👤 3个管理员账号")
             print("   👤 15个主账号")
@@ -1161,7 +1161,7 @@ async def reset_database():
     try:
         await init_db(reset=True)
     except Exception as e:
-        print(f"❌ 数据库重置失败: {e}")
+        print(f"数据库重置失败: {e}")
         sys.exit(1)
 
 async def main():
@@ -1178,9 +1178,9 @@ async def main():
         else:
             await init_db()
     except KeyboardInterrupt:
-        print("\n⚠️  操作被用户中断")
+        print("\n操作被用户中断")
     except Exception as e:
-        print(f"❌ 操作失败: {e}")
+        print(f"操作失败: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
