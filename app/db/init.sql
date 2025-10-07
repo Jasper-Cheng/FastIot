@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS `device` (
     `model_id` BIGINT NOT NULL COMMENT '设备型号ID',
     `name` VARCHAR(100) NOT NULL COMMENT '设备名称',
     `sn` VARCHAR(100) UNIQUE NOT NULL COMMENT '设备序列号',
-    `status` ENUM('unconfigured','configured','unbound','bound') DEFAULT 'unconfigured' COMMENT '设备状态',
+    `status` ENUM('unconfigured','configured','unbound','bound','offline','online','fault') DEFAULT 'unconfigured' COMMENT '设备状态',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`model_id`) REFERENCES `device_model`(`id`)

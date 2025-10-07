@@ -8,6 +8,9 @@ class DeviceStatus(str, Enum):
     configured = "configured"      # 已配网
     unbound = "unbound"            # 未绑定
     bound = "bound"                # 已绑定
+    offline = "offline"            # 离线
+    online = "online"              # 在线
+    fault = "fault"                # 故障
 
 class DeviceBase(BaseModel):
     name: str

@@ -738,7 +738,7 @@ async def create_devices(session: AsyncSession, users, device_models):
             model_id=device_model.id,
             name=f"未绑定设备{i+1}",
             sn=sn,
-            status=random.choice(['unconfigured', 'unbound'])
+            status=random.choice(['unconfigured', 'unbound', 'offline', 'fault'])
         )
         session.add(device)
         devices.append(device)
@@ -755,20 +755,22 @@ async def create_devices(session: AsyncSession, users, device_models):
                 break
 
             # 确保包含所有状态类型
-            if device_count < 10:
+            if device_count < 8:
                 status = 'unconfigured'
-            elif device_count < 20:
+            elif device_count < 15:
+                status = 'configured'
+            elif device_count < 22:
                 status = 'unbound'
             elif device_count < 30:
                 status = 'bound'
-            elif device_count < 40:
-                status = 'configured'
+            elif device_count < 35:
+                status = 'offline'
+            elif device_count < 42:
+                status = 'online'
             elif device_count < 45:
-                status = 'unbound'
-            elif device_count < 48:
-                status = 'bound'
+                status = 'fault'
             else:
-                status = 'bound'
+                status = random.choice(['online', 'offline'])
 
             device_model = random.choice(device_models)
             model_code = device_model.model_code
@@ -820,7 +822,7 @@ async def create_devices(session: AsyncSession, users, device_models):
             model_id=device_model.id,
             name=f"额外设备{device_count+1}",
             sn=sn,
-            status=random.choice(['unconfigured', 'configured', 'unbound', 'bound'])
+            status=random.choice(['unconfigured', 'configured', 'unbound', 'bound', 'offline', 'online', 'fault'])
         )
         session.add(device)
         devices.append(device)

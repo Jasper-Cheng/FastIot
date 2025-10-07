@@ -339,7 +339,7 @@ class WebSocketTool:
         elif "power" in property_name_lower:
             return round(random.uniform(0.5, 10.0), 2)
         elif "status" in property_name_lower:
-            return random.choice(["online", "offline", "error", "maintenance"])
+            return random.choice(["unconfigured", "configured", "unbound", "bound", "offline", "online", "fault"])
         elif "battery" in property_name_lower:
             return random.randint(0, 100)
         elif "signal" in property_name_lower:
