@@ -352,27 +352,43 @@ class WebSocketTool:
             return random.randint(0, 100)
         elif "switch" in property_name_lower or "enable" in property_name_lower:
             return random.choice([True, False])
-        # 空调相关属性
-        elif "mode" in property_name_lower:
-            return random.choice(["cool", "heat", "fan", "auto", "dry"])
-        elif "fanspeed" in property_name_lower or "fan_speed" in property_name_lower:
-            return random.choice(["low", "medium", "high", "auto"])
-        elif "swing" in property_name_lower:
+        # 音响相关属性
+        elif "volume" in property_name_lower:
+            return random.randint(0, 100)
+        elif "mute" in property_name_lower:
             return random.choice([True, False])
-        elif "timer" in property_name_lower:
+        elif "source" in property_name_lower:
+            return random.choice(["bluetooth", "wifi", "aux", "usb"])
+        elif "playing" in property_name_lower:
             return random.choice([True, False])
-        elif "energy" in property_name_lower and "saving" in property_name_lower:
+        elif "track" in property_name_lower:
+            return random.choice(["未知歌曲", "随机歌曲", "测试音乐", "背景音乐"])
+        elif "artist" in property_name_lower:
+            return random.choice(["未知艺术家", "测试艺术家", "随机歌手", "背景音乐"])
+        elif "album" in property_name_lower:
+            return random.choice(["未知专辑", "测试专辑", "精选集", "背景音乐"])
+        elif "duration" in property_name_lower:
+            return random.randint(60, 300)  # 1-5分钟
+        elif "position" in property_name_lower:
+            return random.randint(0, 180)   # 0-3分钟
+        elif "repeat" in property_name_lower:
+            return random.choice(["none", "one", "all"])
+        elif "shuffle" in property_name_lower:
             return random.choice([True, False])
-        elif "indoor" in property_name_lower and "temperature" in property_name_lower:
-            return round(random.uniform(18.0, 30.0), 1)
-        elif "outdoor" in property_name_lower and "temperature" in property_name_lower:
-            return round(random.uniform(25.0, 40.0), 1)
-        elif "filter" in property_name_lower and "status" in property_name_lower:
-            return random.choice(["good", "need_clean", "need_replace"])
-        elif "wifi" in property_name_lower and "signal" in property_name_lower:
-            return random.randint(-80, -30)
-        elif "consumption" in property_name_lower or "power" in property_name_lower:
-            return round(random.uniform(0.5, 3.0), 2)
+        elif "equalizer" in property_name_lower:
+            return random.choice(["normal", "pop", "rock", "jazz", "classical"])
+        elif "bass" in property_name_lower:
+            return random.randint(-10, 10)
+        elif "treble" in property_name_lower:
+            return random.randint(-10, 10)
+        elif "battery" in property_name_lower:
+            return random.randint(0, 100)
+        elif "bluetooth" in property_name_lower and "connected" in property_name_lower:
+            return random.choice([True, False])
+        elif "bluetooth" in property_name_lower and "device" in property_name_lower:
+            return random.choice(["iPhone 15", "Samsung Galaxy", "iPad", "MacBook", "Android Phone"])
+        elif "firmware" in property_name_lower and "version" in property_name_lower:
+            return f"{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}"
         else:
             return f"mock_value_{random.randint(1, 100)}"
     
@@ -421,67 +437,126 @@ class WebSocketTool:
                 "newVersion": version,
                 "updateTime": int(get_local_time().timestamp() * 1000)
             }
-        # 空调相关服务
+        # 音响相关服务
         elif "turnon" in service_name_lower or "turn_on" in service_name_lower:
             return {
                 "status": "success",
-                "message": "空调已开启",
+                "message": "音响已开启",
                 "powerOnTime": int(get_local_time().timestamp() * 1000)
             }
         elif "turnoff" in service_name_lower or "turn_off" in service_name_lower:
             return {
                 "status": "success",
-                "message": "空调已关闭",
+                "message": "音响已关闭",
                 "powerOffTime": int(get_local_time().timestamp() * 1000)
             }
-        elif "setmode" in service_name_lower or "set_mode" in service_name_lower:
-            mode = arguments.get("mode", "cool")
+        elif "setvolume" in service_name_lower or "set_volume" in service_name_lower:
+            volume = arguments.get("volume", 50)
             return {
                 "status": "success",
-                "message": f"空调模式已设置为 {mode}",
-                "newMode": mode,
+                "message": f"音量已设置为 {volume}%",
+                "newVolume": volume,
                 "changeTime": int(get_local_time().timestamp() * 1000)
             }
-        elif "setfanspeed" in service_name_lower or "set_fan_speed" in service_name_lower:
-            fan_speed = arguments.get("fanSpeed", "auto")
+        elif "setmute" in service_name_lower or "set_mute" in service_name_lower:
+            mute = arguments.get("mute", False)
             return {
                 "status": "success",
-                "message": f"风扇速度已设置为 {fan_speed}",
-                "newFanSpeed": fan_speed,
+                "message": f"音响已{'静音' if mute else '取消静音'}",
+                "muteEnabled": mute,
                 "changeTime": int(get_local_time().timestamp() * 1000)
             }
-        elif "setswing" in service_name_lower or "set_swing" in service_name_lower:
-            swing = arguments.get("swing", False)
+        elif "setsource" in service_name_lower or "set_source" in service_name_lower:
+            source = arguments.get("source", "bluetooth")
             return {
                 "status": "success",
-                "message": f"摆风功能已{'开启' if swing else '关闭'}",
-                "swingEnabled": swing,
+                "message": f"音源已切换到 {source}",
+                "newSource": source,
                 "changeTime": int(get_local_time().timestamp() * 1000)
             }
-        elif "settimer" in service_name_lower or "set_timer" in service_name_lower:
-            timer = arguments.get("timer", False)
-            timer_hours = arguments.get("hours", 0)
+        elif "play" in service_name_lower:
             return {
                 "status": "success",
-                "message": f"定时器已{'开启' if timer else '关闭'}{f'，设置为 {timer_hours} 小时' if timer and timer_hours > 0 else ''}",
-                "timerEnabled": timer,
-                "timerHours": timer_hours,
+                "message": "开始播放",
+                "playTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "pause" in service_name_lower:
+            return {
+                "status": "success",
+                "message": "暂停播放",
+                "pauseTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "stop" in service_name_lower:
+            return {
+                "status": "success",
+                "message": "停止播放",
+                "stopTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "nexttrack" in service_name_lower or "next_track" in service_name_lower:
+            return {
+                "status": "success",
+                "message": "切换到下一首",
+                "trackChangeTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "previoustrack" in service_name_lower or "previous_track" in service_name_lower:
+            return {
+                "status": "success",
+                "message": "切换到上一首",
+                "trackChangeTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "setrepeat" in service_name_lower or "set_repeat" in service_name_lower:
+            repeat = arguments.get("repeat", "none")
+            return {
+                "status": "success",
+                "message": f"重复模式已设置为 {repeat}",
+                "newRepeat": repeat,
                 "changeTime": int(get_local_time().timestamp() * 1000)
             }
-        elif "setenergysaving" in service_name_lower or "set_energy_saving" in service_name_lower:
-            energy_saving = arguments.get("energySaving", True)
+        elif "setshuffle" in service_name_lower or "set_shuffle" in service_name_lower:
+            shuffle = arguments.get("shuffle", False)
             return {
                 "status": "success",
-                "message": f"节能模式已{'开启' if energy_saving else '关闭'}",
-                "energySavingEnabled": energy_saving,
+                "message": f"随机播放已{'开启' if shuffle else '关闭'}",
+                "shuffleEnabled": shuffle,
                 "changeTime": int(get_local_time().timestamp() * 1000)
             }
-        elif "cleanfilter" in service_name_lower or "clean_filter" in service_name_lower:
+        elif "setequalizer" in service_name_lower or "set_equalizer" in service_name_lower:
+            equalizer = arguments.get("equalizer", "normal")
             return {
                 "status": "success",
-                "message": "滤网清洁提醒已重置",
-                "filterStatus": "good",
-                "cleanTime": int(get_local_time().timestamp() * 1000)
+                "message": f"均衡器已设置为 {equalizer}",
+                "newEqualizer": equalizer,
+                "changeTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "setbass" in service_name_lower or "set_bass" in service_name_lower:
+            bass = arguments.get("bass", 0)
+            return {
+                "status": "success",
+                "message": f"低音已设置为 {bass}",
+                "newBass": bass,
+                "changeTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "settreble" in service_name_lower or "set_treble" in service_name_lower:
+            treble = arguments.get("treble", 0)
+            return {
+                "status": "success",
+                "message": f"高音已设置为 {treble}",
+                "newTreble": treble,
+                "changeTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "connectbluetooth" in service_name_lower or "connect_bluetooth" in service_name_lower:
+            device = arguments.get("device", "未知设备")
+            return {
+                "status": "success",
+                "message": f"已连接到蓝牙设备 {device}",
+                "connectedDevice": device,
+                "connectTime": int(get_local_time().timestamp() * 1000)
+            }
+        elif "disconnectbluetooth" in service_name_lower or "disconnect_bluetooth" in service_name_lower:
+            return {
+                "status": "success",
+                "message": "已断开蓝牙连接",
+                "disconnectTime": int(get_local_time().timestamp() * 1000)
             }
         else:
             return {
@@ -535,44 +610,73 @@ class WebSocketTool:
                 "reason": random.choice(["timeout", "manual", "error", "maintenance"]),
                 "duration": random.randint(1, 3600)  # 1秒到1小时
             })
-        # 空调相关事件
+        # 音响相关事件
         elif "power_change" in event_type_lower:
             event_data.update({
                 "oldPower": random.choice([True, False]),
                 "newPower": random.choice([True, False]),
                 "reason": random.choice(["manual", "timer", "remote", "app"])
             })
-        elif "mode_change" in event_type_lower:
+        elif "volume_change" in event_type_lower:
             event_data.update({
-                "oldMode": random.choice(["cool", "heat", "fan", "auto", "dry"]),
-                "newMode": random.choice(["cool", "heat", "fan", "auto", "dry"]),
-                "reason": random.choice(["manual", "auto", "schedule"])
+                "oldVolume": random.randint(0, 100),
+                "newVolume": random.randint(0, 100),
+                "reason": random.choice(["manual", "auto", "remote"])
             })
-        elif "temperature_change" in event_type_lower:
+        elif "mute_change" in event_type_lower:
             event_data.update({
-                "oldTemperature": random.randint(16, 30),
-                "newTemperature": random.randint(16, 30),
-                "indoorTemperature": round(random.uniform(18.0, 30.0), 1),
-                "reason": random.choice(["manual", "auto", "schedule"])
+                "oldMute": random.choice([True, False]),
+                "newMute": random.choice([True, False]),
+                "reason": random.choice(["manual", "auto", "remote"])
             })
-        elif "fan_speed_change" in event_type_lower:
+        elif "source_change" in event_type_lower:
             event_data.update({
-                "oldFanSpeed": random.choice(["low", "medium", "high", "auto"]),
-                "newFanSpeed": random.choice(["low", "medium", "high", "auto"]),
-                "reason": random.choice(["manual", "auto", "temperature_based"])
+                "oldSource": random.choice(["bluetooth", "wifi", "aux", "usb"]),
+                "newSource": random.choice(["bluetooth", "wifi", "aux", "usb"]),
+                "reason": random.choice(["manual", "auto", "connection"])
             })
-        elif "filter_reminder" in event_type_lower:
+        elif "playback_start" in event_type_lower:
             event_data.update({
-                "filterStatus": random.choice(["need_clean", "need_replace"]),
-                "usageHours": random.randint(100, 2000),
-                "lastCleanTime": int((get_local_time() - timedelta(days=random.randint(1, 30))).timestamp() * 1000)
+                "track": random.choice(["未知歌曲", "随机歌曲", "测试音乐"]),
+                "artist": random.choice(["未知艺术家", "测试艺术家", "随机歌手"]),
+                "album": random.choice(["未知专辑", "测试专辑", "精选集"]),
+                "duration": random.randint(60, 300),
+                "startTime": int(get_local_time().timestamp() * 1000)
             })
-        elif "energy_report" in event_type_lower:
+        elif "playback_pause" in event_type_lower:
             event_data.update({
-                "dailyConsumption": round(random.uniform(5.0, 25.0), 2),
-                "monthlyConsumption": round(random.uniform(150.0, 750.0), 2),
-                "energyEfficiency": random.choice(["A", "B", "C", "D"]),
-                "reportPeriod": "daily"
+                "position": random.randint(0, 180),
+                "pauseTime": int(get_local_time().timestamp() * 1000)
+            })
+        elif "playback_stop" in event_type_lower:
+            event_data.update({
+                "stopTime": int(get_local_time().timestamp() * 1000),
+                "reason": random.choice(["manual", "end_of_track", "error"])
+            })
+        elif "track_change" in event_type_lower:
+            event_data.update({
+                "oldTrack": random.choice(["上一首歌曲", "随机歌曲", "测试音乐"]),
+                "newTrack": random.choice(["下一首歌曲", "随机歌曲", "测试音乐"]),
+                "changeTime": int(get_local_time().timestamp() * 1000),
+                "reason": random.choice(["manual", "auto", "shuffle"])
+            })
+        elif "bluetooth_connected" in event_type_lower:
+            event_data.update({
+                "deviceName": random.choice(["iPhone 15", "Samsung Galaxy", "iPad", "MacBook"]),
+                "deviceAddress": f"{random.randint(10, 99)}:{random.randint(10, 99)}:{random.randint(10, 99)}:{random.randint(10, 99)}:{random.randint(10, 99)}:{random.randint(10, 99)}",
+                "connectTime": int(get_local_time().timestamp() * 1000)
+            })
+        elif "bluetooth_disconnected" in event_type_lower:
+            event_data.update({
+                "deviceName": random.choice(["iPhone 15", "Samsung Galaxy", "iPad", "MacBook"]),
+                "disconnectTime": int(get_local_time().timestamp() * 1000),
+                "reason": random.choice(["manual", "out_of_range", "low_battery"])
+            })
+        elif "battery_low" in event_type_lower:
+            event_data.update({
+                "batteryLevel": random.randint(5, 20),
+                "warningTime": int(get_local_time().timestamp() * 1000),
+                "estimatedTimeLeft": random.randint(30, 120)  # 分钟
             })
         elif "wifi_status" in event_type_lower:
             event_data.update({
@@ -580,11 +684,12 @@ class WebSocketTool:
                 "connectionStatus": random.choice(["connected", "disconnected", "weak"]),
                 "ipAddress": f"192.168.1.{random.randint(1, 254)}"
             })
-        elif "maintenance_reminder" in event_type_lower:
+        elif "firmware_update" in event_type_lower:
             event_data.update({
-                "maintenanceType": random.choice(["filter_clean", "system_check", "professional_service"]),
-                "daysSinceLastMaintenance": random.randint(30, 365),
-                "nextMaintenanceDate": int((get_local_time() + timedelta(days=random.randint(1, 30))).timestamp() * 1000)
+                "oldVersion": f"{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
+                "newVersion": f"{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
+                "updateTime": int(get_local_time().timestamp() * 1000),
+                "updateSize": random.randint(10, 100)  # MB
             })
         
         return event_data
@@ -791,72 +896,43 @@ websocket_tool.register_method_handler("event.subscribe", event_subscribe_handle
 # 默认模拟设备配置
 DEFAULT_MOCK_DEVICE_CONFIGS = [
     {
-        "deviceId": "sensor_001",
-        "name": "温度传感器",
-        "type": "sensor",
-        "status": "online",
-        "properties": {
-            "temperature": 25.5,
-            "humidity": 60,
-            "battery": 85
-        },
-        "services": ["reboot", "calibrate"],
-        "events": ["data", "alarm", "status"]
-    },
-    {
-        "deviceId": "switch_001",
-        "name": "智能开关",
-        "type": "switch",
+        "deviceId": "speaker_001",
+        "name": "智能音响",
+        "type": "speaker",
         "status": "online",
         "properties": {
             "power": True,
-            "voltage": 220.5,
-            "current": 1.2
-        },
-        "services": ["turnOn", "turnOff", "reboot"],
-        "events": ["status", "alarm"]
-    },
-    {
-        "deviceId": "camera_001",
-        "name": "监控摄像头",
-        "type": "camera",
-        "status": "online",
-        "properties": {
-            "recording": True,
-            "resolution": "1920x1080",
-            "nightVision": True
-        },
-        "services": ["startRecording", "stopRecording", "reboot"],
-        "events": ["motion", "alarm", "status"]
-    },
-    {
-        "deviceId": "ac_001",
-        "name": "智能空调",
-        "type": "air_conditioner",
-        "status": "online",
-        "properties": {
-            "power": True,
-            "mode": "cool",  # cool, heat, fan, auto, dry
-            "temperature": 26,
-            "fanSpeed": "auto",  # low, medium, high, auto
-            "swing": False,
-            "timer": False,
-            "energySaving": True,
-            "indoorTemperature": 28.5,
-            "outdoorTemperature": 32.0,
-            "filterStatus": "good",  # good, need_clean, need_replace
-            "wifiSignal": -45,
-            "powerConsumption": 1.5
+            "volume": 50,                    # 音量 0-100
+            "mute": False,                   # 静音状态
+            "source": "bluetooth",           # 音源：bluetooth, wifi, aux, usb
+            "playing": True,                 # 播放状态
+            "track": "未知歌曲",              # 当前曲目
+            "artist": "未知艺术家",           # 艺术家
+            "album": "未知专辑",             # 专辑
+            "duration": 180,                 # 歌曲时长（秒）
+            "position": 45,                  # 播放位置（秒）
+            "repeat": "none",                # 重复模式：none, one, all
+            "shuffle": False,                # 随机播放
+            "equalizer": "normal",           # 均衡器：normal, pop, rock, jazz, classical
+            "bass": 0,                       # 低音 -10 到 10
+            "treble": 0,                     # 高音 -10 到 10
+            "battery": 85,                   # 电池电量（如果是便携式）
+            "wifiSignal": -35,               # WiFi信号强度
+            "bluetoothConnected": True,      # 蓝牙连接状态
+            "bluetoothDevice": "iPhone 15",  # 连接的蓝牙设备
+            "firmwareVersion": "2.1.3"      # 固件版本
         },
         "services": [
-            "turnOn", "turnOff", "setMode", "setTemperature", 
-            "setFanSpeed", "setSwing", "setTimer", "setEnergySaving",
-            "cleanFilter", "reboot", "reset"
+            "turnOn", "turnOff", "setVolume", "setMute", "setSource",
+            "play", "pause", "stop", "nextTrack", "previousTrack",
+            "setRepeat", "setShuffle", "setEqualizer", "setBass", "setTreble",
+            "connectBluetooth", "disconnectBluetooth", "reboot", "reset"
         ],
         "events": [
-            "power_change", "mode_change", "temperature_change", 
-            "fan_speed_change", "filter_reminder", "energy_report",
-            "wifi_status", "error", "maintenance_reminder"
+            "power_change", "volume_change", "mute_change", "source_change",
+            "playback_start", "playback_pause", "playback_stop", "track_change",
+            "bluetooth_connected", "bluetooth_disconnected", "battery_low",
+            "wifi_status", "error", "firmware_update"
         ]
     }
 ]
