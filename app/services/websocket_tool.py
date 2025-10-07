@@ -353,41 +353,45 @@ class WebSocketTool:
         elif "switch" in property_name_lower or "enable" in property_name_lower:
             return random.choice([True, False])
         # 音响相关属性
-        elif "volume" in property_name_lower:
-            return random.randint(0, 100)
-        elif "mute" in property_name_lower:
+        elif property_name_lower == "power":
             return random.choice([True, False])
-        elif "source" in property_name_lower:
+        elif property_name_lower == "volume":
+            return random.randint(0, 100)
+        elif property_name_lower == "mute":
+            return random.choice([True, False])
+        elif property_name_lower == "source":
             return random.choice(["bluetooth", "wifi", "aux", "usb"])
-        elif "playing" in property_name_lower:
+        elif property_name_lower == "playing":
             return random.choice([True, False])
-        elif "track" in property_name_lower:
+        elif property_name_lower == "track":
             return random.choice(["未知歌曲", "随机歌曲", "测试音乐", "背景音乐"])
-        elif "artist" in property_name_lower:
+        elif property_name_lower == "artist":
             return random.choice(["未知艺术家", "测试艺术家", "随机歌手", "背景音乐"])
-        elif "album" in property_name_lower:
+        elif property_name_lower == "album":
             return random.choice(["未知专辑", "测试专辑", "精选集", "背景音乐"])
-        elif "duration" in property_name_lower:
+        elif property_name_lower == "duration":
             return random.randint(60, 300)  # 1-5分钟
-        elif "position" in property_name_lower:
+        elif property_name_lower == "position":
             return random.randint(0, 180)   # 0-3分钟
-        elif "repeat" in property_name_lower:
+        elif property_name_lower == "repeat":
             return random.choice(["none", "one", "all"])
-        elif "shuffle" in property_name_lower:
+        elif property_name_lower == "shuffle":
             return random.choice([True, False])
-        elif "equalizer" in property_name_lower:
+        elif property_name_lower == "equalizer":
             return random.choice(["normal", "pop", "rock", "jazz", "classical"])
-        elif "bass" in property_name_lower:
+        elif property_name_lower == "bass":
             return random.randint(-10, 10)
-        elif "treble" in property_name_lower:
+        elif property_name_lower == "treble":
             return random.randint(-10, 10)
-        elif "battery" in property_name_lower:
+        elif property_name_lower == "battery":
             return random.randint(0, 100)
-        elif "bluetooth" in property_name_lower and "connected" in property_name_lower:
+        elif property_name_lower == "wifisignal":
+            return random.randint(-80, -30)
+        elif property_name_lower == "bluetoothconnected":
             return random.choice([True, False])
-        elif "bluetooth" in property_name_lower and "device" in property_name_lower:
+        elif property_name_lower == "bluetoothdevice":
             return random.choice(["iPhone 15", "Samsung Galaxy", "iPad", "MacBook", "Android Phone"])
-        elif "firmware" in property_name_lower and "version" in property_name_lower:
+        elif property_name_lower == "firmwareversion":
             return f"{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}"
         else:
             return f"mock_value_{random.randint(1, 100)}"
@@ -874,7 +878,7 @@ async def event_subscribe_handler(client_id: str, request_id: str, params: Dict[
     device_id = params.get("deviceId")
     event_types = params.get("eventTypes", [])
     
-    print(f"📡 [WebSocket] 客户端 {client_id} 订阅设备 {device_id} 事件: {event_types}")
+    # print(f"📡 [WebSocket] 客户端 {client_id} 订阅设备 {device_id} 事件: {event_types}")
     
     # 订阅设备事件
     websocket_tool.subscribe_to_device_events(client_id, device_id, event_types)
