@@ -32,7 +32,7 @@ class WebSocketTool:
         self.heartbeat_timeout = 60  # 默认60秒超时
         
         # 模拟功能相关
-        self.mock_mode = False  # 是否启用模拟模式
+        self.mock_mode = True  # 是否启用模拟模式
         self.mock_devices: Dict[str, Dict[str, Any]] = {}  # 模拟设备数据
         self.mock_history: Dict[str, List[Dict[str, Any]]] = {
             "property": [],
