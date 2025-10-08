@@ -25,7 +25,7 @@ class WebSocketTool:
         # 方法处理器
         self.method_handlers: Dict[str, Callable] = {}
         # 事件订阅管理
-        self.event_subscriptions: Dict[str, Set[str]] = {}  # device_id -> set of client_ids
+        self.event_subscriptions: Dict[str, Dict[str, Set[str]]] = {}  # device_id -> event_type -> set of client_ids
         # 待处理请求
         self.pending_requests: Dict[str, Dict[str, Any]] = {}  # request_id -> request_info
         # 心跳超时时间（秒）
@@ -62,7 +62,10 @@ class WebSocketTool:
             
         # 清理事件订阅
         for device_id in list(self.event_subscriptions.keys()):
-            self.event_subscriptions[device_id].discard(client_id)
+            for event_type in list(self.event_subscriptions[device_id].keys()):
+                self.event_subscriptions[device_id][event_type].discard(client_id)
+                if not self.event_subscriptions[device_id][event_type]:
+                    del self.event_subscriptions[device_id][event_type]
             if not self.event_subscriptions[device_id]:
                 del self.event_subscriptions[device_id]
             
@@ -140,24 +143,32 @@ class WebSocketTool:
             "timestamp": int(get_local_time().timestamp() * 1000)
         }
         
-        # 发送给所有订阅该设备的客户端
-        for client_id in self.event_subscriptions[device_id]:
-            await self.send_message(client_id, event_message)
+        # 发送给所有订阅该设备eventNotification事件的客户端
+        if "eventNotification" in self.event_subscriptions[device_id]:
+            for client_id in self.event_subscriptions[device_id]["eventNotification"]:
+                await self.send_message(client_id, event_message)
             
     def subscribe_to_device_events(self, client_id: str, device_id: str, event_types: List[str]):
         """订阅设备事件"""
         if device_id not in self.event_subscriptions:
-            self.event_subscriptions[device_id] = set()
-        self.event_subscriptions[device_id].add(client_id)
+            self.event_subscriptions[device_id] = {}
+        for event_type in event_types:
+            if event_type not in self.event_subscriptions[device_id]:
+                self.event_subscriptions[device_id][event_type] = set()
+            self.event_subscriptions[device_id][event_type].add(client_id)
         print(f"✅ [WebSocket] 客户端 {client_id} 订阅设备 {device_id} 事件: {event_types}")
         
-    def unsubscribe_from_device_events(self, client_id: str, device_id: str):
+    def unsubscribe_from_device_events(self, client_id: str, device_id: str, event_types: List[str]):
         """取消订阅设备事件"""
         if device_id in self.event_subscriptions:
-            self.event_subscriptions[device_id].discard(client_id)
+            for event_type in event_types:
+                if event_type in self.event_subscriptions[device_id]:
+                    self.event_subscriptions[device_id][event_type].discard(client_id)
+                    if not self.event_subscriptions[device_id][event_type]:
+                        del self.event_subscriptions[device_id][event_type]
             if not self.event_subscriptions[device_id]:
                 del self.event_subscriptions[device_id]
-        print(f"❌ [WebSocket] 客户端 {client_id} 取消订阅设备 {device_id} 事件")
+        print(f"❌ [WebSocket] 客户端 {client_id} 取消订阅设备 {device_id} 事件: {event_types}")
         
     async def handle_message(self, client_id: str, message: str):
         """处理接收到的消息"""
@@ -949,11 +960,12 @@ async def _send_property_change_notification_to_subscribers(device_id: str, serv
         "timestamp": timestamp
     }
     
-    # 发送给所有订阅该设备的客户端
-    for client_id in websocket_tool.event_subscriptions[device_id]:
-        await websocket_tool.send_message(client_id, property_message)
+    # 发送给所有订阅propertyUpdate事件的客户端
+    if "propertyUpdate" in websocket_tool.event_subscriptions[device_id]:
+        for client_id in websocket_tool.event_subscriptions[device_id]["propertyUpdate"]:
+            await websocket_tool.send_message(client_id, property_message)
     
-    print(f"✅ [WebSocket] 属性变更通知已发送给 {len(websocket_tool.event_subscriptions[device_id])} 个订阅客户端: {properties_to_notify}")
+    print(f"✅ [WebSocket] 属性变更通知已发送给 {len(websocket_tool.event_subscriptions[device_id].get('propertyUpdate', []))} 个订阅客户端: {properties_to_notify}")
 
 
 async def event_subscribe_handler(client_id: str, request_id: str, params: Dict[str, Any]):
@@ -975,10 +987,30 @@ async def event_subscribe_handler(client_id: str, request_id: str, params: Dict[
     await websocket_tool.send_response(client_id, request_id, "event.subscribe", response_params)
 
 
+async def event_unsubscribe_handler(client_id: str, request_id: str, params: Dict[str, Any]):
+    """处理 event.unsubscribe 请求"""
+    device_id = params.get("deviceId")
+    event_types = params.get("eventTypes", [])
+    
+    # print(f"📡 [WebSocket] 客户端 {client_id} 取消订阅设备 {device_id} 事件: {event_types}")
+    
+    # 取消订阅设备事件
+    websocket_tool.unsubscribe_from_device_events(client_id, device_id, event_types)
+    
+    response_params = {
+        "deviceId": device_id,
+        "eventTypes": event_types,
+        "unsubscribed": True
+    }
+    
+    await websocket_tool.send_response(client_id, request_id, "event.unsubscribe", response_params)
+
+
 # 注册默认方法处理器
 websocket_tool.register_method_handler("property.get", property_get_handler)
 websocket_tool.register_method_handler("service.invoke", service_invoke_handler)
 websocket_tool.register_method_handler("event.subscribe", event_subscribe_handler)
+websocket_tool.register_method_handler("event.unsubscribe", event_unsubscribe_handler)
 
 # 默认模拟设备配置
 DEFAULT_MOCK_DEVICE_CONFIGS = [
