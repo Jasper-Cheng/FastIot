@@ -337,7 +337,7 @@ class WebSocketTool:
         elif "current" in property_name_lower:
             return round(random.uniform(0.1, 2.0), 3)
         elif "power" in property_name_lower:
-            return round(random.uniform(0.5, 10.0), 2)
+            return random.choice([True, False])
         elif "status" in property_name_lower:
             return random.choice(["unconfigured", "configured", "unbound", "bound", "offline", "online", "fault"])
         elif "battery" in property_name_lower:
@@ -841,6 +841,9 @@ async def service_invoke_handler(client_id: str, request_id: str, params: Dict[s
         # 使用模拟服务调用结果
         result = websocket_tool._generate_mock_service_result(device_id, service_name, arguments)
         
+        # 服务调用成功后，发送属性变更通知给订阅的客户端
+        await _send_property_change_notification_to_subscribers(device_id, service_name, arguments, result)
+        
         # 记录模拟历史
         websocket_tool.mock_history["service"].append({
             "device_id": device_id,
@@ -871,6 +874,86 @@ async def service_invoke_handler(client_id: str, request_id: str, params: Dict[s
     }
     
     await websocket_tool.send_response(client_id, request_id, "service.invoke", response_params)
+
+
+async def _send_property_change_notification_to_subscribers(device_id: str, service_name: str, 
+                                                          arguments: Dict[str, Any], result: Dict[str, Any]):
+    """向订阅的客户端发送属性变更通知"""
+    if device_id not in websocket_tool.event_subscriptions:
+        return
+    
+    service_name_lower = service_name.lower()
+    
+    # 根据服务类型确定需要通知的属性
+    properties_to_notify = {}
+    
+    if "turnon" in service_name_lower or "turn_on" in service_name_lower:
+        properties_to_notify["power"] = True
+    
+    elif "turnoff" in service_name_lower or "turn_off" in service_name_lower:
+        properties_to_notify["power"] = False
+    
+    elif "setvolume" in service_name_lower or "set_volume" in service_name_lower:
+        properties_to_notify["volume"] = arguments.get("volume", 50)
+        
+    elif "setmute" in service_name_lower or "set_mute" in service_name_lower:
+        properties_to_notify["mute"] = arguments.get("mute", False)
+    
+    elif "setsource" in service_name_lower or "set_source" in service_name_lower:
+        properties_to_notify["source"] = arguments.get("source", "bluetooth")
+    
+    elif "play" in service_name_lower:
+        properties_to_notify["playing"] = True
+    
+    elif "pause" in service_name_lower or "stop" in service_name_lower:
+        properties_to_notify["playing"] = False
+    
+    elif "setrepeat" in service_name_lower or "set_repeat" in service_name_lower:
+        properties_to_notify["repeat"] = arguments.get("repeat", "none")
+    
+    elif "setshuffle" in service_name_lower or "set_shuffle" in service_name_lower:
+        properties_to_notify["shuffle"] = arguments.get("shuffle", False)
+    
+    elif "setequalizer" in service_name_lower or "set_equalizer" in service_name_lower:
+        properties_to_notify["equalizer"] = arguments.get("equalizer", "normal")
+    
+    elif "setbass" in service_name_lower or "set_bass" in service_name_lower:
+        properties_to_notify["bass"] = arguments.get("bass", 0)
+    
+    elif "settreble" in service_name_lower or "set_treble" in service_name_lower:
+        properties_to_notify["treble"] = arguments.get("treble", 0)
+    
+    elif "connectbluetooth" in service_name_lower or "connect_bluetooth" in service_name_lower:
+        properties_to_notify["bluetoothConnected"] = True
+        properties_to_notify["bluetoothDevice"] = arguments.get("device", "未知设备")
+    
+    elif "disconnectbluetooth" in service_name_lower or "disconnect_bluetooth" in service_name_lower:
+        properties_to_notify["bluetoothConnected"] = False
+        properties_to_notify["bluetoothDevice"] = ""
+    
+    # 如果没有需要通知的属性，直接返回
+    if not properties_to_notify:
+        return
+    
+    # 构建属性变更通知消息
+    notification_id = f"prop_{uuid.uuid4().hex[:8]}"
+    timestamp = int(get_local_time().timestamp() * 1000)
+    
+    property_message = {
+        "id": notification_id,
+        "method": "property.change",
+        "params": {
+            "deviceId": device_id,
+            "properties": properties_to_notify
+        },
+        "timestamp": timestamp
+    }
+    
+    # 发送给所有订阅该设备的客户端
+    for client_id in websocket_tool.event_subscriptions[device_id]:
+        await websocket_tool.send_message(client_id, property_message)
+    
+    print(f"✅ [WebSocket] 属性变更通知已发送给 {len(websocket_tool.event_subscriptions[device_id])} 个订阅客户端: {properties_to_notify}")
 
 
 async def event_subscribe_handler(client_id: str, request_id: str, params: Dict[str, Any]):
