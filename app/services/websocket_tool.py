@@ -413,166 +413,13 @@ class WebSocketTool:
         """生成模拟服务调用结果"""
         service_name_lower = service_name.lower()
         
-        if "reboot" in service_name_lower:
-            delay = arguments.get("delay", 0)
+        if "setpower" in service_name_lower or "set_power" in service_name_lower:
+            power = arguments.get("power", True)
             return {
                 "status": "success",
-                "message": f"设备将在 {delay} 秒后重启",
-                "restartTime": int((get_local_time() + timedelta(seconds=delay)).timestamp() * 1000)
-            }
-        elif "set" in service_name_lower and "temperature" in service_name_lower:
-            temperature = arguments.get("temperature", 20)
-            return {
-                "status": "success",
-                "message": f"温度已设置为 {temperature}°C",
-                "newTemperature": temperature
-            }
-        elif "start" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "服务已启动",
-                "startTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "stop" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "服务已停止",
-                "stopTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "reset" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "设备已重置",
-                "resetTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "update" in service_name_lower:
-            version = arguments.get("version", "1.0.0")
-            return {
-                "status": "success",
-                "message": f"固件已更新到版本 {version}",
-                "newVersion": version,
-                "updateTime": int(get_local_time().timestamp() * 1000)
-            }
-        # 音响相关服务
-        elif "turnon" in service_name_lower or "turn_on" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "音响已开启",
-                "powerOnTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "turnoff" in service_name_lower or "turn_off" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "音响已关闭",
-                "powerOffTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "setvolume" in service_name_lower or "set_volume" in service_name_lower:
-            volume = arguments.get("volume", 50)
-            return {
-                "status": "success",
-                "message": f"音量已设置为 {volume}%",
-                "newVolume": volume,
+                "message": f"设备电源已{'开启' if power else '关闭'}",
+                "newPower": power,
                 "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "setmute" in service_name_lower or "set_mute" in service_name_lower:
-            mute = arguments.get("mute", False)
-            return {
-                "status": "success",
-                "message": f"音响已{'静音' if mute else '取消静音'}",
-                "muteEnabled": mute,
-                "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "setsource" in service_name_lower or "set_source" in service_name_lower:
-            source = arguments.get("source", "bluetooth")
-            return {
-                "status": "success",
-                "message": f"音源已切换到 {source}",
-                "newSource": source,
-                "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "play" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "开始播放",
-                "playTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "pause" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "暂停播放",
-                "pauseTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "stop" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "停止播放",
-                "stopTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "nexttrack" in service_name_lower or "next_track" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "切换到下一首",
-                "trackChangeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "previoustrack" in service_name_lower or "previous_track" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "切换到上一首",
-                "trackChangeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "setrepeat" in service_name_lower or "set_repeat" in service_name_lower:
-            repeat = arguments.get("repeat", "none")
-            return {
-                "status": "success",
-                "message": f"重复模式已设置为 {repeat}",
-                "newRepeat": repeat,
-                "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "setshuffle" in service_name_lower or "set_shuffle" in service_name_lower:
-            shuffle = arguments.get("shuffle", False)
-            return {
-                "status": "success",
-                "message": f"随机播放已{'开启' if shuffle else '关闭'}",
-                "shuffleEnabled": shuffle,
-                "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "setequalizer" in service_name_lower or "set_equalizer" in service_name_lower:
-            equalizer = arguments.get("equalizer", "normal")
-            return {
-                "status": "success",
-                "message": f"均衡器已设置为 {equalizer}",
-                "newEqualizer": equalizer,
-                "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "setbass" in service_name_lower or "set_bass" in service_name_lower:
-            bass = arguments.get("bass", 0)
-            return {
-                "status": "success",
-                "message": f"低音已设置为 {bass}",
-                "newBass": bass,
-                "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "settreble" in service_name_lower or "set_treble" in service_name_lower:
-            treble = arguments.get("treble", 0)
-            return {
-                "status": "success",
-                "message": f"高音已设置为 {treble}",
-                "newTreble": treble,
-                "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "connectbluetooth" in service_name_lower or "connect_bluetooth" in service_name_lower:
-            device = arguments.get("device", "未知设备")
-            return {
-                "status": "success",
-                "message": f"已连接到蓝牙设备 {device}",
-                "connectedDevice": device,
-                "connectTime": int(get_local_time().timestamp() * 1000)
-            }
-        elif "disconnectbluetooth" in service_name_lower or "disconnect_bluetooth" in service_name_lower:
-            return {
-                "status": "success",
-                "message": "已断开蓝牙连接",
-                "disconnectTime": int(get_local_time().timestamp() * 1000)
             }
         else:
             return {
@@ -899,49 +746,8 @@ async def _send_property_change_notification_to_subscribers(device_id: str, serv
     # 根据服务类型确定需要通知的属性
     properties_to_notify = {}
     
-    if "turnon" in service_name_lower or "turn_on" in service_name_lower:
-        properties_to_notify["power"] = True
-    
-    elif "turnoff" in service_name_lower or "turn_off" in service_name_lower:
-        properties_to_notify["power"] = False
-    
-    elif "setvolume" in service_name_lower or "set_volume" in service_name_lower:
-        properties_to_notify["volume"] = arguments.get("volume", 50)
-        
-    elif "setmute" in service_name_lower or "set_mute" in service_name_lower:
-        properties_to_notify["mute"] = arguments.get("mute", False)
-    
-    elif "setsource" in service_name_lower or "set_source" in service_name_lower:
-        properties_to_notify["source"] = arguments.get("source", "bluetooth")
-    
-    elif "play" in service_name_lower:
-        properties_to_notify["playing"] = True
-    
-    elif "pause" in service_name_lower or "stop" in service_name_lower:
-        properties_to_notify["playing"] = False
-    
-    elif "setrepeat" in service_name_lower or "set_repeat" in service_name_lower:
-        properties_to_notify["repeat"] = arguments.get("repeat", "none")
-    
-    elif "setshuffle" in service_name_lower or "set_shuffle" in service_name_lower:
-        properties_to_notify["shuffle"] = arguments.get("shuffle", False)
-    
-    elif "setequalizer" in service_name_lower or "set_equalizer" in service_name_lower:
-        properties_to_notify["equalizer"] = arguments.get("equalizer", "normal")
-    
-    elif "setbass" in service_name_lower or "set_bass" in service_name_lower:
-        properties_to_notify["bass"] = arguments.get("bass", 0)
-    
-    elif "settreble" in service_name_lower or "set_treble" in service_name_lower:
-        properties_to_notify["treble"] = arguments.get("treble", 0)
-    
-    elif "connectbluetooth" in service_name_lower or "connect_bluetooth" in service_name_lower:
-        properties_to_notify["bluetoothConnected"] = True
-        properties_to_notify["bluetoothDevice"] = arguments.get("device", "未知设备")
-    
-    elif "disconnectbluetooth" in service_name_lower or "disconnect_bluetooth" in service_name_lower:
-        properties_to_notify["bluetoothConnected"] = False
-        properties_to_notify["bluetoothDevice"] = ""
+    if "setpower" in service_name_lower or "set_power" in service_name_lower:
+        properties_to_notify["power"] = arguments.get("power", True)
     
     # 如果没有需要通知的属性，直接返回
     if not properties_to_notify:
@@ -1087,38 +893,13 @@ DEFAULT_MOCK_DEVICE_CONFIGS = [
         "type": "speaker",
         "status": "online",
         "properties": {
-            "power": True,
-            "volume": 50,                    # 音量 0-100
-            "mute": False,                   # 静音状态
-            "source": "bluetooth",           # 音源：bluetooth, wifi, aux, usb
-            "playing": True,                 # 播放状态
-            "track": "未知歌曲",              # 当前曲目
-            "artist": "未知艺术家",           # 艺术家
-            "album": "未知专辑",             # 专辑
-            "duration": 180,                 # 歌曲时长（秒）
-            "position": 45,                  # 播放位置（秒）
-            "repeat": "none",                # 重复模式：none, one, all
-            "shuffle": False,                # 随机播放
-            "equalizer": "normal",           # 均衡器：normal, pop, rock, jazz, classical
-            "bass": 0,                       # 低音 -10 到 10
-            "treble": 0,                     # 高音 -10 到 10
-            "battery": 85,                   # 电池电量（如果是便携式）
-            "wifiSignal": -35,               # WiFi信号强度
-            "bluetoothConnected": True,      # 蓝牙连接状态
-            "bluetoothDevice": "iPhone 15",  # 连接的蓝牙设备
-            "firmwareVersion": "2.1.3"      # 固件版本
+            "power": True
         },
         "services": [
-            "turnOn", "turnOff", "setVolume", "setMute", "setSource",
-            "play", "pause", "stop", "nextTrack", "previousTrack",
-            "setRepeat", "setShuffle", "setEqualizer", "setBass", "setTreble",
-            "connectBluetooth", "disconnectBluetooth", "reboot", "reset"
+            "setPower"
         ],
         "events": [
-            "power_change", "volume_change", "mute_change", "source_change",
-            "playback_start", "playback_pause", "playback_stop", "track_change",
-            "bluetooth_connected", "bluetooth_disconnected", "battery_low",
-            "wifi_status", "error", "firmware_update"
+            "power_change"
         ]
     }
 ]
