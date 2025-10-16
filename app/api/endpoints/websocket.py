@@ -49,8 +49,10 @@ async def authenticate_websocket_user(token: str, db: AsyncSession) -> Union[Use
         return None
 
 
-@router.websocket("/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str, token: str = Query(...)):
+
+
+@router.websocket("/connect")
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
     """WebSocket连接端点（需要身份验证）"""
     # 获取数据库会话
     async for db in get_db():
@@ -60,13 +62,17 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, token: str = 
             await websocket.close(code=4001, reason="身份验证失败")
             return
         
+        # 根据用户类型和ID生成client_id
+        role = current_user.__class__.__name__.lower()
+        client_id = f"{role}_{current_user.id}"
+        
         # 连接成功，设置客户端ID和元数据
         metadata = {
             "client_id": client_id,
-            "connection_type": "general",
+            "connection_type": role,
             "authenticated_user": {
-                "id": current_user.id if hasattr(current_user, 'id') else current_user.user_id,
-                "role": current_user.__class__.__name__.lower()
+                "id": current_user.id,
+                "role": role
             }
         }
         
@@ -97,14 +103,17 @@ async def device_websocket_endpoint(websocket: WebSocket, device_id: str, token:
             await websocket.close(code=4001, reason="身份验证失败")
             return
         
+        # 根据用户类型和ID生成client_id
+        role = current_user.__class__.__name__.lower()
+        client_id = f"{role}_{current_user.id}"
+        
         # 连接成功，设置客户端ID和元数据
-        client_id = f"device_{device_id}"
         metadata = {
-            "device_id": device_id,
-            "connection_type": "device",
+            "client_id": client_id,
+            "connection_type": role,
             "authenticated_user": {
-                "id": current_user.id if hasattr(current_user, 'id') else current_user.user_id,
-                "role": current_user.__class__.__name__.lower()
+                "id": current_user.id,
+                "role": role
             }
         }
         
@@ -150,14 +159,17 @@ async def user_websocket_endpoint(websocket: WebSocket, user_id: str, token: str
             await websocket.close(code=4001, reason="未知用户类型")
             return
         
+        # 根据用户类型和ID生成client_id
+        role = current_user.__class__.__name__.lower()
+        client_id = f"{role}_{current_user.id}"
+        
         # 连接成功，设置客户端ID和元数据
-        client_id = f"user_{user_id}"
         metadata = {
-            "user_id": user_id,
-            "connection_type": "user",
+            "client_id": client_id,
+            "connection_type": role,
             "authenticated_user": {
-                "id": current_user.id if hasattr(current_user, 'id') else current_user.user_id,
-                "role": current_user.__class__.__name__.lower()
+                "id": current_user.id,
+                "role": role
             }
         }
         
