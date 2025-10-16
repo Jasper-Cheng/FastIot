@@ -1,7 +1,7 @@
 """
 WebSocket工具类
 支持收发信息、心跳机制、连接管理
-支持标准请求-响应模式：property.get, service.invoke, event.subscribe
+支持标准请求-响应模式：property.get, service.invoke, event.subscribe, family.message
 支持模拟响应功能
 """
 import json
@@ -37,7 +37,8 @@ class WebSocketTool:
         self.mock_history: Dict[str, List[Dict[str, Any]]] = {
             "property": [],
             "service": [],
-            "event": []
+            "event": [],
+            "family": []
         }
         
     async def connect(self, websocket: WebSocket, client_id: str, metadata: Optional[Dict[str, Any]] = None):
@@ -1006,11 +1007,75 @@ async def event_unsubscribe_handler(client_id: str, request_id: str, params: Dic
     await websocket_tool.send_response(client_id, request_id, "event.unsubscribe", response_params)
 
 
+async def family_message_handler(client_id: str, request_id: str, params: Dict[str, Any]):
+    """处理 family.message 请求"""
+    message_type = params.get("type")
+    data = params.get("data", {})
+    
+    print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送family消息: {message_type}")
+    
+    # 获取发送者的family信息
+    sender_metadata = websocket_tool.get_connection_info(client_id)
+    if not sender_metadata or "family_clients" not in sender_metadata:
+        await websocket_tool.send_response(
+            client_id, 
+            request_id, 
+            "family.message", 
+            {}, 
+            success=False, 
+            error="无法获取family信息"
+        )
+        return
+    
+    family_clients = sender_metadata["family_clients"]
+    
+    # 构建family消息
+    family_message = {
+        "id": f"fam_{request_id}",
+        "method": "family.message",
+        "params": {
+            "type": message_type,
+            "data": data
+        },
+        "timestamp": int(datetime.now().timestamp() * 1000)
+    }
+    
+    # 发送给family中的所有客户端（包括发送者）
+    sent_count = 0
+    for family_client_id in family_clients:
+        if family_client_id in websocket_tool.active_connections:
+            try:
+                await websocket_tool.send_message(family_client_id, family_message)
+                sent_count += 1
+                print(f"📤 [WebSocket] Family消息已发送给 {family_client_id}")
+            except Exception as e:
+                print(f"❌ [WebSocket] 发送family消息给 {family_client_id} 失败: {e}")
+    
+    # 记录family消息历史
+    websocket_tool.mock_history.setdefault("family", []).append({
+        "sender": client_id,
+        "type": message_type,
+        "data": data,
+        "family_clients": family_clients,
+        "sent_count": sent_count,
+        "timestamp": get_local_time()
+    })
+    
+    response_params = {
+        "type": message_type,
+        "family_clients": family_clients,
+        "sent_count": sent_count
+    }
+    
+    await websocket_tool.send_response(client_id, request_id, "family.message", response_params)
+
+
 # 注册默认方法处理器
 websocket_tool.register_method_handler("property.get", property_get_handler)
 websocket_tool.register_method_handler("service.invoke", service_invoke_handler)
 websocket_tool.register_method_handler("event.subscribe", event_subscribe_handler)
 websocket_tool.register_method_handler("event.unsubscribe", event_unsubscribe_handler)
+websocket_tool.register_method_handler("family.message", family_message_handler)
 
 # 默认模拟设备配置
 DEFAULT_MOCK_DEVICE_CONFIGS = [
