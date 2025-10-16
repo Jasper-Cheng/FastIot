@@ -17,7 +17,7 @@ from app.db.models.user import User
 from app.db.models.member import Member
 from app.db.models.admin import Admin
 from app.utils.time_utils import get_local_time
-from typing import Union
+from typing import Union, List
 
 router = APIRouter()
 
@@ -49,6 +49,50 @@ async def authenticate_websocket_user(token: str, db: AsyncSession) -> Union[Use
         return None
 
 
+async def get_family_clients(current_user: Union[User, Member, Admin], db: AsyncSession) -> List[str]:
+    """获取family相关的所有client_id"""
+    family_clients = []
+    
+    if isinstance(current_user, User):
+        # 如果是owner，获取自己和所有member的client_id
+        role = current_user.__class__.__name__.lower()
+        owner_client_id = f"{role}_{current_user.id}"
+        family_clients.append(owner_client_id)
+        
+        # 获取所有member
+        from app.crud.member import get_members_by_user
+        members = await get_members_by_user(db, current_user.id)
+        for member in members:
+            member_role = member.__class__.__name__.lower()
+            member_client_id = f"{member_role}_{member.id}"
+            family_clients.append(member_client_id)
+            
+    elif isinstance(current_user, Member):
+        # 如果是member，获取owner和所有member的client_id
+        # 先获取owner的client_id
+        from app.crud.user import get_user
+        owner = await get_user(db, current_user.user_id)
+        if owner:
+            owner_role = owner.__class__.__name__.lower()
+            owner_client_id = f"{owner_role}_{owner.id}"
+            family_clients.append(owner_client_id)
+        
+        # 获取所有member
+        from app.crud.member import get_members_by_user
+        members = await get_members_by_user(db, current_user.user_id)
+        for member in members:
+            member_role = member.__class__.__name__.lower()
+            member_client_id = f"{member_role}_{member.id}"
+            family_clients.append(member_client_id)
+            
+    elif isinstance(current_user, Admin):
+        # 如果是admin，可以访问所有family
+        # 这里可以根据需要实现admin的特殊逻辑
+        pass
+    
+    return family_clients
+
+
 
 
 @router.websocket("/connect")
@@ -66,17 +110,24 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
         role = current_user.__class__.__name__.lower()
         client_id = f"{role}_{current_user.id}"
         
+        # 获取family相关的所有client_id
+        family_clients = await get_family_clients(current_user, db)
+        
         # 连接成功，设置客户端ID和元数据
         metadata = {
             "client_id": client_id,
             "connection_type": role,
-            "authenticated_user": {
-                "id": current_user.id,
-                "role": role
-            }
+            "family_clients": family_clients
         }
         
         await websocket_tool.connect(websocket, client_id, metadata)
+        
+        # 输出连接成功信息
+        print(f"✅ [WebSocket] 连接成功!")
+        print(f"   Client ID: {client_id}")
+        print(f"   Connection Type: {role}")
+        print(f"   Family Clients: {family_clients}")
+        print(f"   Metadata: {metadata}")
         
         try:
             while True:
@@ -107,17 +158,24 @@ async def device_websocket_endpoint(websocket: WebSocket, device_id: str, token:
         role = current_user.__class__.__name__.lower()
         client_id = f"{role}_{current_user.id}"
         
+        # 获取family相关的所有client_id
+        family_clients = await get_family_clients(current_user, db)
+        
         # 连接成功，设置客户端ID和元数据
         metadata = {
             "client_id": client_id,
             "connection_type": role,
-            "authenticated_user": {
-                "id": current_user.id,
-                "role": role
-            }
+            "family_clients": family_clients
         }
         
         await websocket_tool.connect(websocket, client_id, metadata)
+        
+        # 输出连接成功信息
+        print(f"✅ [WebSocket] 连接成功!")
+        print(f"   Client ID: {client_id}")
+        print(f"   Connection Type: {role}")
+        print(f"   Family Clients: {family_clients}")
+        print(f"   Metadata: {metadata}")
         
         try:
             while True:
@@ -163,17 +221,24 @@ async def user_websocket_endpoint(websocket: WebSocket, user_id: str, token: str
         role = current_user.__class__.__name__.lower()
         client_id = f"{role}_{current_user.id}"
         
+        # 获取family相关的所有client_id
+        family_clients = await get_family_clients(current_user, db)
+        
         # 连接成功，设置客户端ID和元数据
         metadata = {
             "client_id": client_id,
             "connection_type": role,
-            "authenticated_user": {
-                "id": current_user.id,
-                "role": role
-            }
+            "family_clients": family_clients
         }
         
         await websocket_tool.connect(websocket, client_id, metadata)
+        
+        # 输出连接成功信息
+        print(f"✅ [WebSocket] 连接成功!")
+        print(f"   Client ID: {client_id}")
+        print(f"   Connection Type: {role}")
+        print(f"   Family Clients: {family_clients}")
+        print(f"   Metadata: {metadata}")
         
         try:
             while True:
