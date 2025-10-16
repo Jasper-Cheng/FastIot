@@ -5,7 +5,7 @@ from app.core.config import settings
 # 创建异步数据库引擎
 engine = create_async_engine(
     str(settings.DATABASE_URL).replace('mysql+aiomysql://', 'mysql+aiomysql://'),
-    echo=settings.DEBUG,
+    echo=False,  # 关闭SQL语句输出
     pool_pre_ping=True,
     pool_recycle=300,
     connect_args={

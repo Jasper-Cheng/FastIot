@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
+import logging
 from sqlalchemy import text
 from app.core.config import settings
 from app.services.mqtt_client import mqtt_service
@@ -9,6 +10,11 @@ from app.services.mqtt_handlers import register_mqtt_subscriptions
 from app.db.session import engine
 from app.services.redis_service import redis_service
 from app.services.websocket_tool import websocket_tool
+
+# 配置日志级别，关闭SQLAlchemy的SQL语句输出
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.dialects').setLevel(logging.WARNING)
 
 async def heartbeat_checker():
     """心跳超时检查任务"""
