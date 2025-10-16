@@ -953,10 +953,12 @@ async def _send_property_change_notification_to_subscribers(device_id: str, serv
     
     property_message = {
         "id": notification_id,
-        "method": "property.change",
+        "method": "event.notify",
         "params": {
             "deviceId": device_id,
-            "properties": properties_to_notify
+            "eventType": "propertyUpdate",
+            "data": properties_to_notify,
+            "occurredAt": timestamp
         },
         "timestamp": timestamp
     }
