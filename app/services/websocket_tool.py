@@ -1,7 +1,7 @@
 """
 WebSocket工具类
 支持收发信息、心跳机制、连接管理
-支持标准请求-响应模式：property.get, service.invoke, event.subscribe, family.message
+支持标准请求-响应模式：property.get, service.invoke, event.subscribe, family.message, system.message
 支持模拟响应功能
 """
 import json
@@ -38,7 +38,8 @@ class WebSocketTool:
             "property": [],
             "service": [],
             "event": [],
-            "family": []
+            "family": [],
+            "system": []
         }
         
     async def connect(self, websocket: WebSocket, client_id: str, metadata: Optional[Dict[str, Any]] = None):
@@ -878,12 +879,65 @@ async def family_message_handler(client_id: str, request_id: str, params: Dict[s
     await websocket_tool.send_response(client_id, request_id, "family.message", response_params)
 
 
+async def system_message_handler(client_id: str, request_id: str, params: Dict[str, Any]):
+    """处理 system.message 请求"""
+    message_type = params.get("type")
+    data = params.get("data", {})
+    
+    print(f"🔔 [WebSocket] 客户端 {client_id} 发送系统消息: {message_type}")
+    
+    # 确保data中包含timestamp
+    current_timestamp = int(datetime.now().timestamp() * 1000)
+    if "timestamp" not in data:
+        data["timestamp"] = current_timestamp
+    
+    # 构建系统消息
+    system_message = {
+        "id": f"sys_{request_id}",
+        "method": "system.message",
+        "params": {
+            "type": message_type,
+            "data": data
+        },
+        "timestamp": current_timestamp
+    }
+    
+    # 发送给所有连接的客户端
+    sent_count = 0
+    for client_id in websocket_tool.active_connections:
+        try:
+            await websocket_tool.send_message(client_id, system_message)
+            sent_count += 1
+            print(f"📤 [WebSocket] 系统消息已发送给 {client_id}")
+        except Exception as e:
+            print(f"❌ [WebSocket] 发送系统消息给 {client_id} 失败: {e}")
+    
+    # 记录系统消息历史
+    websocket_tool.mock_history.setdefault("system", []).append({
+        "sender": client_id,
+        "type": message_type,
+        "data": data,
+        "total_clients": len(websocket_tool.active_connections),
+        "sent_count": sent_count,
+        "timestamp": get_local_time()
+    })
+    
+    response_params = {
+        "type": message_type,
+        "total_clients": len(websocket_tool.active_connections),
+        "sent_count": sent_count
+    }
+    
+    await websocket_tool.send_response(client_id, request_id, "system.message", response_params)
+
+
 # 注册默认方法处理器
 websocket_tool.register_method_handler("property.get", property_get_handler)
 websocket_tool.register_method_handler("service.invoke", service_invoke_handler)
 websocket_tool.register_method_handler("event.subscribe", event_subscribe_handler)
 websocket_tool.register_method_handler("event.unsubscribe", event_unsubscribe_handler)
 websocket_tool.register_method_handler("family.message", family_message_handler)
+websocket_tool.register_method_handler("system.message", system_message_handler)
 
 # 默认模拟设备配置
 DEFAULT_MOCK_DEVICE_CONFIGS = [
