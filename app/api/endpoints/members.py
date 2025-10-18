@@ -240,11 +240,33 @@ async def remove_member(
     if not m:
         raise HTTPException(status_code=404, detail="成员不存在")
 
-    # 先删除 member（会级联删除权限等依赖）
-    await delete_member(db, member_id)
+    try:
+        # 先删除 member（会级联删除权限等依赖）
+        success = await delete_member(db, member_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="成员删除失败")
 
-    # 再删除其 account（已无外键引用）
-    await delete_account(db, m.account_id)
-    return {"message": "删除成功"}
+        # 手动删除相关的 check_in 和 points 记录
+        from sqlalchemy import delete
+        from app.db.models.check_in import CheckIn
+        from app.db.models.points import Points
+        
+        # 删除 check_in 记录
+        await db.execute(delete(CheckIn).where(CheckIn.account_id == m.account_id))
+        
+        # 删除 points 记录
+        await db.execute(delete(Points).where(Points.account_id == m.account_id))
+
+        # 再删除其 account
+        success = await delete_account(db, m.account_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="账号删除失败")
+        
+        # 统一提交事务
+        await db.commit()
+        return {"message": "删除成功"}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
 
 

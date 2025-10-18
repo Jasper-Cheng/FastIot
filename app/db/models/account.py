@@ -18,11 +18,11 @@ class Account(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # 关系
-    user = relationship("User", back_populates="account", uselist=False)
-    member = relationship("Member", back_populates="account", uselist=False)
-    admin = relationship("Admin", back_populates="account", uselist=False)
-    check_ins = relationship("CheckIn", back_populates="account")
-    points = relationship("Points", back_populates="account")
+    user = relationship("User", back_populates="account", uselist=False, passive_deletes=True)
+    member = relationship("Member", back_populates="account", uselist=False, passive_deletes=True)
+    admin = relationship("Admin", back_populates="account", uselist=False, passive_deletes=True)
+    check_ins = relationship("CheckIn", back_populates="account", passive_deletes=True)
+    points = relationship("Points", back_populates="account", passive_deletes=True)
     
     def __repr__(self):
         return f"<Account(id={self.id}, account={self.account}, name={self.name}, role={self.role})>"

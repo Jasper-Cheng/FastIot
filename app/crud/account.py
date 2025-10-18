@@ -72,7 +72,7 @@ async def delete_account(db: AsyncSession, account_id: int) -> bool:
         return False
     
     await db.delete(db_account)
-    await db.commit()
+    # 不在这里commit，让调用方管理事务
     return True
 
 async def authenticate_account(db: AsyncSession, account_name: str, password: str) -> Optional[Account]:

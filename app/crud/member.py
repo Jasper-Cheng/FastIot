@@ -52,10 +52,15 @@ async def update_member(db: AsyncSession, member_id: int, member: MemberUpdate) 
 
 async def delete_member(db: AsyncSession, member_id: int) -> bool:
     """删除成员"""
-    db_member = await get_member(db, member_id)
+    # 使用简单查询，避免加载关联对象
+    result = await db.execute(
+        select(Member).filter(Member.id == member_id)
+    )
+    db_member = result.scalar_one_or_none()
+    
     if not db_member:
         return False
     
     await db.delete(db_member)
-    await db.commit()
+    # 不在这里commit，让调用方管理事务
     return True
