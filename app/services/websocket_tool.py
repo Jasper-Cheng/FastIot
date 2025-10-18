@@ -825,7 +825,7 @@ async def family_message_handler(client_id: str, request_id: str, params: Dict[s
     
     # 获取发送者的family信息
     sender_metadata = websocket_tool.get_connection_info(client_id)
-    if not sender_metadata or "family_clients" not in sender_metadata:
+    if not sender_metadata or "metadata" not in sender_metadata or "family_clients" not in sender_metadata["metadata"]:
         await websocket_tool.send_response(
             client_id, 
             request_id, 
@@ -836,7 +836,7 @@ async def family_message_handler(client_id: str, request_id: str, params: Dict[s
         )
         return
     
-    family_clients = sender_metadata["family_clients"]
+    family_clients = sender_metadata["metadata"]["family_clients"]
     
     # 构建family消息
     family_message = {
