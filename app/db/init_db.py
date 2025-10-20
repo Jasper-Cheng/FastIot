@@ -22,6 +22,7 @@ from app.db.models.member_device_permission import MemberDevicePermission
 from app.db.models.device_network import DeviceNetwork
 from app.db.models.check_in import CheckIn
 from app.db.models.points import Points
+from app.db.models.system_message import SystemMessage
 from app.core.security import get_password_hash
 
 async def init_db(reset=False) -> None:
@@ -135,6 +136,9 @@ async def insert_initial_data(session: AsyncSession) -> None:
         
         # 14. 创建积分记录
         await create_points(session, accounts)
+        
+        # 15. 创建系统消息
+        await create_system_messages(session)
         
         await session.commit()
         print("测试数据创建完成！")
@@ -1157,6 +1161,85 @@ async def create_points(session: AsyncSession, accounts):
                 }
             )
             session.add(points_record)
+
+async def create_system_messages(session: AsyncSession):
+    """创建系统消息"""
+    print("创建系统消息...")
+    
+    from app.models.system_message import Platform, SystemMessageType, SystemMessagePriority
+    
+    system_messages_data = [
+        {
+            "title": "欢迎使用FastIoT平台",
+            "content": "欢迎使用FastIoT智能物联网平台！我们为您提供完整的设备管理和监控解决方案。",
+            "type": SystemMessageType.ANNOUNCEMENT,
+            "priority": SystemMessagePriority.NORMAL,
+            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB]
+        },
+        {
+            "title": "系统维护通知",
+            "content": "系统将于本周日凌晨2:00-4:00进行例行维护，期间服务可能短暂中断，请提前做好准备。",
+            "type": SystemMessageType.MAINTENANCE,
+            "priority": SystemMessagePriority.HIGH,
+            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB, Platform.DESKTOP]
+        },
+        {
+            "title": "新功能上线",
+            "content": "我们新增了设备分组功能，现在您可以更方便地管理多个设备了！",
+            "type": SystemMessageType.UPDATE,
+            "priority": SystemMessagePriority.NORMAL,
+            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB]
+        },
+        {
+            "title": "安全提醒",
+            "content": "请定期更新您的设备密码，确保账户安全。建议使用强密码并启用双重验证。",
+            "type": SystemMessageType.ALERT,
+            "priority": SystemMessagePriority.URGENT,
+            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB]
+        },
+        {
+            "title": "移动端优化",
+            "content": "我们优化了移动端应用的用户界面，现在操作更加流畅便捷！",
+            "type": SystemMessageType.UPDATE,
+            "priority": SystemMessagePriority.NORMAL,
+            "platforms": [Platform.ANDROID, Platform.IOS]
+        },
+        {
+            "title": "API接口更新",
+            "content": "我们更新了部分API接口，请开发者查看最新的API文档。",
+            "type": SystemMessageType.UPDATE,
+            "priority": SystemMessagePriority.NORMAL,
+            "platforms": [Platform.WEB, Platform.DESKTOP]
+        },
+        {
+            "title": "节日祝福",
+            "content": "感谢您对FastIoT的支持！祝您节日快乐，工作顺利！",
+            "type": SystemMessageType.NOTIFICATION,
+            "priority": SystemMessagePriority.LOW,
+            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB]
+        },
+        {
+            "title": "数据备份提醒",
+            "content": "建议您定期备份重要数据，我们提供自动备份功能，可在设置中开启。",
+            "type": SystemMessageType.NOTIFICATION,
+            "priority": SystemMessagePriority.NORMAL,
+            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB, Platform.DESKTOP]
+        }
+    ]
+    
+    for message_data in system_messages_data:
+        system_message = SystemMessage(
+            title=message_data["title"],
+            content=message_data["content"],
+            type=message_data["type"],
+            priority=message_data["priority"],
+            platforms=message_data["platforms"],
+            extra={
+                "created_by": "system",
+                "version": "1.0.0"
+            }
+        )
+        session.add(system_message)
 
 async def reset_database():
     """重置数据库"""

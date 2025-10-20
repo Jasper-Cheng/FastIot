@@ -184,6 +184,22 @@ CREATE TABLE IF NOT EXISTS `points` (
     INDEX `idx_points_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户积分变动记录表';
 
+-- 系统消息表：记录系统发送的消息
+CREATE TABLE IF NOT EXISTS `system_message` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '消息ID',
+    `title` VARCHAR(255) NOT NULL COMMENT '消息标题',
+    `content` TEXT NOT NULL COMMENT '消息内容',
+    `type` ENUM('notification','announcement','alert','maintenance','update') NOT NULL DEFAULT 'notification' COMMENT '消息类型：通知/公告/警告/维护/更新',
+    `priority` ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal' COMMENT '优先级：低/普通/高/紧急',
+    `platforms` JSON NOT NULL COMMENT '目标平台：android/ios/web等，可多选',
+    `extra` JSON NULL COMMENT '扩展信息',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX `idx_system_message_type` (`type`),
+    INDEX `idx_system_message_priority` (`priority`),
+    INDEX `idx_system_message_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统消息表';
+
 -- 插入默认账号和用户（密码: admin123）
 INSERT INTO `account` (`account`, `password_hash`, `name`, `email`, `role`) 
 VALUES ('admin', 'admin123', '管理员', 'admin@fastiot.com', 'admin')
