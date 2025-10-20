@@ -124,10 +124,15 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
         
         # 输出连接成功信息
         print(f"✅ [WebSocket] 连接成功!")
-        print(f"   Client ID: {client_id}")
-        print(f"   Connection Type: {role}")
-        print(f"   Family Clients: {family_clients}")
-        print(f"   Metadata: {metadata}")
+        print(f"   Metadata: {metadata}")        
+        # 检查family_clients中哪些是活跃连接
+        active_family_clients = []
+        for family_client_id in family_clients:
+            if family_client_id in websocket_tool.active_connections:
+                active_family_clients.append(family_client_id)
+        
+        print(f"   Active Family Clients: {active_family_clients}")
+        
         
         try:
             while True:
@@ -172,10 +177,15 @@ async def device_websocket_endpoint(websocket: WebSocket, device_id: str, token:
         
         # 输出连接成功信息
         print(f"✅ [WebSocket] 连接成功!")
-        print(f"   Client ID: {client_id}")
-        print(f"   Connection Type: {role}")
-        print(f"   Family Clients: {family_clients}")
         print(f"   Metadata: {metadata}")
+        # 检查family_clients中哪些是活跃连接
+        active_family_clients = []
+        for family_client_id in family_clients:
+            if family_client_id in websocket_tool.active_connections:
+                active_family_clients.append(family_client_id)
+        
+        print(f"   Active Family Clients: {active_family_clients}")
+        
         
         try:
             while True:
@@ -235,10 +245,16 @@ async def user_websocket_endpoint(websocket: WebSocket, user_id: str, token: str
         
         # 输出连接成功信息
         print(f"✅ [WebSocket] 连接成功!")
-        print(f"   Client ID: {client_id}")
-        print(f"   Connection Type: {role}")
-        print(f"   Family Clients: {family_clients}")
         print(f"   Metadata: {metadata}")
+        # 检查family_clients中哪些是活跃连接
+        active_family_clients = []
+        for family_client_id in family_clients:
+            if family_client_id in websocket_tool.active_connections:
+                active_family_clients.append(family_client_id)
+        
+        print(f"   Active Family Clients: {active_family_clients}")
+       
+        
         
         try:
             while True:
