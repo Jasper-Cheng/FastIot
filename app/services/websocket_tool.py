@@ -8,6 +8,7 @@ import json
 import asyncio
 import uuid
 import random
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Set, Callable, Any, Optional, List
 from fastapi import WebSocket, WebSocketDisconnect
@@ -725,6 +726,9 @@ async def service_invoke_handler(client_id: str, request_id: str, params: Dict[s
         # 服务调用成功后，发送属性变更通知给订阅的客户端
         await _send_property_change_notification_to_subscribers(device_id, service_name, arguments, result)
         
+        # 模拟发送系统消息
+        await _send_mock_system_message(device_id, service_name, arguments, result)
+        
         # 记录模拟历史
         websocket_tool.mock_history["service"].append({
             "device_id": device_id,
@@ -960,6 +964,108 @@ websocket_tool.register_method_handler("event.subscribe", event_subscribe_handle
 websocket_tool.register_method_handler("event.unsubscribe", event_unsubscribe_handler)
 websocket_tool.register_method_handler("family.message", family_message_handler)
 websocket_tool.register_method_handler("system.message", system_message_handler)
+
+async def _send_mock_system_message(device_id: str, service_name: str, arguments: Dict[str, Any], result: Dict[str, Any]):
+    """模拟发送系统消息"""
+    try:
+        # 根据服务类型生成不同的系统消息
+        system_messages = []
+        
+        if service_name == "reboot":
+            delay = arguments.get("delay", 0)
+            system_messages.append({
+                "title": "设备重启通知",
+                "content": f"设备 {device_id} 将在 {delay} 秒后重启",
+                "type": "notification",
+                "priority": "normal",
+                "platforms": ["android", "ios", "web"]
+            })
+        elif service_name == "setTemperature":
+            temperature = arguments.get("temperature", 20)
+            system_messages.append({
+                "title": "温度设置成功",
+                "content": f"设备 {device_id} 温度已设置为 {temperature}°C",
+                "type": "notification",
+                "priority": "normal",
+                "platforms": ["android", "ios", "web"]
+            })
+        elif service_name == "setBrightness":
+            brightness = arguments.get("brightness", 50)
+            system_messages.append({
+                "title": "亮度调节完成",
+                "content": f"设备 {device_id} 亮度已调整为 {brightness}%",
+                "type": "notification",
+                "priority": "normal",
+                "platforms": ["android", "ios", "web"]
+            })
+        elif service_name == "setVolume":
+            volume = arguments.get("volume", 50)
+            system_messages.append({
+                "title": "音量调节完成",
+                "content": f"设备 {device_id} 音量已设置为 {volume}%",
+                "type": "notification",
+                "priority": "normal",
+                "platforms": ["android", "ios", "web"]
+            })
+        elif service_name == "startPlay":
+            system_messages.append({
+                "title": "播放开始",
+                "content": f"设备 {device_id} 开始播放",
+                "type": "notification",
+                "priority": "low",
+                "platforms": ["android", "ios", "web"]
+            })
+        elif service_name == "stopPlay":
+            system_messages.append({
+                "title": "播放停止",
+                "content": f"设备 {device_id} 停止播放",
+                "type": "notification",
+                "priority": "low",
+                "platforms": ["android", "ios", "web"]
+            })
+        else:
+            # 通用服务调用消息
+            system_messages.append({
+                "title": "服务调用成功",
+                "content": f"设备 {device_id} 的 {service_name} 服务执行成功",
+                "type": "notification",
+                "priority": "normal",
+                "platforms": ["android", "ios", "web"]
+            })
+        
+        # 发送系统消息给所有连接的客户端
+        for message_data in system_messages:
+            message_params = {
+                "type": "system_notification",
+                "data": {
+                    "id": f"sys_msg_{int(time.time() * 1000)}",
+                    "title": message_data["title"],
+                    "content": message_data["content"],
+                    "type": message_data["type"],
+                    "priority": message_data["priority"],
+                    "platforms": message_data["platforms"],
+                    "timestamp": get_local_time().isoformat(),
+                    "device_id": device_id,
+                    "service_name": service_name
+                }
+            }
+            
+            # 广播给所有活跃连接
+            for active_client_id in websocket_tool.active_connections:
+                try:
+                    await websocket_tool.send_response(
+                        active_client_id, 
+                        f"sys_msg_{int(time.time() * 1000)}", 
+                        "system.message", 
+                        message_params
+                    )
+                    print(f"[WebSocket] 已发送系统消息给客户端 {active_client_id}: {message_data['title']}")
+                except Exception as e:
+                    print(f"[WebSocket] 发送系统消息失败 {active_client_id}: {e}")
+                    
+    except Exception as e:
+        print(f"[WebSocket] 模拟发送系统消息失败: {e}")
+
 
 # 默认模拟设备配置
 DEFAULT_MOCK_DEVICE_CONFIGS = [
