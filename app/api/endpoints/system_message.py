@@ -6,14 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.crud.system_message import (
-    create_system_message,
-    get_system_message,
-    get_system_messages,
-    get_system_messages_count,
-    get_system_messages_by_platform,
-    get_latest_system_messages,
-    update_system_message,
-    delete_system_message
+    create_system_message as crud_create_system_message,
+    get_system_message as crud_get_system_message,
+    get_system_messages as crud_get_system_messages,
+    get_system_messages_count as crud_get_system_messages_count,
+    get_system_messages_by_platform as crud_get_system_messages_by_platform,
+    get_latest_system_messages as crud_get_latest_system_messages,
+    update_system_message as crud_update_system_message,
+    delete_system_message as crud_delete_system_message
 )
 from app.models.system_message import SystemMessage, SystemMessageList, SystemMessageCreate, SystemMessageUpdate, Platform, SystemMessageType, SystemMessagePriority
 from app.api.dependencies import get_current_user
@@ -69,7 +69,7 @@ async def get_system_messages(
             )
     
     # 获取所有消息
-    messages = await get_system_messages(
+    messages = await crud_get_system_messages(
         db=db,
         skip=0,  # 先获取所有消息，然后应用过滤
         limit=1000,  # 设置一个较大的限制
@@ -111,7 +111,7 @@ async def get_system_messages_paginated(
     skip = (page - 1) * size
     
     # 获取消息列表
-    messages = await get_system_messages(
+    messages = await crud_get_system_messages(
         db=db,
         skip=skip,
         limit=size,
@@ -121,7 +121,7 @@ async def get_system_messages_paginated(
     )
     
     # 获取总数
-    total = await get_system_messages_count(
+    total = await crud_get_system_messages_count(
         db=db,
         type=type,
         priority=priority,
@@ -149,7 +149,7 @@ async def get_latest_messages(
     platform: Optional[Platform] = Query(None, description="平台")
 ):
     """获取最新系统消息"""
-    return await get_latest_system_messages(
+    return await crud_get_latest_system_messages(
         db=db,
         platform=platform,
         limit=limit
@@ -168,7 +168,7 @@ async def get_messages_by_platform(
     """根据平台获取系统消息"""
     skip = (page - 1) * size
     
-    return await get_system_messages_by_platform(
+    return await crud_get_system_messages_by_platform(
         db=db,
         platform=platform,
         skip=skip,
@@ -184,7 +184,7 @@ async def get_system_message_detail(
     current_user: Account = Depends(get_current_user)
 ):
     """根据ID获取系统消息详情"""
-    message = await get_system_message(db=db, message_id=message_id)
+    message = await crud_get_system_message(db=db, message_id=message_id)
     if not message:
         raise HTTPException(status_code=404, detail="系统消息不存在")
     return message
@@ -202,7 +202,7 @@ async def create_system_message_item(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="只有管理员可以创建系统消息")
     
-    message = await create_system_message(db=db, message_in=message_in)
+    message = await crud_create_system_message(db=db, message_in=message_in)
     return message
 
 
@@ -219,11 +219,11 @@ async def update_system_message_item(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="只有管理员可以更新系统消息")
     
-    message = await get_system_message(db=db, message_id=message_id)
+    message = await crud_get_system_message(db=db, message_id=message_id)
     if not message:
         raise HTTPException(status_code=404, detail="系统消息不存在")
     
-    message = await update_system_message(db=db, message_id=message_id, message_in=message_in)
+    message = await crud_update_system_message(db=db, message_id=message_id, message_in=message_in)
     return message
 
 
@@ -239,11 +239,11 @@ async def delete_system_message_item(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="只有管理员可以删除系统消息")
     
-    message = await get_system_message(db=db, message_id=message_id)
+    message = await crud_get_system_message(db=db, message_id=message_id)
     if not message:
         raise HTTPException(status_code=404, detail="系统消息不存在")
     
-    await delete_system_message(db=db, message_id=message_id)
+    await crud_delete_system_message(db=db, message_id=message_id)
     return {"message": "系统消息已删除"}
 
 
