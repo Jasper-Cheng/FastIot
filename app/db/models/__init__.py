@@ -10,6 +10,8 @@ from .device_message import DeviceMessage
 from .room_device import RoomDevice
 from .member_device_permission import MemberDevicePermission
 from .admin import Admin
+from .version_info import VersionInfo
+from .feedback import Feedback
 
 __all__ = [
     "Account",
@@ -22,5 +24,8 @@ __all__ = [
     "DeviceLog",
     "DeviceMessage",
     "RoomDevice",
-    "MemberDevicePermission"
+    "MemberDevicePermission",
+    "Admin",
+    "VersionInfo",
+    "Feedback"
 ]

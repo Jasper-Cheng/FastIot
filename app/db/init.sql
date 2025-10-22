@@ -200,6 +200,50 @@ CREATE TABLE IF NOT EXISTS `system_message` (
     INDEX `idx_system_message_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统消息表';
 
+-- 版本信息表：记录系统版本更新信息
+CREATE TABLE IF NOT EXISTS `version_info` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '版本ID',
+    `version_code` VARCHAR(20) NOT NULL UNIQUE COMMENT '版本号（如：1.0.0）',
+    `version_name` VARCHAR(50) NOT NULL COMMENT '版本名称（如：FastIoT v1.0.0）',
+    `platform` ENUM('android','ios','web','server','all') NOT NULL DEFAULT 'all' COMMENT '目标平台：android/ios/web/server/all',
+    `title` VARCHAR(255) NOT NULL COMMENT '版本标题',
+    `description` TEXT NOT NULL COMMENT '版本描述',
+    `download_url` VARCHAR(500) NULL COMMENT '下载链接',
+    `file_size` BIGINT NULL COMMENT '文件大小（字节）',
+    `md5_hash` VARCHAR(32) NULL COMMENT '文件MD5校验值',
+    `is_force_update` BOOLEAN DEFAULT FALSE COMMENT '是否强制更新',
+    `min_supported_version` VARCHAR(20) NULL COMMENT '最低支持版本',
+    `extra` JSON NULL COMMENT '扩展信息',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX `idx_version_info_platform` (`platform`),
+    INDEX `idx_version_info_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='版本信息表';
+
+-- 意见反馈表：记录用户反馈和建议
+CREATE TABLE IF NOT EXISTS `feedback` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '反馈ID',
+    `account_id` BIGINT NOT NULL COMMENT '反馈用户账号ID',
+    `type` ENUM('bug','feature','improvement','complaint','praise','other') NOT NULL DEFAULT 'other' COMMENT '反馈类型：bug/功能建议/改进建议/投诉/表扬/其他',
+    `title` VARCHAR(255) NOT NULL COMMENT '反馈标题',
+    `content` TEXT NOT NULL COMMENT '反馈内容',
+    `priority` ENUM('low','normal','high','urgent') NOT NULL DEFAULT 'normal' COMMENT '优先级：低/普通/高/紧急',
+    `status` ENUM('pending','processing','resolved','rejected','closed') NOT NULL DEFAULT 'pending' COMMENT '处理状态：待处理/处理中/已解决/已拒绝/已关闭',
+    `source` ENUM('app','web','email','phone','wechat','other') NOT NULL DEFAULT 'app' COMMENT '来源：app/web/email/phone/wechat/other',
+    `contact_info` VARCHAR(255) NULL COMMENT '联系方式',
+    `replay` TEXT NULL COMMENT '回复内容',
+    `processed_at` TIMESTAMP NULL COMMENT '处理时间',
+    `extra` JSON NULL COMMENT '扩展信息',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+    INDEX `idx_feedback_account` (`account_id`),
+    INDEX `idx_feedback_type` (`type`),
+    INDEX `idx_feedback_status` (`status`),
+    INDEX `idx_feedback_source` (`source`),
+    INDEX `idx_feedback_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='意见反馈表';
+
 -- 插入默认账号和用户（密码: admin123）
 INSERT INTO `account` (`account`, `password_hash`, `name`, `email`, `role`) 
 VALUES ('admin', 'admin123', '管理员', 'admin@fastiot.com', 'admin')
