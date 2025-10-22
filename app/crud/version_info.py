@@ -1,30 +1,35 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, asc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, or_, desc, asc, select
 from typing import List, Optional, Dict, Any
 from app.db.models.version_info import VersionInfo
 from app.models.version_info import VersionInfoCreate, VersionInfoUpdate
 
 
 class CRUDVersionInfo:
-    def create(self, db: Session, *, obj_in: VersionInfoCreate) -> VersionInfo:
+    async def create(self, db: AsyncSession, *, obj_in: VersionInfoCreate) -> VersionInfo:
         """创建版本信息"""
         db_obj = VersionInfo(**obj_in.dict())
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
         return db_obj
 
-    def get(self, db: Session, id: int) -> Optional[VersionInfo]:
+    async def get(self, db: AsyncSession, id: int) -> Optional[VersionInfo]:
         """根据ID获取版本信息"""
-        return db.query(VersionInfo).filter(VersionInfo.id == id).first()
+        result = await db.execute(select(VersionInfo).where(VersionInfo.id == id))
+        return result.scalar_one_or_none()
 
-    def get_by_version_code(self, db: Session, *, version_code: str) -> Optional[VersionInfo]:
-        """根据版本号获取版本信息"""
-        return db.query(VersionInfo).filter(VersionInfo.version_code == version_code).first()
+    async def get_by_version_code(self, db: AsyncSession, *, version_code: str, platform: str = None) -> Optional[VersionInfo]:
+        """根据版本号和平台获取版本信息"""
+        query = select(VersionInfo).where(VersionInfo.version_code == version_code)
+        if platform:
+            query = query.where(VersionInfo.platform == platform)
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
 
-    def get_multi(
+    async def get_multi(
         self, 
-        db: Session, 
+        db: AsyncSession, 
         *, 
         skip: int = 0, 
         limit: int = 100,
@@ -33,11 +38,11 @@ class CRUDVersionInfo:
         order_desc: bool = True
     ) -> List[VersionInfo]:
         """获取版本信息列表"""
-        query = db.query(VersionInfo)
+        query = select(VersionInfo)
         
         # 过滤条件
         if platform:
-            query = query.filter(VersionInfo.platform == platform)
+            query = query.where(VersionInfo.platform == platform)
         
         # 排序
         order_column = getattr(VersionInfo, order_by, VersionInfo.created_at)
@@ -46,40 +51,44 @@ class CRUDVersionInfo:
         else:
             query = query.order_by(asc(order_column))
         
-        return query.offset(skip).limit(limit).all()
+        query = query.offset(skip).limit(limit)
+        result = await db.execute(query)
+        return result.scalars().all()
 
-    def get_latest_by_platform(self, db: Session, *, platform: str) -> Optional[VersionInfo]:
+    async def get_latest_by_platform(self, db: AsyncSession, *, platform: str) -> Optional[VersionInfo]:
         """获取指定平台的最新版本"""
-        return (
-            db.query(VersionInfo)
-            .filter(VersionInfo.platform == platform)
+        result = await db.execute(
+            select(VersionInfo)
+            .where(VersionInfo.platform == platform)
             .order_by(desc(VersionInfo.created_at))
-            .first()
+            .limit(1)
         )
+        return result.scalar_one_or_none()
 
-    def update(self, db: Session, *, db_obj: VersionInfo, obj_in: VersionInfoUpdate) -> VersionInfo:
+    async def update(self, db: AsyncSession, *, db_obj: VersionInfo, obj_in: VersionInfoUpdate) -> VersionInfo:
         """更新版本信息"""
         update_data = obj_in.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
         return db_obj
 
-    def remove(self, db: Session, *, id: int) -> Optional[VersionInfo]:
+    async def remove(self, db: AsyncSession, *, id: int) -> Optional[VersionInfo]:
         """删除版本信息"""
-        obj = db.query(VersionInfo).get(id)
+        result = await db.execute(select(VersionInfo).where(VersionInfo.id == id))
+        obj = result.scalar_one_or_none()
         if obj:
-            db.delete(obj)
-            db.commit()
+            await db.delete(obj)
+            await db.commit()
         return obj
 
-    def search(self, db: Session, *, keyword: str, skip: int = 0, limit: int = 100) -> List[VersionInfo]:
+    async def search(self, db: AsyncSession, *, keyword: str, skip: int = 0, limit: int = 100) -> List[VersionInfo]:
         """搜索版本信息"""
-        return (
-            db.query(VersionInfo)
-            .filter(
+        result = await db.execute(
+            select(VersionInfo)
+            .where(
                 or_(
                     VersionInfo.version_code.contains(keyword),
                     VersionInfo.version_name.contains(keyword),
@@ -89,8 +98,8 @@ class CRUDVersionInfo:
             )
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
 
 version_info = CRUDVersionInfo()

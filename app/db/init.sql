@@ -203,7 +203,7 @@ CREATE TABLE IF NOT EXISTS `system_message` (
 -- 版本信息表：记录系统版本更新信息
 CREATE TABLE IF NOT EXISTS `version_info` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '版本ID',
-    `version_code` VARCHAR(20) NOT NULL UNIQUE COMMENT '版本号（如：1.0.0）',
+    `version_code` VARCHAR(20) NOT NULL COMMENT '版本号（如：1.0.0）',
     `version_name` VARCHAR(50) NOT NULL COMMENT '版本名称（如：FastIoT v1.0.0）',
     `platform` ENUM('android','ios','web','server','all') NOT NULL DEFAULT 'all' COMMENT '目标平台：android/ios/web/server/all',
     `title` VARCHAR(255) NOT NULL COMMENT '版本标题',
@@ -217,7 +217,8 @@ CREATE TABLE IF NOT EXISTS `version_info` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX `idx_version_info_platform` (`platform`),
-    INDEX `idx_version_info_created_at` (`created_at`)
+    INDEX `idx_version_info_created_at` (`created_at`),
+    UNIQUE KEY `uq_version_code_platform` (`version_code`, `platform`) COMMENT '同一平台版本号唯一'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='版本信息表';
 
 -- 意见反馈表：记录用户反馈和建议

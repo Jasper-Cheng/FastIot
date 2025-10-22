@@ -1,26 +1,27 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, asc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, or_, desc, asc, select, func
 from typing import List, Optional, Dict, Any
 from app.db.models.feedback import Feedback
 from app.models.feedback import FeedbackCreate, FeedbackUpdate
 
 
 class CRUDFeedback:
-    def create(self, db: Session, *, obj_in: FeedbackCreate) -> Feedback:
+    async def create(self, db: AsyncSession, *, obj_in: FeedbackCreate, account_id: int) -> Feedback:
         """创建意见反馈"""
-        db_obj = Feedback(**obj_in.dict())
+        db_obj = Feedback(**obj_in.dict(), account_id=account_id)
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
         return db_obj
 
-    def get(self, db: Session, id: int) -> Optional[Feedback]:
+    async def get(self, db: AsyncSession, id: int) -> Optional[Feedback]:
         """根据ID获取意见反馈"""
-        return db.query(Feedback).filter(Feedback.id == id).first()
+        result = await db.execute(select(Feedback).where(Feedback.id == id))
+        return result.scalar_one_or_none()
 
-    def get_multi(
+    async def get_multi(
         self, 
-        db: Session, 
+        db: AsyncSession, 
         *, 
         skip: int = 0, 
         limit: int = 100,
@@ -33,19 +34,19 @@ class CRUDFeedback:
         order_desc: bool = True
     ) -> List[Feedback]:
         """获取意见反馈列表"""
-        query = db.query(Feedback)
+        query = select(Feedback)
         
         # 过滤条件
         if account_id:
-            query = query.filter(Feedback.account_id == account_id)
+            query = query.where(Feedback.account_id == account_id)
         if type:
-            query = query.filter(Feedback.type == type)
+            query = query.where(Feedback.type == type)
         if status:
-            query = query.filter(Feedback.status == status)
+            query = query.where(Feedback.status == status)
         if source:
-            query = query.filter(Feedback.source == source)
+            query = query.where(Feedback.source == source)
         if priority:
-            query = query.filter(Feedback.priority == priority)
+            query = query.where(Feedback.priority == priority)
         
         # 排序
         order_column = getattr(Feedback, order_by, Feedback.created_at)
@@ -54,47 +55,51 @@ class CRUDFeedback:
         else:
             query = query.order_by(asc(order_column))
         
-        return query.offset(skip).limit(limit).all()
+        query = query.offset(skip).limit(limit)
+        result = await db.execute(query)
+        return result.scalars().all()
 
-    def get_by_account(self, db: Session, *, account_id: int, skip: int = 0, limit: int = 100) -> List[Feedback]:
+    async def get_by_account(self, db: AsyncSession, *, account_id: int, skip: int = 0, limit: int = 100) -> List[Feedback]:
         """获取指定用户的反馈列表"""
-        return (
-            db.query(Feedback)
-            .filter(Feedback.account_id == account_id)
+        result = await db.execute(
+            select(Feedback)
+            .where(Feedback.account_id == account_id)
             .order_by(desc(Feedback.created_at))
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
-    def get_pending_count(self, db: Session) -> int:
+    async def get_pending_count(self, db: AsyncSession) -> int:
         """获取待处理反馈数量"""
-        return db.query(Feedback).filter(Feedback.status == "pending").count()
+        result = await db.execute(select(func.count(Feedback.id)).where(Feedback.status == "pending"))
+        return result.scalar()
 
-    def get_by_status(self, db: Session, *, status: str, skip: int = 0, limit: int = 100) -> List[Feedback]:
+    async def get_by_status(self, db: AsyncSession, *, status: str, skip: int = 0, limit: int = 100) -> List[Feedback]:
         """根据状态获取反馈列表"""
-        return (
-            db.query(Feedback)
-            .filter(Feedback.status == status)
+        result = await db.execute(
+            select(Feedback)
+            .where(Feedback.status == status)
             .order_by(desc(Feedback.created_at))
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
-    def update(self, db: Session, *, db_obj: Feedback, obj_in: FeedbackUpdate) -> Feedback:
+    async def update(self, db: AsyncSession, *, db_obj: Feedback, obj_in: FeedbackUpdate) -> Feedback:
         """更新意见反馈"""
         update_data = obj_in.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
         return db_obj
 
-    def update_status(self, db: Session, *, id: int, status: str, replay: Optional[str] = None) -> Optional[Feedback]:
+    async def update_status(self, db: AsyncSession, *, id: int, status: str, replay: Optional[str] = None) -> Optional[Feedback]:
         """更新反馈状态"""
-        feedback = db.query(Feedback).filter(Feedback.id == id).first()
+        result = await db.execute(select(Feedback).where(Feedback.id == id))
+        feedback = result.scalar_one_or_none()
         if feedback:
             feedback.status = status
             if replay:
@@ -103,23 +108,24 @@ class CRUDFeedback:
                 from datetime import datetime
                 feedback.processed_at = datetime.now()
             db.add(feedback)
-            db.commit()
-            db.refresh(feedback)
+            await db.commit()
+            await db.refresh(feedback)
         return feedback
 
-    def remove(self, db: Session, *, id: int) -> Optional[Feedback]:
+    async def remove(self, db: AsyncSession, *, id: int) -> Optional[Feedback]:
         """删除意见反馈"""
-        obj = db.query(Feedback).get(id)
+        result = await db.execute(select(Feedback).where(Feedback.id == id))
+        obj = result.scalar_one_or_none()
         if obj:
-            db.delete(obj)
-            db.commit()
+            await db.delete(obj)
+            await db.commit()
         return obj
 
-    def search(self, db: Session, *, keyword: str, skip: int = 0, limit: int = 100) -> List[Feedback]:
+    async def search(self, db: AsyncSession, *, keyword: str, skip: int = 0, limit: int = 100) -> List[Feedback]:
         """搜索意见反馈"""
-        return (
-            db.query(Feedback)
-            .filter(
+        result = await db.execute(
+            select(Feedback)
+            .where(
                 or_(
                     Feedback.title.contains(keyword),
                     Feedback.content.contains(keyword),
@@ -128,39 +134,41 @@ class CRUDFeedback:
             )
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        return result.scalars().all()
 
-    def get_statistics(self, db: Session) -> Dict[str, Any]:
+    async def get_statistics(self, db: AsyncSession) -> Dict[str, Any]:
         """获取反馈统计信息"""
-        from sqlalchemy import func
-        
         # 按类型统计
-        type_stats = (
-            db.query(Feedback.type, func.count(Feedback.id))
+        type_result = await db.execute(
+            select(Feedback.type, func.count(Feedback.id))
             .group_by(Feedback.type)
-            .all()
         )
+        type_stats = dict(type_result.fetchall())
         
         # 按状态统计
-        status_stats = (
-            db.query(Feedback.status, func.count(Feedback.id))
+        status_result = await db.execute(
+            select(Feedback.status, func.count(Feedback.id))
             .group_by(Feedback.status)
-            .all()
         )
+        status_stats = dict(status_result.fetchall())
         
         # 按来源统计
-        source_stats = (
-            db.query(Feedback.source, func.count(Feedback.id))
+        source_result = await db.execute(
+            select(Feedback.source, func.count(Feedback.id))
             .group_by(Feedback.source)
-            .all()
         )
+        source_stats = dict(source_result.fetchall())
+        
+        # 总数量
+        total_result = await db.execute(select(func.count(Feedback.id)))
+        total_count = total_result.scalar()
         
         return {
-            "type_statistics": dict(type_stats),
-            "status_statistics": dict(status_stats),
-            "source_statistics": dict(source_stats),
-            "total_count": db.query(Feedback).count()
+            "type_statistics": type_stats,
+            "status_statistics": status_stats,
+            "source_statistics": source_stats,
+            "total_count": total_count
         }
 
 

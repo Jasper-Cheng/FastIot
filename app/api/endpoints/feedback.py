@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.api.dependencies import get_db, get_current_account, get_current_admin
 from app.crud.feedback import feedback
@@ -11,21 +11,19 @@ router = APIRouter()
 
 
 @router.post("/", response_model=Feedback)
-def create_feedback(
+async def create_feedback(
     *,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     feedback_in: FeedbackCreate,
     current_account: Account = Depends(get_current_account)
 ):
     """创建意见反馈"""
-    # 设置当前用户ID
-    feedback_in.account_id = current_account.id
-    return feedback.create(db=db, obj_in=feedback_in)
+    return await feedback.create(db=db, obj_in=feedback_in, account_id=current_account.id)
 
 
 @router.get("/", response_model=List[Feedback])
-def get_feedbacks(
-    db: Session = Depends(get_db),
+async def get_feedbacks(
+    db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     type: Optional[str] = Query(None),
@@ -37,7 +35,7 @@ def get_feedbacks(
     current_admin: Admin = Depends(get_current_admin)
 ):
     """获取意见反馈列表（管理员）"""
-    return feedback.get_multi(
+    return await feedback.get_multi(
         db=db,
         skip=skip,
         limit=limit,
@@ -50,61 +48,17 @@ def get_feedbacks(
     )
 
 
-@router.get("/my", response_model=List[Feedback])
-def get_my_feedbacks(
-    db: Session = Depends(get_db),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    current_account: Account = Depends(get_current_account)
-):
-    """获取我的反馈列表"""
-    return feedback.get_by_account(
-        db=db,
-        account_id=current_account.id,
-        skip=skip,
-        limit=limit
-    )
-
-
-@router.get("/pending")
-def get_pending_feedbacks(
-    db: Session = Depends(get_db),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    current_admin: Admin = Depends(get_current_admin)
-):
-    """获取待处理反馈列表"""
-    return feedback.get_by_status(db=db, status="pending", skip=skip, limit=limit)
-
-
-@router.get("/statistics")
-def get_feedback_statistics(
-    db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_admin)
-):
-    """获取反馈统计信息"""
-    return feedback.get_statistics(db=db)
-
-
-@router.get("/pending/count")
-def get_pending_count(
-    db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_admin)
-):
-    """获取待处理反馈数量"""
-    count = feedback.get_pending_count(db=db)
-    return {"pending_count": count}
 
 
 @router.get("/{feedback_id}", response_model=Feedback)
-def get_feedback(
+async def get_feedback(
     *,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     feedback_id: int,
     current_account: Account = Depends(get_current_account)
 ):
     """根据ID获取意见反馈"""
-    feedback_obj = feedback.get(db=db, id=feedback_id)
+    feedback_obj = await feedback.get(db=db, id=feedback_id)
     if not feedback_obj:
         raise HTTPException(
             status_code=404,
@@ -122,15 +76,15 @@ def get_feedback(
 
 
 @router.put("/{feedback_id}", response_model=Feedback)
-def update_feedback(
+async def update_feedback(
     *,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     feedback_id: int,
     feedback_in: FeedbackUpdate,
     current_account: Account = Depends(get_current_account)
 ):
     """更新意见反馈"""
-    feedback_obj = feedback.get(db=db, id=feedback_id)
+    feedback_obj = await feedback.get(db=db, id=feedback_id)
     if not feedback_obj:
         raise HTTPException(
             status_code=404,
@@ -145,28 +99,28 @@ def update_feedback(
         )
     
     # 用户只能更新部分字段
-    user_update_fields = ["title", "content", "priority", "source", "contact_info", "extra"]
+    user_update_fields = ["type", "title", "content", "priority", "source", "contact_info", "extra"]
     update_data = {k: v for k, v in feedback_in.dict(exclude_unset=True).items() if k in user_update_fields}
     
     if update_data:
         from app.models.feedback import FeedbackUpdate
         user_update = FeedbackUpdate(**update_data)
-        return feedback.update(db=db, db_obj=feedback_obj, obj_in=user_update)
+        return await feedback.update(db=db, db_obj=feedback_obj, obj_in=user_update)
     
     return feedback_obj
 
 
 @router.put("/{feedback_id}/status")
-def update_feedback_status(
+async def update_feedback_status(
     *,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     feedback_id: int,
     status: str,
     replay: Optional[str] = Query(None),
     current_admin: Admin = Depends(get_current_admin)
 ):
     """更新反馈状态（管理员）"""
-    feedback_obj = feedback.get(db=db, id=feedback_id)
+    feedback_obj = await feedback.get(db=db, id=feedback_id)
     if not feedback_obj:
         raise HTTPException(
             status_code=404,
@@ -180,7 +134,7 @@ def update_feedback_status(
             detail=f"无效的状态，必须是: {', '.join(valid_statuses)}"
         )
     
-    return feedback.update_status(
+    return await feedback.update_status(
         db=db,
         id=feedback_id,
         status=status,
@@ -189,14 +143,14 @@ def update_feedback_status(
 
 
 @router.delete("/{feedback_id}")
-def delete_feedback(
+async def delete_feedback(
     *,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     feedback_id: int,
     current_account: Account = Depends(get_current_account)
 ):
     """删除意见反馈"""
-    feedback_obj = feedback.get(db=db, id=feedback_id)
+    feedback_obj = await feedback.get(db=db, id=feedback_id)
     if not feedback_obj:
         raise HTTPException(
             status_code=404,
@@ -210,18 +164,18 @@ def delete_feedback(
             detail="无权限删除此反馈"
         )
     
-    feedback.remove(db=db, id=feedback_id)
+    await feedback.remove(db=db, id=feedback_id)
     return {"message": "反馈已删除"}
 
 
 @router.get("/search/{keyword}")
-def search_feedbacks(
+async def search_feedbacks(
     *,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     keyword: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     current_admin: Admin = Depends(get_current_admin)
 ):
     """搜索意见反馈"""
-    return feedback.search(db=db, keyword=keyword, skip=skip, limit=limit)
+    return await feedback.search(db=db, keyword=keyword, skip=skip, limit=limit)

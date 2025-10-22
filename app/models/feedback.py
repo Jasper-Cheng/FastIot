@@ -38,7 +38,6 @@ class SourceEnum(str, Enum):
 
 
 class FeedbackBase(BaseModel):
-    account_id: int = Field(..., description="反馈用户账号ID")
     type: FeedbackTypeEnum = Field(default=FeedbackTypeEnum.other, description="反馈类型")
     title: str = Field(..., description="反馈标题")
     content: str = Field(..., description="反馈内容")
@@ -67,6 +66,7 @@ class FeedbackUpdate(BaseModel):
 
 class Feedback(FeedbackBase):
     id: int
+    account_id: int = Field(..., description="反馈用户账号ID")
     status: StatusEnum = Field(default=StatusEnum.pending, description="处理状态")
     replay: Optional[str] = Field(None, description="回复内容")
     processed_at: Optional[datetime] = Field(None, description="处理时间")

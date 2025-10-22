@@ -1,7 +1,7 @@
 from sqlalchemy import Column, BigInteger, String, Text, Boolean, DateTime, JSON, Enum, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from .base import Base
+from app.db.base import Base
 
 
 class Feedback(Base):

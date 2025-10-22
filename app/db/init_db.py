@@ -23,6 +23,8 @@ from app.db.models.device_network import DeviceNetwork
 from app.db.models.check_in import CheckIn
 from app.db.models.points import Points
 from app.db.models.system_message import SystemMessage
+from app.db.models.version_info import VersionInfo
+from app.db.models.feedback import Feedback
 from app.core.security import get_password_hash
 
 async def init_db(reset=False) -> None:
@@ -72,6 +74,8 @@ async def init_db(reset=False) -> None:
             print("   告警记录")
             print("   签到记录")
             print("   积分记录")
+            print("   版本信息")
+            print("   意见反馈")
             print("\n数据库结构说明：")
             print("   account 表：统一管理所有登录账号（管理员、主账号和子账号）")
             print("   admin 表：管理员，与 account 一一对应")
@@ -139,6 +143,12 @@ async def insert_initial_data(session: AsyncSession) -> None:
         
         # 15. 创建系统消息
         await create_system_messages(session)
+        
+        # 16. 创建版本信息
+        await create_version_infos(session)
+        
+        # 17. 创建意见反馈
+        await create_feedbacks(session, accounts)
         
         await session.commit()
         print("测试数据创建完成！")
@@ -1240,6 +1250,356 @@ async def create_system_messages(session: AsyncSession):
             }
         )
         session.add(system_message)
+
+async def create_version_infos(session: AsyncSession):
+    """创建版本信息"""
+    print("创建版本信息...")
+    
+    version_infos_data = [
+        {
+            "version_code": "1.0.0",
+            "version_name": "FastIoT v1.0.0",
+            "platform": "all",
+            "title": "FastIoT 正式版发布",
+            "description": "FastIoT智能物联网平台正式版发布，提供完整的设备管理和监控功能。",
+            "download_url": "https://download.fastiot.com/v1.0.0/fastiot-v1.0.0.apk",
+            "file_size": 25600000,  # 25.6MB
+            "md5_hash": "a1b2c3d4e5f6789012345678901234ab",
+            "is_force_update": False,
+            "min_supported_version": "0.9.0"
+        },
+        {
+            "version_code": "1.1.0",
+            "version_name": "FastIoT v1.1.0",
+            "platform": "android",
+            "title": "Android版本更新",
+            "description": "优化Android端用户体验，修复已知问题，新增设备分组功能。",
+            "download_url": "https://download.fastiot.com/v1.1.0/fastiot-v1.1.0-android.apk",
+            "file_size": 26800000,  # 26.8MB
+            "md5_hash": "b2c3d4e5f6789012345678901234abcd",
+            "is_force_update": False,
+            "min_supported_version": "1.0.0"
+        },
+        {
+            "version_code": "1.1.0",
+            "version_name": "FastIoT v1.1.0",
+            "platform": "ios",
+            "title": "iOS版本更新",
+            "description": "优化iOS端用户体验，修复已知问题，新增设备分组功能。",
+            "download_url": "https://apps.apple.com/app/fastiot/id123456789",
+            "file_size": 24500000,  # 24.5MB
+            "md5_hash": "c3d4e5f6789012345678901234abcdef",
+            "is_force_update": False,
+            "min_supported_version": "1.0.0"
+        },
+        {
+            "version_code": "1.2.0",
+            "version_name": "FastIoT Web v1.2.0",
+            "platform": "web",
+            "title": "Web版本重大更新",
+            "description": "Web端重大更新，新增实时监控面板，优化设备控制界面，提升用户体验。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.0.0"
+        },
+        {
+            "version_code": "1.2.1",
+            "version_name": "FastIoT Web v1.2.1",
+            "platform": "web",
+            "title": "Web版本修复更新",
+            "description": "修复Web端设备列表加载缓慢问题，优化数据刷新机制，提升页面响应速度。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.2.0"
+        },
+        {
+            "version_code": "1.3.0",
+            "version_name": "FastIoT Web v1.3.0",
+            "platform": "web",
+            "title": "Web版本功能增强",
+            "description": "新增设备分组管理、批量操作功能，优化数据可视化图表，增强用户权限管理。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.2.0"
+        },
+        {
+            "version_code": "1.3.1",
+            "version_name": "FastIoT Web v1.3.1",
+            "platform": "web",
+            "title": "Web版本安全更新",
+            "description": "修复安全漏洞，增强数据加密，优化登录验证机制，提升系统安全性。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": True,
+            "min_supported_version": "1.3.0"
+        },
+        {
+            "version_code": "1.4.0",
+            "version_name": "FastIoT Web v1.4.0",
+            "platform": "web",
+            "title": "Web版本界面优化",
+            "description": "全新UI设计，响应式布局优化，新增暗黑模式，支持多语言切换，提升用户体验。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.3.0"
+        },
+        {
+            "version_code": "1.4.1",
+            "version_name": "FastIoT Web v1.4.1",
+            "platform": "web",
+            "title": "Web版本性能优化",
+            "description": "优化页面加载速度，减少内存占用，修复浏览器兼容性问题，提升整体性能。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.4.0"
+        },
+        {
+            "version_code": "1.5.0",
+            "version_name": "FastIoT Web v1.5.0",
+            "platform": "web",
+            "title": "Web版本数据分析",
+            "description": "新增数据分析和报表功能，支持自定义仪表板，增强数据导出功能，提供更深入的数据洞察。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.4.0"
+        },
+        {
+            "version_code": "1.5.1",
+            "version_name": "FastIoT Web v1.5.1",
+            "platform": "web",
+            "title": "Web版本API优化",
+            "description": "优化API接口性能，新增WebSocket实时通信，修复数据同步延迟问题，提升实时性。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.5.0"
+        },
+        {
+            "version_code": "1.6.0",
+            "version_name": "FastIoT Web v1.6.0",
+            "platform": "web",
+            "title": "Web版本协作功能",
+            "description": "新增团队协作功能，支持多用户同时操作，新增评论和标注功能，提升团队工作效率。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.5.0"
+        },
+        {
+            "version_code": "1.6.1",
+            "version_name": "FastIoT Web v1.6.1",
+            "platform": "web",
+            "title": "Web版本移动适配",
+            "description": "优化移动端显示效果，新增触摸手势支持，修复移动端操作问题，提升移动端体验。",
+            "download_url": "https://web.fastiot.com",
+            "file_size": None,
+            "md5_hash": None,
+            "is_force_update": False,
+            "min_supported_version": "1.6.0"
+        },
+        {
+            "version_code": "1.0.1",
+            "version_name": "FastIoT v1.0.1",
+            "platform": "all",
+            "title": "紧急修复版本",
+            "description": "修复登录异常和设备连接问题，建议立即更新。",
+            "download_url": "https://download.fastiot.com/v1.0.1/fastiot-v1.0.1-hotfix.apk",
+            "file_size": 25800000,  # 25.8MB
+            "md5_hash": "d4e5f6789012345678901234abcdef12",
+            "is_force_update": True,
+            "min_supported_version": "1.0.0"
+        }
+    ]
+    
+    for version_data in version_infos_data:
+        version_info = VersionInfo(
+            version_code=version_data["version_code"],
+            version_name=version_data["version_name"],
+            platform=version_data["platform"],
+            title=version_data["title"],
+            description=version_data["description"],
+            download_url=version_data["download_url"],
+            file_size=version_data["file_size"],
+            md5_hash=version_data["md5_hash"],
+            is_force_update=version_data["is_force_update"],
+            min_supported_version=version_data["min_supported_version"],
+            extra={
+                "release_notes": [
+                    "修复已知问题",
+                    "优化用户体验",
+                    "新增功能特性"
+                ],
+                "compatibility": {
+                    "android": "5.0+",
+                    "ios": "12.0+",
+                    "web": "Chrome 80+, Firefox 75+, Safari 13+"
+                }
+            }
+        )
+        session.add(version_info)
+
+async def create_feedbacks(session: AsyncSession, accounts):
+    """创建意见反馈"""
+    print("创建意见反馈...")
+    
+    feedback_types = ['bug', 'feature', 'improvement', 'complaint', 'praise', 'other']
+    feedback_statuses = ['pending', 'processing', 'resolved', 'rejected', 'closed']
+    feedback_sources = ['app', 'web', 'email', 'phone', 'wechat', 'other']
+    feedback_priorities = ['low', 'normal', 'high', 'urgent']
+    
+    feedback_titles = [
+        "应用启动速度慢",
+        "设备连接不稳定",
+        "希望增加设备分组功能",
+        "界面设计不够美观",
+        "功能很实用，点赞！",
+        "数据同步有问题",
+        "希望支持更多设备类型",
+        "推送通知不及时",
+        "用户界面需要优化",
+        "系统运行很稳定",
+        "登录验证码收不到",
+        "希望增加离线模式",
+        "设备控制响应慢",
+        "数据统计功能很好",
+        "希望支持多语言",
+        "系统偶尔会崩溃",
+        "希望增加设备分享功能",
+        "界面操作不够直观",
+        "功能很全面，推荐！",
+        "希望增加自定义主题",
+        # Web相关反馈
+        "Web端页面加载太慢",
+        "希望Web端支持暗黑模式",
+        "Web端移动端适配不好",
+        "Web端数据图表显示异常",
+        "Web端批量操作功能很好用",
+        "Web端实时数据更新延迟",
+        "希望Web端支持快捷键操作",
+        "Web端文件上传功能有问题",
+        "Web端界面布局可以更合理",
+        "Web端搜索功能不够强大",
+        "Web端导出数据格式太少",
+        "Web端多标签页切换卡顿",
+        "Web端权限管理功能完善",
+        "Web端API文档很详细",
+        "Web端响应式设计不错",
+        "Web端浏览器兼容性问题",
+        "Web端数据可视化很直观",
+        "Web端操作流程可以简化",
+        "Web端性能监控功能有用",
+        "Web端用户体验持续改善"
+    ]
+    
+    feedback_contents = [
+        "应用启动时间过长，希望能优化启动速度。",
+        "设备经常掉线，连接不稳定，影响使用体验。",
+        "建议增加设备分组功能，方便管理多个设备。",
+        "界面设计可以更现代化一些，提升视觉效果。",
+        "这个应用功能很实用，界面也很友好，非常满意！",
+        "数据同步经常失败，希望能修复这个问题。",
+        "希望支持更多品牌的智能设备，扩大兼容性。",
+        "推送通知经常延迟，希望能及时推送重要信息。",
+        "用户界面布局可以更合理，操作更便捷。",
+        "系统运行很稳定，很少出现故障，值得信赖。",
+        "登录时验证码经常收不到，影响正常使用。",
+        "希望增加离线模式，在网络不好时也能使用。",
+        "设备控制响应比较慢，希望能提升响应速度。",
+        "数据统计功能很详细，对分析很有帮助。",
+        "希望支持多语言，方便不同地区用户使用。",
+        "系统偶尔会崩溃，希望能提高稳定性。",
+        "希望增加设备分享功能，方便家庭成员使用。",
+        "界面操作不够直观，新手用户上手困难。",
+        "功能很全面，界面也很美观，强烈推荐！",
+        "希望增加自定义主题功能，个性化设置。",
+        # Web相关反馈内容
+        "Web端页面加载速度比较慢，特别是数据量大的时候，希望能优化加载性能。",
+        "希望Web端能支持暗黑模式，在夜间使用时更护眼，提升用户体验。",
+        "Web端在移动设备上显示效果不好，按钮太小，操作不方便，希望能优化移动端适配。",
+        "Web端的数据图表有时候显示异常，数据不准确，希望能修复这个问题。",
+        "Web端的批量操作功能很实用，可以同时管理多个设备，大大提高了工作效率。",
+        "Web端实时数据更新有延迟，不能及时反映设备状态变化，希望能提升实时性。",
+        "希望Web端能支持更多快捷键操作，提高操作效率，特别是对于专业用户。",
+        "Web端文件上传功能有问题，有时候上传失败，希望能修复这个功能。",
+        "Web端界面布局可以更合理一些，信息密度可以适当调整，提升可读性。",
+        "Web端搜索功能不够强大，希望能支持更复杂的搜索条件和模糊搜索。",
+        "Web端导出数据格式太少，希望能支持更多格式，如Excel、PDF等。",
+        "Web端多标签页切换时会有卡顿现象，希望能优化性能。",
+        "Web端权限管理功能很完善，可以精确控制用户权限，安全性很好。",
+        "Web端API文档很详细，接口设计也很规范，对开发者很友好。",
+        "Web端响应式设计做得不错，在不同屏幕尺寸下都能正常显示。",
+        "Web端在某些浏览器上兼容性有问题，希望能提高浏览器兼容性。",
+        "Web端数据可视化功能很直观，图表类型丰富，数据分析很方便。",
+        "Web端操作流程可以进一步简化，减少不必要的步骤，提升用户体验。",
+        "Web端性能监控功能很有用，可以实时了解系统运行状态，便于运维管理。",
+        "Web端用户体验在持续改善，每次更新都有新的优化，期待更多功能。"
+    ]
+    
+    # 为每个账号创建1-3条反馈
+    for account in accounts:
+        num_feedbacks = random.randint(1, 3)
+        for i in range(num_feedbacks):
+            feedback_type = random.choice(feedback_types)
+            status = random.choice(feedback_statuses)
+            # 增加Web来源的权重
+            source_weights = {
+                'web': 0.4,  # 40%概率选择Web
+                'app': 0.3,  # 30%概率选择App
+                'email': 0.1,  # 10%概率选择Email
+                'phone': 0.1,  # 10%概率选择Phone
+                'wechat': 0.05,  # 5%概率选择WeChat
+                'other': 0.05  # 5%概率选择Other
+            }
+            source = random.choices(list(source_weights.keys()), weights=list(source_weights.values()))[0]
+            priority = random.choice(feedback_priorities)
+            title = random.choice(feedback_titles)
+            content = random.choice(feedback_contents)
+            
+            # 根据状态设置处理时间
+            processed_at = None
+            replay = None
+            if status in ['resolved', 'rejected', 'closed']:
+                processed_at = get_local_time() - timedelta(days=random.randint(1, 30))
+                if random.choice([True, False]):  # 50%概率有回复
+                    replay = "感谢您的反馈，我们已经处理了您的问题。如有其他疑问，请随时联系我们。"
+            
+            feedback = Feedback(
+                account_id=account.id,
+                type=feedback_type,
+                title=title,
+                content=content,
+                priority=priority,
+                status=status,
+                source=source,
+                contact_info=f"{account.email}" if account.email else f"{account.phone}",
+                replay=replay,
+                processed_at=processed_at,
+                extra={
+                    "device_info": {
+                        "platform": random.choice(["Android", "iOS", "Web"]),
+                        "version": f"{random.randint(1, 2)}.{random.randint(0, 2)}.{random.randint(0, 5)}",
+                        "model": random.choice(["iPhone 12", "Samsung Galaxy S21", "Chrome Browser"])
+                    },
+                    "user_agent": "FastIoT Mobile App 1.0.0",
+                    "ip_address": f"192.168.1.{random.randint(1, 254)}"
+                }
+            )
+            session.add(feedback)
 
 async def reset_database():
     """重置数据库"""

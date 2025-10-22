@@ -1,6 +1,6 @@
 from sqlalchemy import Column, BigInteger, String, Text, Boolean, DateTime, JSON, Enum
 from sqlalchemy.sql import func
-from .base import Base
+from app.db.base import Base
 
 
 class VersionInfo(Base):
@@ -8,7 +8,7 @@ class VersionInfo(Base):
     __tablename__ = "version_info"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="版本ID")
-    version_code = Column(String(20), nullable=False, unique=True, comment="版本号（如：1.0.0）")
+    version_code = Column(String(20), nullable=False, comment="版本号（如：1.0.0）")
     version_name = Column(String(50), nullable=False, comment="版本名称（如：FastIoT v1.0.0）")
     platform = Column(Enum('android', 'ios', 'web', 'server', 'all', name='platform_enum'), 
                      nullable=False, default='all', comment="目标平台：android/ios/web/server/all")
