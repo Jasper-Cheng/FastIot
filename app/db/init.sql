@@ -210,7 +210,6 @@ CREATE TABLE IF NOT EXISTS `version_info` (
     `description` TEXT NOT NULL COMMENT '版本描述',
     `download_url` VARCHAR(500) NULL COMMENT '下载链接',
     `file_size` BIGINT NULL COMMENT '文件大小（字节）',
-    `md5_hash` VARCHAR(32) NULL COMMENT '文件MD5校验值',
     `is_force_update` BOOLEAN DEFAULT FALSE COMMENT '是否强制更新',
     `min_supported_version` VARCHAR(20) NULL COMMENT '最低支持版本',
     `extra` JSON NULL COMMENT '扩展信息',

@@ -1264,7 +1264,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "FastIoT智能物联网平台正式版发布，提供完整的设备管理和监控功能。",
             "download_url": "https://download.fastiot.com/v1.0.0/fastiot-v1.0.0.apk",
             "file_size": 25600000,  # 25.6MB
-            "md5_hash": "a1b2c3d4e5f6789012345678901234ab",
             "is_force_update": False,
             "min_supported_version": "0.9.0"
         },
@@ -1276,7 +1275,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "优化Android端用户体验，修复已知问题，新增设备分组功能。",
             "download_url": "https://download.fastiot.com/v1.1.0/fastiot-v1.1.0-android.apk",
             "file_size": 26800000,  # 26.8MB
-            "md5_hash": "b2c3d4e5f6789012345678901234abcd",
             "is_force_update": False,
             "min_supported_version": "1.0.0"
         },
@@ -1288,7 +1286,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "优化iOS端用户体验，修复已知问题，新增设备分组功能。",
             "download_url": "https://apps.apple.com/app/fastiot/id123456789",
             "file_size": 24500000,  # 24.5MB
-            "md5_hash": "c3d4e5f6789012345678901234abcdef",
             "is_force_update": False,
             "min_supported_version": "1.0.0"
         },
@@ -1300,7 +1297,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "Web端重大更新，新增实时监控面板，优化设备控制界面，提升用户体验。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.0.0"
         },
@@ -1312,7 +1308,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "修复Web端设备列表加载缓慢问题，优化数据刷新机制，提升页面响应速度。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.2.0"
         },
@@ -1324,7 +1319,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "新增设备分组管理、批量操作功能，优化数据可视化图表，增强用户权限管理。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.2.0"
         },
@@ -1336,7 +1330,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "修复安全漏洞，增强数据加密，优化登录验证机制，提升系统安全性。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": True,
             "min_supported_version": "1.3.0"
         },
@@ -1348,7 +1341,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "全新UI设计，响应式布局优化，新增暗黑模式，支持多语言切换，提升用户体验。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.3.0"
         },
@@ -1360,7 +1352,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "优化页面加载速度，减少内存占用，修复浏览器兼容性问题，提升整体性能。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.4.0"
         },
@@ -1372,7 +1363,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "新增数据分析和报表功能，支持自定义仪表板，增强数据导出功能，提供更深入的数据洞察。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.4.0"
         },
@@ -1384,7 +1374,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "优化API接口性能，新增WebSocket实时通信，修复数据同步延迟问题，提升实时性。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.5.0"
         },
@@ -1396,7 +1385,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "新增团队协作功能，支持多用户同时操作，新增评论和标注功能，提升团队工作效率。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.5.0"
         },
@@ -1408,7 +1396,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "优化移动端显示效果，新增触摸手势支持，修复移动端操作问题，提升移动端体验。",
             "download_url": "https://web.fastiot.com",
             "file_size": None,
-            "md5_hash": None,
             "is_force_update": False,
             "min_supported_version": "1.6.0"
         },
@@ -1420,7 +1407,6 @@ async def create_version_infos(session: AsyncSession):
             "description": "修复登录异常和设备连接问题，建议立即更新。",
             "download_url": "https://download.fastiot.com/v1.0.1/fastiot-v1.0.1-hotfix.apk",
             "file_size": 25800000,  # 25.8MB
-            "md5_hash": "d4e5f6789012345678901234abcdef12",
             "is_force_update": True,
             "min_supported_version": "1.0.0"
         }
@@ -1435,7 +1421,6 @@ async def create_version_infos(session: AsyncSession):
             description=version_data["description"],
             download_url=version_data["download_url"],
             file_size=version_data["file_size"],
-            md5_hash=version_data["md5_hash"],
             is_force_update=version_data["is_force_update"],
             min_supported_version=version_data["min_supported_version"],
             extra={

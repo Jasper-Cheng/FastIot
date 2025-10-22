@@ -20,7 +20,6 @@ class VersionInfoBase(BaseModel):
     description: str = Field(..., description="版本描述")
     download_url: Optional[str] = Field(None, description="下载链接")
     file_size: Optional[int] = Field(None, description="文件大小（字节）")
-    md5_hash: Optional[str] = Field(None, description="文件MD5校验值")
     is_force_update: bool = Field(default=False, description="是否强制更新")
     min_supported_version: Optional[str] = Field(None, description="最低支持版本")
     extra: Optional[Dict[str, Any]] = Field(None, description="扩展信息")
@@ -38,7 +37,6 @@ class VersionInfoUpdate(BaseModel):
     description: Optional[str] = None
     download_url: Optional[str] = None
     file_size: Optional[int] = None
-    md5_hash: Optional[str] = None
     is_force_update: Optional[bool] = None
     min_supported_version: Optional[str] = None
     extra: Optional[Dict[str, Any]] = None
