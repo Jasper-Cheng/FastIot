@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 from app.api.dependencies import get_db, get_current_account, get_current_admin
 from app.crud.feedback import feedback
@@ -31,19 +32,78 @@ async def get_feedbacks(
     source: Optional[str] = Query(None),
     order_by: str = Query("created_at"),
     order_desc: bool = Query(True),
-    current_admin: Admin = Depends(get_current_admin)
+    current_account: Account = Depends(get_current_account)
 ):
-    """获取意见反馈列表（管理员）"""
-    return await feedback.get_multi(
-        db=db,
-        skip=skip,
-        limit=limit,
-        type=type,
-        status=status,
-        source=source,
-        order_by=order_by,
-        order_desc=order_desc
-    )
+    """获取意见反馈列表"""
+    # 根据用户角色决定返回的数据
+    if current_account.role == "admin":
+        # 管理员可以看到所有反馈
+        return await feedback.get_multi(
+            db=db,
+            skip=skip,
+            limit=limit,
+            type=type,
+            status=status,
+            source=source,
+            order_by=order_by,
+            order_desc=order_desc
+        )
+    elif current_account.role == "owner":
+        # 主账号可以看到自己和所有成员的反馈
+        return await feedback.get_by_user_and_members(
+            db=db,
+            user_account_id=current_account.id,
+            skip=skip,
+            limit=limit
+        )
+    elif current_account.role == "member":
+        # 成员可以看到自己和所属user的所有反馈
+        # 首先找到成员所属的user
+        from app.db.models.user import User
+        from app.db.models.member import Member
+        
+        # 获取成员所属的user的account_id
+        user_result = await db.execute(
+            select(User.account_id)
+            .join(Member, User.id == Member.user_id)
+            .where(Member.account_id == current_account.id)
+        )
+        user_account_id = user_result.scalar_one_or_none()
+        
+        if user_account_id:
+            # 返回user及其所有成员的反馈
+            return await feedback.get_by_user_and_members(
+                db=db,
+                user_account_id=user_account_id,
+                skip=skip,
+                limit=limit
+            )
+        else:
+            # 如果找不到所属user，只返回自己的反馈
+            return await feedback.get_multi(
+                db=db,
+                skip=skip,
+                limit=limit,
+                account_id=current_account.id,
+                type=type,
+                status=status,
+                source=source,
+                order_by=order_by,
+                order_desc=order_desc
+            )
+    else:
+        # 其他角色只能看到自己的反馈
+        return await feedback.get_multi(
+            db=db,
+            skip=skip,
+            limit=limit,
+            account_id=current_account.id,
+            type=type,
+            status=status,
+            source=source,
+            order_by=order_by,
+            order_desc=order_desc
+        )
 
 
 
