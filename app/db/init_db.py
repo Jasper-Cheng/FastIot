@@ -1412,7 +1412,12 @@ async def create_version_infos(session: AsyncSession):
         }
     ]
     
-    for version_data in version_infos_data:
+    for i, version_data in enumerate(version_infos_data):
+        # 为每个版本设置不同的创建时间，模拟真实的版本发布顺序
+        # 从最早到最晚，每个版本间隔1-3天
+        days_ago = len(version_infos_data) - i + random.randint(0, 2)
+        created_at = get_local_time() - timedelta(days=days_ago)
+        
         version_info = VersionInfo(
             version_code=version_data["version_code"],
             version_name=version_data["version_name"],
@@ -1423,6 +1428,7 @@ async def create_version_infos(session: AsyncSession):
             file_size=version_data["file_size"],
             is_force_update=version_data["is_force_update"],
             min_supported_version=version_data["min_supported_version"],
+            created_at=created_at,
             extra={
                 "release_notes": [
                     "修复已知问题",
