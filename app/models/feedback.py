@@ -38,6 +38,7 @@ class SourceEnum(str, Enum):
 
 
 class FeedbackBase(BaseModel):
+    name: Optional[str] = Field(None, max_length=100, description="反馈人姓名（可选）")
     type: FeedbackTypeEnum = Field(default=FeedbackTypeEnum.other, description="反馈类型")
     content: str = Field(..., description="反馈内容")
     source: SourceEnum = Field(default=SourceEnum.app, description="来源")
@@ -50,6 +51,7 @@ class FeedbackCreate(FeedbackBase):
 
 
 class FeedbackUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=100, description="反馈人姓名（可选）")
     type: Optional[FeedbackTypeEnum] = None
     content: Optional[str] = None
     status: Optional[StatusEnum] = None

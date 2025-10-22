@@ -224,6 +224,7 @@ CREATE TABLE IF NOT EXISTS `version_info` (
 CREATE TABLE IF NOT EXISTS `feedback` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '反馈ID',
     `account_id` BIGINT NOT NULL COMMENT '反馈用户账号ID',
+    `name` VARCHAR(100) NULL COMMENT '反馈人姓名（可选）',
     `type` ENUM('bug','feature','improvement','complaint','praise','other') NOT NULL DEFAULT 'other' COMMENT '反馈类型：bug/功能建议/改进建议/投诉/表扬/其他',
     `content` TEXT NOT NULL COMMENT '反馈内容',
     `status` ENUM('pending','processing','resolved','rejected','closed') NOT NULL DEFAULT 'pending' COMMENT '处理状态：待处理/处理中/已解决/已拒绝/已关闭',

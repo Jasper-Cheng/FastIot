@@ -157,7 +157,7 @@ async def update_feedback(
         )
     
     # 用户只能更新部分字段
-    user_update_fields = ["type", "content", "source", "contact_info", "extra"]
+    user_update_fields = ["name", "type", "content", "source", "contact_info", "extra"]
     update_data = {k: v for k, v in feedback_in.dict(exclude_unset=True).items() if k in user_update_fields}
     
     if update_data:

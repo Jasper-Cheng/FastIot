@@ -1525,6 +1525,7 @@ async def create_feedbacks(session: AsyncSession, accounts):
             
             feedback = Feedback(
                 account_id=account.id,
+                name=account.name if random.choice([True, False]) else None,  # 50%概率有姓名
                 type=feedback_type,
                 content=content,
                 status=status,

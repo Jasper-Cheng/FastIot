@@ -10,6 +10,7 @@ class Feedback(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="反馈ID")
     account_id = Column(BigInteger, ForeignKey('account.id', ondelete='CASCADE'), nullable=False, comment="反馈用户账号ID")
+    name = Column(String(100), nullable=True, comment="反馈人姓名（可选）")
     type = Column(Enum('bug', 'feature', 'improvement', 'complaint', 'praise', 'other', name='feedback_type_enum'),
                  nullable=False, default='other', comment="反馈类型：bug/功能建议/改进建议/投诉/表扬/其他")
     content = Column(Text, nullable=False, comment="反馈内容")
