@@ -29,7 +29,6 @@ class CRUDFeedback:
         type: Optional[str] = None,
         status: Optional[str] = None,
         source: Optional[str] = None,
-        priority: Optional[str] = None,
         order_by: str = "created_at",
         order_desc: bool = True
     ) -> List[Feedback]:
@@ -45,8 +44,6 @@ class CRUDFeedback:
             query = query.where(Feedback.status == status)
         if source:
             query = query.where(Feedback.source == source)
-        if priority:
-            query = query.where(Feedback.priority == priority)
         
         # 排序
         order_column = getattr(Feedback, order_by, Feedback.created_at)
@@ -127,7 +124,6 @@ class CRUDFeedback:
             select(Feedback)
             .where(
                 or_(
-                    Feedback.title.contains(keyword),
                     Feedback.content.contains(keyword),
                     Feedback.replay.contains(keyword)
                 )

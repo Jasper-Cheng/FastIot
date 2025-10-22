@@ -29,7 +29,6 @@ async def get_feedbacks(
     type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
-    priority: Optional[str] = Query(None),
     order_by: str = Query("created_at"),
     order_desc: bool = Query(True),
     current_admin: Admin = Depends(get_current_admin)
@@ -42,7 +41,6 @@ async def get_feedbacks(
         type=type,
         status=status,
         source=source,
-        priority=priority,
         order_by=order_by,
         order_desc=order_desc
     )
@@ -99,7 +97,7 @@ async def update_feedback(
         )
     
     # 用户只能更新部分字段
-    user_update_fields = ["type", "title", "content", "priority", "source", "contact_info", "extra"]
+    user_update_fields = ["type", "content", "source", "contact_info", "extra"]
     update_data = {k: v for k, v in feedback_in.dict(exclude_unset=True).items() if k in user_update_fields}
     
     if update_data:

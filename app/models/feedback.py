@@ -39,9 +39,7 @@ class SourceEnum(str, Enum):
 
 class FeedbackBase(BaseModel):
     type: FeedbackTypeEnum = Field(default=FeedbackTypeEnum.other, description="反馈类型")
-    title: str = Field(..., description="反馈标题")
     content: str = Field(..., description="反馈内容")
-    priority: PriorityEnum = Field(default=PriorityEnum.normal, description="优先级")
     source: SourceEnum = Field(default=SourceEnum.app, description="来源")
     contact_info: Optional[str] = Field(None, description="联系方式")
     extra: Optional[Dict[str, Any]] = Field(None, description="扩展信息")
@@ -53,9 +51,7 @@ class FeedbackCreate(FeedbackBase):
 
 class FeedbackUpdate(BaseModel):
     type: Optional[FeedbackTypeEnum] = None
-    title: Optional[str] = None
     content: Optional[str] = None
-    priority: Optional[PriorityEnum] = None
     status: Optional[StatusEnum] = None
     source: Optional[SourceEnum] = None
     contact_info: Optional[str] = None
