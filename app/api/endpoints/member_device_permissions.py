@@ -13,6 +13,9 @@ from app.crud.member_device_permission import (
 )
 from app.crud.member import get_member
 from app.crud.device import get_device
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+from app.api.dependencies import get_current_account
 from app.models.member_device_permission import (
     MemberDevicePermissionCreate,
     MemberDevicePermissionInDB,
@@ -151,6 +154,42 @@ async def batch_update_member_permissions_endpoint(
             member_id=member_id,
             device_ids=payload.device_ids
         )
+        
+        # 记录权限更新操作
+        try:
+            # 获取成员账号信息
+            from app.crud.account import get_account
+            member_account = await get_account(db, member.account_id)
+            member_account_name = member_account.account if member_account else f"成员ID:{member_id}"
+            
+            # 获取设备名称用于记录
+            device_names = []
+            for device_id in payload.device_ids:
+                device = await get_device(db, device_id)
+                if device:
+                    device_names.append(device.name)
+                else:
+                    device_names.append(f"设备ID:{device_id}")
+            
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.permission_update,
+                    description=f"更新成员设备权限：{member_account_name}（共{len(payload.device_ids)}个设备）",
+                    extra={
+                        "member_id": member_id,
+                        "member_account_id": member.account_id,
+                        "device_count": len(payload.device_ids),
+                        "device_ids": payload.device_ids,
+                        "device_names": device_names,
+                        "user_id": member.user_id
+                    }
+                ),
+                account_id=member.account_id
+            )
+        except Exception as e:
+            # 记录操作失败不影响权限更新流程
+            print(f"记录权限更新操作失败: {e}")
         
         return MemberPermissionBatchUpdateResponse(
             success=True,
