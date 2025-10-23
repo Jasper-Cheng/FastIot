@@ -9,7 +9,7 @@ class UserOperationLog(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="操作记录ID")
     account_id = Column(BigInteger, ForeignKey('account.id', ondelete='CASCADE'), nullable=False, comment="操作用户账号ID")
-    operation_type = Column(Enum('login','logout','register','user_delete','user_update','device_bind','device_unbind','room_add','room_delete','room_device_sort','member_add','member_delete','member_update','permission_update','system_update','quick_control', name='operation_type_enum'),
+    operation_type = Column(Enum('login','logout','register','user_delete','user_update','device_bind','device_unbind','room_add','room_delete','room_device_sort','member_add','member_delete','member_update','permission_update','quick_control', name='operation_type_enum'),
                            nullable=False, comment="操作类型")
     description = Column(String(500), nullable=False, comment="操作描述")
     extra = Column(JSON, nullable=True, comment="扩展信息（如快捷控制的具体操作、设备排序详情等）")

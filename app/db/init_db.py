@@ -1510,9 +1510,9 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
 
     operation_types = [
         'login', 'logout', 'register', 'user_delete', 'user_update',
-        'device_bind', 'device_unbind', 'room_add', 'room_delete', 'room_device_sort', 
-        'member_add', 'member_delete', 'member_update', 'permission_update', 
-        'system_update', 'quick_control'
+        'device_bind', 'device_unbind', 'room_add', 'room_delete', 'room_device_sort',
+        'member_add', 'member_delete', 'member_update', 'permission_update',
+        'quick_control'
     ]
 
     operation_descriptions = {
@@ -1530,7 +1530,6 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
         'member_delete': '删除成员',
         'member_update': '更新成员信息',
         'permission_update': '更新权限设置',
-        'system_update': '系统更新操作',
         'quick_control': '快捷控制操作'
     }
 

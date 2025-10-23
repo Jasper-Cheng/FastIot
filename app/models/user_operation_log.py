@@ -18,7 +18,6 @@ class OperationTypeEnum(str, Enum):
     member_delete = "member_delete"
     member_update = "member_update"
     permission_update = "permission_update"
-    system_update = "system_update"
     quick_control = "quick_control"
 
 class UserOperationLogBase(BaseModel):
