@@ -49,11 +49,9 @@ class CheckInCalendarResponse(BaseModel):
 class CheckInStatsResponse(BaseModel):
     """签到统计响应"""
     total_check_ins: int
-    total_points: int
     continuous_days: int
     longest_continuous: int
     this_month_check_ins: int
-    this_month_points: int
 
 
 @router.post("/", response_model=CheckInResponse)

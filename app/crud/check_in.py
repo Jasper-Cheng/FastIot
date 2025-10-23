@@ -134,45 +134,40 @@ async def calculate_continuous_days(db: AsyncSession, account_id: int) -> int:
 
 async def get_check_in_stats(db: AsyncSession, account_id: int) -> Dict[str, Any]:
     """获取签到统计信息"""
-    # 总签到次数和积分
+    # 总签到次数
     total_result = await db.execute(
-        select(
-            func.count(CheckIn.id).label('total_check_ins'),
-            func.sum(CheckIn.points_earned).label('total_points')
-        ).where(CheckIn.account_id == account_id)
+        select(func.count(CheckIn.id).label('total_check_ins'))
+        .where(CheckIn.account_id == account_id)
     )
-    total_stats = total_result.first()
+    total_check_ins = total_result.scalar() or 0
     
-    # 连续签到天数
-    continuous_days = await calculate_continuous_days(db, account_id)
+    # 连续签到天数 - 直接获取最新签到记录中的continuous_days字段
+    latest_check_in = await get_latest_check_in(db, account_id)
+    continuous_days = latest_check_in.continuous_days if latest_check_in else 0
     
     # 最长连续签到天数
     longest_continuous = await get_longest_continuous_days(db, account_id)
     
-    # 本月签到次数和积分
+    # 本月签到次数
     today = date.today()
     month_start = date(today.year, today.month, 1)
     
     month_result = await db.execute(
-        select(
-            func.count(CheckIn.id).label('month_check_ins'),
-            func.sum(CheckIn.points_earned).label('month_points')
-        ).where(
+        select(func.count(CheckIn.id).label('month_check_ins'))
+        .where(
             and_(
                 CheckIn.account_id == account_id,
                 CheckIn.check_in_date >= month_start
             )
         )
     )
-    month_stats = month_result.first()
+    this_month_check_ins = month_result.scalar() or 0
     
     return {
-        "total_check_ins": total_stats.total_check_ins or 0,
-        "total_points": total_stats.total_points or 0,
+        "total_check_ins": total_check_ins,
         "continuous_days": continuous_days,
         "longest_continuous": longest_continuous,
-        "this_month_check_ins": month_stats.month_check_ins or 0,
-        "this_month_points": month_stats.month_points or 0
+        "this_month_check_ins": this_month_check_ins
     }
 
 
