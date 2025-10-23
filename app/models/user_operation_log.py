@@ -7,7 +7,6 @@ class OperationTypeEnum(str, Enum):
     login = "login"
     logout = "logout"
     register = "register"
-    user_add = "user_add"
     user_delete = "user_delete"
     user_update = "user_update"
     device_add = "device_add"
