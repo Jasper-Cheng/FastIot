@@ -1509,7 +1509,7 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
     print("创建用户操作记录...")
 
     operation_types = [
-        'login', 'logout', 'logout_all', 'device_add', 'device_delete',
+        'login', 'logout', 'logout_all', 'register', 'device_add', 'device_delete',
         'room_add', 'room_delete', 'room_device_sort', 'member_add',
         'member_delete', 'member_update', 'profile_update', 'system_update', 'quick_control'
     ]
@@ -1518,6 +1518,7 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
         'login': '用户登录系统',
         'logout': '用户登出系统',
         'logout_all': '注销所有设备',
+        'register': '用户注册新账号',
         'device_add': '添加新设备',
         'device_delete': '删除设备',
         'room_add': '创建新房间',

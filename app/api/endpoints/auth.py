@@ -18,7 +18,10 @@ from app.crud.account import (
 from app.crud.user import create_user, get_user_by_account_id
 from app.crud.member import create_member, get_member_by_account_id
 from app.crud.admin import get_admin_by_account_id
+from app.crud.user_operation_log import user_operation_log
 from app.models.account import AccountCreate, AccountLogin, Account, AccountRole, AccountGender
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum, ResultEnum
+from app.api.dependencies import get_current_account
 
 router = APIRouter()
 
@@ -76,6 +79,21 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
 
+    # 记录登录操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.login,
+                description=f"用户登录系统（{acc.account}）",
+                result=ResultEnum.success
+            ),
+            account_id=acc.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响登录流程
+        print(f"记录登录操作失败: {e}")
+
     return TokenResponse(
         access_token=token, 
         role=acc.role, 
@@ -124,6 +142,21 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
             extra_claims["id"] = user.id
 
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
+
+    # 记录登录操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.login,
+                description=f"用户登录系统（{acc.account}）",
+                result=ResultEnum.success
+            ),
+            account_id=acc.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响登录流程
+        print(f"记录登录操作失败: {e}")
 
     return TokenResponse(
         access_token=token, 
@@ -201,5 +234,73 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # 创建 user（owner 对应记录）
     await create_user(db, user=type("UserCreate", (), {"account_id": acc.id})())
 
+    # 记录注册操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.register,
+                description=f"用户注册新账号（{acc.account}）",
+                result=ResultEnum.success,
+                extra={
+                    "registration_type": "owner",
+                    "phone": acc.phone,
+                    "email": acc.email
+                }
+            ),
+            account_id=acc.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响注册流程
+        print(f"记录注册操作失败: {e}")
+
     return Account.model_validate(acc)
+
+
+@router.post("/logout")
+async def logout(
+    db: AsyncSession = Depends(get_db),
+    current_account: Account = Depends(get_current_account)
+):
+    """用户登出"""
+    # 记录登出操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.logout,
+                description=f"用户登出系统（{current_account.account}）",
+                result=ResultEnum.success
+            ),
+            account_id=current_account.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响登出流程
+        print(f"记录登出操作失败: {e}")
+
+    return {"message": "登出成功"}
+
+
+@router.post("/logout-all")
+async def logout_all(
+    db: AsyncSession = Depends(get_db),
+    current_account: Account = Depends(get_current_account)
+):
+    """注销所有设备"""
+    # 记录注销所有设备操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.logout_all,
+                description=f"注销所有设备（{current_account.account}）",
+                result=ResultEnum.success
+            ),
+            account_id=current_account.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响登出流程
+        print(f"记录注销所有设备操作失败: {e}")
+
+    return {"message": "已注销所有设备"}
 
