@@ -11,6 +11,7 @@ from .member_device_permission import MemberDevicePermission
 from .admin import Admin
 from .version_info import VersionInfo
 from .feedback import Feedback
+from .user_operation_log import UserOperationLog
 
 __all__ = [
     "Account",
@@ -25,5 +26,6 @@ __all__ = [
     "MemberDevicePermission",
     "Admin",
     "VersionInfo",
-    "Feedback"
+    "Feedback",
+    "UserOperationLog"
 ]

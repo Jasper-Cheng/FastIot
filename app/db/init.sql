@@ -287,3 +287,20 @@ VALUES
 (1, 2, '湿度传感器-01', 'HUM001', 'bound'),
 (1, 3, '环境监测器-01', 'ENV001', 'bound')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+
+-- 用户操作记录表：记录用户的重要操作行为
+CREATE TABLE IF NOT EXISTS `user_operation_log` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '操作记录ID',
+    `account_id` BIGINT NOT NULL COMMENT '操作用户账号ID',
+    `operation_type` ENUM('login','logout','logout_all','device_add','device_delete','room_add','room_delete','room_device_sort','member_add','member_delete','member_update','profile_update','system_update','quick_control') NOT NULL COMMENT '操作类型',
+    `description` VARCHAR(500) NOT NULL COMMENT '操作描述',
+    `result` ENUM('success','failure') DEFAULT 'success' COMMENT '操作结果',
+    `error_message` TEXT NULL COMMENT '错误信息（操作失败时）',
+    `extra` JSON NULL COMMENT '扩展信息（如快捷控制的具体操作、设备排序详情等）',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+    INDEX `idx_user_operation_account` (`account_id`),
+    INDEX `idx_user_operation_type` (`operation_type`),
+    INDEX `idx_user_operation_result` (`result`),
+    INDEX `idx_user_operation_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户操作记录表';

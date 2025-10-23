@@ -24,6 +24,7 @@ from app.db.models.points import Points
 from app.db.models.system_message import SystemMessage
 from app.db.models.version_info import VersionInfo
 from app.db.models.feedback import Feedback
+from app.db.models.user_operation_log import UserOperationLog
 from app.core.security import get_password_hash
 
 async def init_db(reset=False) -> None:
@@ -145,6 +146,9 @@ async def insert_initial_data(session: AsyncSession) -> None:
         
         # 17. 创建意见反馈
         await create_feedbacks(session, accounts)
+        
+        # 18. 创建用户操作记录
+        await create_user_operation_logs(session, accounts)
         
         await session.commit()
         print("测试数据创建完成！")
@@ -1499,6 +1503,104 @@ async def create_feedbacks(session: AsyncSession, accounts):
                 }
             )
             session.add(feedback)
+
+async def create_user_operation_logs(session: AsyncSession, accounts):
+    """创建用户操作记录"""
+    print("创建用户操作记录...")
+
+    operation_types = [
+        'login', 'logout', 'logout_all', 'device_add', 'device_delete',
+        'room_add', 'room_delete', 'room_device_sort', 'member_add',
+        'member_delete', 'member_update', 'profile_update', 'system_update', 'quick_control'
+    ]
+
+    operation_descriptions = {
+        'login': '用户登录系统',
+        'logout': '用户登出系统',
+        'logout_all': '注销所有设备',
+        'device_add': '添加新设备',
+        'device_delete': '删除设备',
+        'room_add': '创建新房间',
+        'room_delete': '删除房间',
+        'room_device_sort': '调整房间内设备排序',
+        'member_add': '添加新成员',
+        'member_delete': '删除成员',
+        'member_update': '更新成员信息',
+        'profile_update': '更新个人信息',
+        'system_update': '系统更新操作',
+        'quick_control': '快捷控制操作'
+    }
+
+    quick_control_types = [
+        'away_power_off', 'home_power_on', 'all_lights_on', 'all_lights_off',
+        'security_mode_on', 'security_mode_off', 'energy_saving_mode'
+    ]
+
+    for account in accounts:
+        # 为每个账号创建10-20条操作记录
+        num_logs = random.randint(10, 20)
+        for i in range(num_logs):
+            operation_type = random.choice(operation_types)
+            description = operation_descriptions[operation_type]
+            
+            # 添加一些随机性到描述中
+            if operation_type == 'device_add':
+                device_names = ['温度传感器', '湿度传感器', '智能开关', '智能灯泡', '门锁']
+                device_name = random.choice(device_names)
+                description = f"添加设备：{device_name}-{random.randint(1, 99):02d}"
+            elif operation_type == 'room_add':
+                room_names = ['客厅', '卧室', '厨房', '卫生间', '书房', '阳台']
+                room_name = random.choice(room_names)
+                description = f"创建房间：{room_name}"
+            elif operation_type == 'quick_control':
+                control_type = random.choice(quick_control_types)
+                control_descriptions = {
+                    'away_power_off': '执行离家断电快捷控制',
+                    'home_power_on': '执行回家通电快捷控制',
+                    'all_lights_on': '执行全部开灯快捷控制',
+                    'all_lights_off': '执行全部关灯快捷控制',
+                    'security_mode_on': '开启安全模式',
+                    'security_mode_off': '关闭安全模式',
+                    'energy_saving_mode': '开启节能模式'
+                }
+                description = control_descriptions[control_type]
+                extra = {
+                    "control_type": control_type,
+                    "affected_devices": random.sample(range(1, 10), random.randint(1, 5)),
+                    "device_count": random.randint(1, 5)
+                }
+            else:
+                extra = None
+
+            # 随机生成成功或失败的结果
+            result = random.choices(['success', 'failure'], weights=[0.9, 0.1])[0]
+            error_message = None
+            if result == 'failure':
+                error_messages = [
+                    '网络连接超时',
+                    '设备无响应',
+                    '权限不足',
+                    '参数错误',
+                    '系统繁忙'
+                ]
+                error_message = random.choice(error_messages)
+
+            # 随机生成时间（最近30天内）
+            days_ago = random.randint(0, 30)
+            hours_ago = random.randint(0, 23)
+            minutes_ago = random.randint(0, 59)
+            created_at = get_local_time() - timedelta(days=days_ago, hours=hours_ago, minutes=minutes_ago)
+
+            operation_log = UserOperationLog(
+                account_id=account.id,
+                operation_type=operation_type,
+                description=description,
+                result=result,
+                error_message=error_message,
+                extra=extra,
+                created_at=created_at
+            )
+            session.add(operation_log)
 
 async def reset_database():
     """重置数据库"""

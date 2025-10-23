@@ -24,6 +24,7 @@ class Account(Base):
     check_ins = relationship("CheckIn", back_populates="account", passive_deletes=True)
     points = relationship("Points", back_populates="account", passive_deletes=True)
     feedbacks = relationship("Feedback", back_populates="account", passive_deletes=True)
+    operation_logs = relationship("UserOperationLog", back_populates="account", passive_deletes=True)
     
     def __repr__(self):
         return f"<Account(id={self.id}, account={self.account}, name={self.name}, role={self.role})>"
