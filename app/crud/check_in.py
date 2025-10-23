@@ -148,26 +148,10 @@ async def get_check_in_stats(db: AsyncSession, account_id: int) -> Dict[str, Any
     # 最长连续签到天数
     longest_continuous = await get_longest_continuous_days(db, account_id)
     
-    # 本月签到次数
-    today = date.today()
-    month_start = date(today.year, today.month, 1)
-    
-    month_result = await db.execute(
-        select(func.count(CheckIn.id).label('month_check_ins'))
-        .where(
-            and_(
-                CheckIn.account_id == account_id,
-                CheckIn.check_in_date >= month_start
-            )
-        )
-    )
-    this_month_check_ins = month_result.scalar() or 0
-    
     return {
         "total_check_ins": total_check_ins,
         "continuous_days": continuous_days,
-        "longest_continuous": longest_continuous,
-        "this_month_check_ins": this_month_check_ins
+        "longest_continuous": longest_continuous
     }
 
 

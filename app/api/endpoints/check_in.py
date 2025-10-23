@@ -51,7 +51,6 @@ class CheckInStatsResponse(BaseModel):
     total_check_ins: int
     continuous_days: int
     longest_continuous: int
-    this_month_check_ins: int
 
 
 @router.post("/", response_model=CheckInResponse)
