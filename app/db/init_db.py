@@ -15,7 +15,6 @@ from app.db.models.room import Room
 from app.db.models.device import Device
 from app.db.models.device_thing_model import DeviceThingModel
 from app.db.models.device_model import DeviceModel
-from app.db.models.device_log import DeviceLog
 from app.db.models.device_message import DeviceMessage
 from app.db.models.room_device import RoomDevice
 from app.db.models.member_device_permission import MemberDevicePermission
@@ -126,10 +125,7 @@ async def insert_initial_data(session: AsyncSession) -> None:
         # 9. 创建成员设备权限
         await create_member_device_permissions(session, members, devices)
         
-        # 10. 创建设备日志
-        await create_device_logs(session, devices)
-        
-        # 11. 创建设备消息
+        # 10. 创建设备消息
         await create_device_messages(session, devices)
         
         # 12. 创建设备网络信息
@@ -886,53 +882,12 @@ async def create_member_device_permissions(session: AsyncSession, members, devic
                     session.add(permission)
 
 
-async def create_device_logs(session: AsyncSession, devices):
-    """创建设备日志"""
-    print("创建设备日志...")
-
-    types = ["properties", "services", "events"]
-
-    for device in devices:
-        # 为每个设备创建10-20条日志
-        num_logs = random.randint(10, 20)
-        for i in range(num_logs):
-            type = random.choice(types)
-            
-            # 根据类型生成不同的参数
-            if type == "properties":
-                log_data = {
-                    "property_name": random.choice(["temperature", "humidity", "power", "voltage"]),
-                    "value": random.uniform(0, 100),
-                    "unit": random.choice(["°C", "%", "W", "V"]),
-                    "timestamp": (get_local_time() - timedelta(days=random.randint(0, 30))).isoformat()
-                }
-            elif type == "services":
-                log_data = {
-                    "service_name": random.choice(["power_on", "power_off", "set_temperature", "calibrate"]),
-                    "status": random.choice(["success", "failed", "pending"]),
-                    "duration": random.uniform(0.1, 5.0),
-                    "timestamp": (get_local_time() - timedelta(days=random.randint(0, 30))).isoformat()
-                }
-            else:  # events
-                log_data = {
-                    "event_name": random.choice(["device_connected", "device_disconnected", "error_occurred", "maintenance_required"]),
-                    "severity": random.choice(["low", "medium", "high"]),
-                    "message": f"Device event occurred at {get_local_time().isoformat()}",
-                    "timestamp": (get_local_time() - timedelta(days=random.randint(0, 30))).isoformat()
-                }
-
-            device_log = DeviceLog(
-                device_id=device.id,
-                type=type,
-                params=log_data
-            )
-            session.add(device_log)
 
 async def create_device_messages(session: AsyncSession, devices):
     """创建设备消息"""
     print("创建设备消息...")
 
-    message_levels = ['normal', 'error', 'fatal']
+    message_levels = ['low', 'normal', 'error', 'fatal']
     message_contents = [
         "设备离线",
         "温度异常",
