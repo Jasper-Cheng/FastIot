@@ -14,7 +14,10 @@ from app.crud.device import (
 )
 from app.crud.user import get_user
 from app.crud.device_model import get_device_model
+from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum, ResultEnum
+from app.api.dependencies import get_current_account
 from pydantic import BaseModel
 
 class DeviceNameUpdate(BaseModel):
@@ -155,6 +158,28 @@ async def bind_device_by_sn(
     await db.commit()
     await db.refresh(device)
 
+    # 记录设备绑定操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_bind,
+                description=f"绑定设备：{device.name}（SN: {device.sn}）",
+                result=ResultEnum.success,
+                extra={
+                    "device_id": device.id,
+                    "device_name": device.name,
+                    "device_sn": device.sn,
+                    "bound_user_id": payload.user_id,
+                    "device_status": device.status
+                }
+            ),
+            account_id=user.account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响绑定流程
+        print(f"记录设备绑定操作失败: {e}")
+
     return device
 
 
@@ -174,8 +199,38 @@ async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
     if device.user_id is None:
         raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
     
+    # 记录解绑前的设备信息
+    original_user_id = device.user_id
+    device_name = device.name
+    
     # 通过统一更新逻辑处理解绑与清理关联关系
     updated = await update_device(db, device.id, DeviceUpdate(user_id=None, status=DeviceStatus.unbound))
+    
+    # 记录设备解绑操作
+    try:
+        # 获取被解绑用户的账号信息
+        unbound_user = await get_user(db, original_user_id)
+        if unbound_user:
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.device_unbind,
+                    description=f"解绑设备：{device_name}（SN: {sn}）",
+                    result=ResultEnum.success,
+                    extra={
+                        "device_id": device.id,
+                        "device_name": device_name,
+                        "device_sn": sn,
+                        "unbound_user_id": original_user_id,
+                        "device_status": updated.status if updated else "unbound"
+                    }
+                ),
+                account_id=unbound_user.account_id
+            )
+    except Exception as e:
+        # 记录操作失败不影响解绑流程
+        print(f"记录设备解绑操作失败: {e}")
+    
     return updated
 
 
