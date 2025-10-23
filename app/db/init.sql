@@ -292,7 +292,7 @@ ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 CREATE TABLE IF NOT EXISTS `user_operation_log` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '操作记录ID',
     `account_id` BIGINT NOT NULL COMMENT '操作用户账号ID',
-    `operation_type` ENUM('login','logout','logout_all','register','device_add','device_delete','room_add','room_delete','room_device_sort','member_add','member_delete','member_update','profile_update','system_update','quick_control') NOT NULL COMMENT '操作类型',
+    `operation_type` ENUM('login','logout','register','user_add','user_delete','user_update','device_add','device_delete','room_add','room_delete','room_device_sort','member_add','member_delete','member_update','feedback','permission_update','system_update','quick_control') NOT NULL COMMENT '操作类型',
     `description` VARCHAR(500) NOT NULL COMMENT '操作描述',
     `result` ENUM('success','failure') DEFAULT 'success' COMMENT '操作结果',
     `error_message` TEXT NULL COMMENT '错误信息（操作失败时）',

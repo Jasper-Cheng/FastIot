@@ -152,7 +152,7 @@ async def update_user_detail(
         await user_operation_log.create(
             db=db,
             obj_in=UserOperationLogCreate(
-                operation_type=OperationTypeEnum.member_update,
+                operation_type=OperationTypeEnum.user_update,
                 description=description,
                 result=ResultEnum.success,
                 extra={
@@ -206,7 +206,7 @@ async def remove_user(
         await user_operation_log.create(
             db=db,
             obj_in=UserOperationLogCreate(
-                operation_type=OperationTypeEnum.member_delete,  # 使用member_delete表示删除用户
+                operation_type=OperationTypeEnum.user_delete,  # 使用user_delete表示删除用户
                 description=f"删除用户：{account_to_delete.account if account_to_delete else f'ID:{user_id}'}",
                 result=ResultEnum.success,
                 extra={

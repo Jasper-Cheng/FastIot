@@ -6,8 +6,10 @@ from enum import Enum
 class OperationTypeEnum(str, Enum):
     login = "login"
     logout = "logout"
-    logout_all = "logout_all"
     register = "register"
+    user_add = "user_add"
+    user_delete = "user_delete"
+    user_update = "user_update"
     device_add = "device_add"
     device_delete = "device_delete"
     room_add = "room_add"
@@ -16,7 +18,8 @@ class OperationTypeEnum(str, Enum):
     member_add = "member_add"
     member_delete = "member_delete"
     member_update = "member_update"
-    profile_update = "profile_update"
+    feedback = "feedback"
+    permission_update = "permission_update"
     system_update = "system_update"
     quick_control = "quick_control"
 

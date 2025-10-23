@@ -292,7 +292,7 @@ async def logout_all(
         await user_operation_log.create(
             db=db,
             obj_in=UserOperationLogCreate(
-                operation_type=OperationTypeEnum.logout_all,
+                operation_type=OperationTypeEnum.logout,
                 description=f"注销所有设备（{current_account.account}）",
                 result=ResultEnum.success
             ),

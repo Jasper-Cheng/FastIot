@@ -1509,16 +1509,19 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
     print("创建用户操作记录...")
 
     operation_types = [
-        'login', 'logout', 'logout_all', 'register', 'device_add', 'device_delete',
-        'room_add', 'room_delete', 'room_device_sort', 'member_add',
-        'member_delete', 'member_update', 'profile_update', 'system_update', 'quick_control'
+        'login', 'logout', 'register', 'user_add', 'user_delete', 'user_update',
+        'device_add', 'device_delete', 'room_add', 'room_delete', 'room_device_sort', 
+        'member_add', 'member_delete', 'member_update', 'feedback', 'permission_update', 
+        'system_update', 'quick_control'
     ]
 
     operation_descriptions = {
         'login': '用户登录系统',
         'logout': '用户登出系统',
-        'logout_all': '注销所有设备',
         'register': '用户注册新账号',
+        'user_add': '添加新用户',
+        'user_delete': '删除用户',
+        'user_update': '更新用户信息',
         'device_add': '添加新设备',
         'device_delete': '删除设备',
         'room_add': '创建新房间',
@@ -1527,7 +1530,8 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
         'member_add': '添加新成员',
         'member_delete': '删除成员',
         'member_update': '更新成员信息',
-        'profile_update': '更新个人信息',
+        'feedback': '提交意见反馈',
+        'permission_update': '更新权限设置',
         'system_update': '系统更新操作',
         'quick_control': '快捷控制操作'
     }
