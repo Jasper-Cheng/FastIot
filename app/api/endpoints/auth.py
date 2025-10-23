@@ -281,26 +281,4 @@ async def logout(
     return {"message": "登出成功"}
 
 
-@router.post("/logout-all")
-async def logout_all(
-    db: AsyncSession = Depends(get_db),
-    current_account: Account = Depends(get_current_account)
-):
-    """注销所有设备"""
-    # 记录注销所有设备操作
-    try:
-        await user_operation_log.create(
-            db=db,
-            obj_in=UserOperationLogCreate(
-                operation_type=OperationTypeEnum.logout,
-                description=f"注销所有设备（{current_account.account}）",
-                result=ResultEnum.success
-            ),
-            account_id=current_account.id
-        )
-    except Exception as e:
-        # 记录操作失败不影响登出流程
-        print(f"记录注销所有设备操作失败: {e}")
-
-    return {"message": "已注销所有设备"}
 
