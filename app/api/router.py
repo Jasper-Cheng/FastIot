@@ -21,7 +21,6 @@ from app.api.endpoints import points as points_endpoints
 from app.api.endpoints import system_message as system_message_endpoints
 from app.api.endpoints import version_info as version_info_endpoints
 from app.api.endpoints import feedback as feedback_endpoints
-from app.api.endpoints import user_operation_log as user_operation_log_endpoints
 from app.api.endpoints import websocket as websocket_endpoints
 
 api_router.include_router(auth_endpoints.router, prefix="/auth", tags=["auth"])
@@ -41,7 +40,6 @@ api_router.include_router(points_endpoints.router, prefix="/points", tags=["poin
 api_router.include_router(system_message_endpoints.router, prefix="/system-messages", tags=["system-messages"], dependencies=[Depends(get_current_user)])
 api_router.include_router(version_info_endpoints.router, prefix="/version-info", tags=["version-info"])
 api_router.include_router(feedback_endpoints.router, prefix="/feedback", tags=["feedback"])
-api_router.include_router(user_operation_log_endpoints.router, prefix="/user-operation-logs", tags=["user-operation-logs"])
 api_router.include_router(websocket_endpoints.router, prefix="/ws", tags=["websocket"])
 
 # 基础路由 - 可以在这里添加简单的健康检查等
