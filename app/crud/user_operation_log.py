@@ -26,7 +26,6 @@ class CRUDUserOperationLog:
         limit: int = 100,
         account_id: Optional[int] = None,
         operation_type: Optional[str] = None,
-        result: Optional[str] = None,
         order_by: str = "created_at",
         order_desc: bool = True
     ) -> List[UserOperationLog]:
@@ -38,8 +37,6 @@ class CRUDUserOperationLog:
             query = query.where(UserOperationLog.account_id == account_id)
         if operation_type:
             query = query.where(UserOperationLog.operation_type == operation_type)
-        if result:
-            query = query.where(UserOperationLog.result == result)
 
         # 排序
         order_column = getattr(UserOperationLog, order_by, UserOperationLog.created_at)
@@ -74,16 +71,6 @@ class CRUDUserOperationLog:
         )
         return result.scalars().all()
 
-    async def get_failed_operations(self, db: AsyncSession, *, skip: int = 0, limit: int = 100) -> List[UserOperationLog]:
-        """获取失败的操作记录"""
-        result = await db.execute(
-            select(UserOperationLog)
-            .where(UserOperationLog.result == "failure")
-            .order_by(desc(UserOperationLog.created_at))
-            .offset(skip)
-            .limit(limit)
-        )
-        return result.scalars().all()
 
     async def update(self, db: AsyncSession, *, db_obj: UserOperationLog, obj_in: UserOperationLogUpdate) -> UserOperationLog:
         """更新操作记录"""
@@ -108,12 +95,7 @@ class CRUDUserOperationLog:
         """搜索操作记录"""
         result = await db.execute(
             select(UserOperationLog)
-            .where(
-                or_(
-                    UserOperationLog.description.contains(keyword),
-                    UserOperationLog.error_message.contains(keyword)
-                )
-            )
+            .where(UserOperationLog.description.contains(keyword))
             .offset(skip)
             .limit(limit)
         )
@@ -132,11 +114,6 @@ class CRUDUserOperationLog:
         )
         type_stats = {row.operation_type: row[1] for row in type_result.fetchall()}
 
-        # 按结果统计
-        result_stats_query = base_query.add_columns(UserOperationLog.result, func.count(UserOperationLog.id))
-        result_stats_query = result_stats_query.group_by(UserOperationLog.result)
-        result_result = await db.execute(result_stats_query)
-        result_stats = {row.result: row[1] for row in result_result.fetchall()}
 
         # 总数量
         total_result = await db.execute(
@@ -153,7 +130,6 @@ class CRUDUserOperationLog:
 
         return {
             "operation_type_statistics": type_stats,
-            "result_statistics": result_stats,
             "total_count": total_count,
             "today_count": today_count
         }

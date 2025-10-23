@@ -21,15 +21,9 @@ class OperationTypeEnum(str, Enum):
     system_update = "system_update"
     quick_control = "quick_control"
 
-class ResultEnum(str, Enum):
-    success = "success"
-    failure = "failure"
-
 class UserOperationLogBase(BaseModel):
     operation_type: OperationTypeEnum = Field(..., description="操作类型")
     description: str = Field(..., max_length=500, description="操作描述")
-    result: ResultEnum = Field(default=ResultEnum.success, description="操作结果")
-    error_message: Optional[str] = Field(None, description="错误信息（操作失败时）")
     extra: Optional[Dict[str, Any]] = Field(None, description="扩展信息")
 
 class UserOperationLogCreate(UserOperationLogBase):

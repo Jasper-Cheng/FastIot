@@ -294,13 +294,10 @@ CREATE TABLE IF NOT EXISTS `user_operation_log` (
     `account_id` BIGINT NOT NULL COMMENT '操作用户账号ID',
     `operation_type` ENUM('login','logout','register','user_delete','user_update','device_bind','device_unbind','room_add','room_delete','room_device_sort','member_add','member_delete','member_update','permission_update','system_update','quick_control') NOT NULL COMMENT '操作类型',
     `description` VARCHAR(500) NOT NULL COMMENT '操作描述',
-    `result` ENUM('success','failure') DEFAULT 'success' COMMENT '操作结果',
-    `error_message` TEXT NULL COMMENT '错误信息（操作失败时）',
     `extra` JSON NULL COMMENT '扩展信息（如快捷控制的具体操作、设备排序详情等）',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
     FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
     INDEX `idx_user_operation_account` (`account_id`),
     INDEX `idx_user_operation_type` (`operation_type`),
-    INDEX `idx_user_operation_result` (`result`),
     INDEX `idx_user_operation_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户操作记录表';

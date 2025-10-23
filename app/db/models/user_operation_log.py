@@ -12,8 +12,6 @@ class UserOperationLog(Base):
     operation_type = Column(Enum('login','logout','register','user_delete','user_update','device_bind','device_unbind','room_add','room_delete','room_device_sort','member_add','member_delete','member_update','permission_update','system_update','quick_control', name='operation_type_enum'),
                            nullable=False, comment="操作类型")
     description = Column(String(500), nullable=False, comment="操作描述")
-    result = Column(Enum('success','failure', name='result_enum'), nullable=False, default='success', comment="操作结果")
-    error_message = Column(Text, nullable=True, comment="错误信息（操作失败时）")
     extra = Column(JSON, nullable=True, comment="扩展信息（如快捷控制的具体操作、设备排序详情等）")
     created_at = Column(DateTime, default=func.now(), comment="操作时间")
 

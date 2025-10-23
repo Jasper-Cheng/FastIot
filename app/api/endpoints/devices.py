@@ -16,7 +16,7 @@ from app.crud.user import get_user
 from app.crud.device_model import get_device_model
 from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
-from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum, ResultEnum
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_account
 from pydantic import BaseModel
 
@@ -165,7 +165,6 @@ async def bind_device_by_sn(
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.device_bind,
                 description=f"绑定设备：{device.name}（SN: {device.sn}）",
-                result=ResultEnum.success,
                 extra={
                     "device_id": device.id,
                     "device_name": device.name,
@@ -216,7 +215,6 @@ async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
                 obj_in=UserOperationLogCreate(
                     operation_type=OperationTypeEnum.device_unbind,
                     description=f"解绑设备：{device_name}（SN: {sn}）",
-                    result=ResultEnum.success,
                     extra={
                         "device_id": device.id,
                         "device_name": device_name,

@@ -1547,10 +1547,10 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
             description = operation_descriptions[operation_type]
             
             # 添加一些随机性到描述中
-            if operation_type == 'device_add':
+            if operation_type == 'device_bind':
                 device_names = ['温度传感器', '湿度传感器', '智能开关', '智能灯泡', '门锁']
                 device_name = random.choice(device_names)
-                description = f"添加设备：{device_name}-{random.randint(1, 99):02d}"
+                description = f"绑定设备：{device_name}-{random.randint(1, 99):02d}"
             elif operation_type == 'room_add':
                 room_names = ['客厅', '卧室', '厨房', '卫生间', '书房', '阳台']
                 room_name = random.choice(room_names)
@@ -1575,18 +1575,6 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
             else:
                 extra = None
 
-            # 随机生成成功或失败的结果
-            result = random.choices(['success', 'failure'], weights=[0.9, 0.1])[0]
-            error_message = None
-            if result == 'failure':
-                error_messages = [
-                    '网络连接超时',
-                    '设备无响应',
-                    '权限不足',
-                    '参数错误',
-                    '系统繁忙'
-                ]
-                error_message = random.choice(error_messages)
 
             # 随机生成时间（最近30天内）
             days_ago = random.randint(0, 30)
@@ -1598,8 +1586,6 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
                 account_id=account.id,
                 operation_type=operation_type,
                 description=description,
-                result=result,
-                error_message=error_message,
                 extra=extra,
                 created_at=created_at
             )

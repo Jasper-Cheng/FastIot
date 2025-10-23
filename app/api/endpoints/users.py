@@ -9,7 +9,7 @@ from app.crud.user import get_users, get_user, create_user, delete_user
 from app.crud.account import get_account, update_account, get_account_by_account_name, get_account_by_phone, get_account_by_email
 from app.crud.user_operation_log import user_operation_log
 from app.models.user import User, UserCreate, UserInDB
-from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum, ResultEnum
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_account
 router = APIRouter()
 
@@ -154,7 +154,6 @@ async def update_user_detail(
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.user_update,
                 description=description,
-                result=ResultEnum.success,
                 extra={
                     "updated_user_id": user_id,
                     "updated_account_id": u.account_id,
@@ -208,7 +207,6 @@ async def remove_user(
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.user_delete,  # 使用user_delete表示删除用户
                 description=f"删除用户：{account_to_delete.account if account_to_delete else f'ID:{user_id}'}",
-                result=ResultEnum.success,
                 extra={
                     "deleted_user_id": user_id,
                     "deleted_account_id": user_to_delete.account_id,

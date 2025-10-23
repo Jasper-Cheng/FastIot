@@ -20,7 +20,7 @@ from app.crud.member import create_member, get_member_by_account_id
 from app.crud.admin import get_admin_by_account_id
 from app.crud.user_operation_log import user_operation_log
 from app.models.account import AccountCreate, AccountLogin, Account, AccountRole, AccountGender
-from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum, ResultEnum
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_account
 
 router = APIRouter()
@@ -86,7 +86,6 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.login,
                 description=f"用户登录系统（{acc.account}）",
-                result=ResultEnum.success
             ),
             account_id=acc.id
         )
@@ -150,7 +149,6 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.login,
                 description=f"用户登录系统（{acc.account}）",
-                result=ResultEnum.success
             ),
             account_id=acc.id
         )
@@ -241,7 +239,6 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.register,
                 description=f"用户注册新账号（{acc.account}）",
-                result=ResultEnum.success,
                 extra={
                     "registration_type": "owner",
                     "phone": acc.phone,
@@ -270,7 +267,6 @@ async def logout(
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.logout,
                 description=f"用户登出系统（{current_account.account}）",
-                result=ResultEnum.success
             ),
             account_id=current_account.id
         )
