@@ -4,7 +4,7 @@ from typing import List, Union
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.api.dependencies import get_current_user_id
+from app.api.dependencies import get_current_user_id, get_current_account
 from app.crud.room_device import (
     get_room_devices_by_room,
     get_room_devices_by_device,
@@ -14,8 +14,10 @@ from app.crud.room_device import (
     delete_room_device,
     batch_update_room_devices,
 )
-from app.crud.room import get_room
 from app.crud.device import get_device
+from app.crud.room import get_room
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.models.room_device import (
     RoomDeviceCreate, 
     RoomDeviceUpdate, 
@@ -62,7 +64,8 @@ async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = 
 async def batch_update_sort(
     payload: RoomDeviceBatchSortRequest, 
     db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id)
+    current_user_id: int = Depends(get_current_user_id),
+    current_account = Depends(get_current_account)
 ):
     """批量更新房间设备关联排序
     
@@ -80,6 +83,31 @@ async def batch_update_sort(
             devices=payload.devices,
             user_id=current_user_id
         )
+        
+        # 记录设备排序操作
+        try:
+            device_count = len(updated_room_devices)
+            device_names = [device.device_name if hasattr(device, 'device_name') else f"设备ID:{device.device_id}" for device in updated_room_devices]
+            room_name = updated_room_devices[0].room_name if updated_room_devices and hasattr(updated_room_devices[0], 'room_name') else f"房间ID:{payload.room_id}"
+            
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.room_device_sort,
+                    description=f"调整房间内设备排序：{room_name}（共{device_count}个设备）",
+                    extra={
+                        "room_id": payload.room_id,
+                        "room_name": room_name,
+                        "device_count": device_count,
+                        "device_names": device_names,
+                        "user_id": current_user_id
+                    }
+                ),
+                account_id=current_account.id
+            )
+        except Exception as e:
+            # 记录操作失败不影响排序流程
+            print(f"记录设备排序操作失败: {e}")
         
         return RoomDeviceBatchSortResponse(
             success=True,

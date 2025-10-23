@@ -5,6 +5,9 @@ from app.db.session import get_db
 from app.crud.room import get_room, get_rooms_by_user, create_room, update_room, delete_room
 from app.models.room import Room, RoomCreate, RoomUpdate, RoomInDB
 from app.crud.user import get_user
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+from app.api.dependencies import get_current_account
 
 router = APIRouter()
 
@@ -58,6 +61,26 @@ async def create_new_room(
         )
     
     db_room = await create_room(db, room)
+    
+    # 记录创建房间操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.room_add,
+                description=f"创建房间：{db_room.name}",
+                extra={
+                    "room_id": db_room.id,
+                    "room_name": db_room.name,
+                    "user_id": room.user_id
+                }
+            ),
+            account_id=owner.account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响创建流程
+        print(f"记录创建房间操作失败: {e}")
+    
     return db_room
 
 @router.put("/{room_id}", response_model=RoomInDB)
@@ -99,6 +122,7 @@ async def update_room_info(
 async def delete_room_by_id(
     room_id: int,
     db: AsyncSession = Depends(get_db),
+    current_account = Depends(get_current_account),
 ):
     """
     删除房间
@@ -111,11 +135,34 @@ async def delete_room_by_id(
             detail="房间不存在"
         )
     
+    # 记录删除前的房间信息
+    room_name = existing_room.name
+    user_id = existing_room.user_id
+    
     success = await delete_room(db, room_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="删除房间失败"
         )
+    
+    # 记录删除房间操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.room_delete,
+                description=f"删除房间：{room_name}",
+                extra={
+                    "room_id": room_id,
+                    "room_name": room_name,
+                    "user_id": user_id
+                }
+            ),
+            account_id=current_account.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响删除流程
+        print(f"记录删除房间操作失败: {e}")
     
     return {"message": "房间删除成功"}
