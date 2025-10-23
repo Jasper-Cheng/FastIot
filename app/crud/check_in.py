@@ -58,7 +58,7 @@ async def get_check_in_calendar(db: AsyncSession, account_id: int, year: int, mo
     end_date = date(year, month, monthrange(year, month)[1])
     
     result = await db.execute(
-        select(CheckIn.check_in_date, CheckIn.points_earned)
+        select(CheckIn.check_in_date)
         .where(
             and_(
                 CheckIn.account_id == account_id,
@@ -71,7 +71,6 @@ async def get_check_in_calendar(db: AsyncSession, account_id: int, year: int, mo
     
     check_ins = result.fetchall()
     check_in_dates = [record.check_in_date for record in check_ins]
-    total_points = sum(record.points_earned for record in check_ins)
     
     # 获取连续签到天数
     continuous_days = await get_continuous_days(db, account_id)
@@ -81,8 +80,7 @@ async def get_check_in_calendar(db: AsyncSession, account_id: int, year: int, mo
         "month": month,
         "check_in_dates": check_in_dates,
         "continuous_days": continuous_days,
-        "total_check_ins": len(check_in_dates),
-        "total_points": total_points
+        "total_check_ins": len(check_in_dates)
     }
 
 

@@ -44,7 +44,6 @@ class CheckInCalendarResponse(BaseModel):
     check_in_dates: List[date]
     continuous_days: int
     total_check_ins: int
-    total_points: int
 
 
 class CheckInStatsResponse(BaseModel):
