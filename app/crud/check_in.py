@@ -72,15 +72,10 @@ async def get_check_in_calendar(db: AsyncSession, account_id: int, year: int, mo
     check_ins = result.fetchall()
     check_in_dates = [record.check_in_date for record in check_ins]
     
-    # 获取连续签到天数
-    continuous_days = await get_continuous_days(db, account_id)
-    
     return {
         "year": year,
         "month": month,
-        "check_in_dates": check_in_dates,
-        "continuous_days": continuous_days,
-        "total_check_ins": len(check_in_dates)
+        "check_in_dates": check_in_dates
     }
 
 
@@ -141,9 +136,8 @@ async def get_check_in_stats(db: AsyncSession, account_id: int) -> Dict[str, Any
     )
     total_check_ins = total_result.scalar() or 0
     
-    # 连续签到天数 - 直接获取最新签到记录中的continuous_days字段
-    latest_check_in = await get_latest_check_in(db, account_id)
-    continuous_days = latest_check_in.continuous_days if latest_check_in else 0
+    # 连续签到天数
+    continuous_days = await get_continuous_days(db, account_id)
     
     # 最长连续签到天数
     longest_continuous = await get_longest_continuous_days(db, account_id)
