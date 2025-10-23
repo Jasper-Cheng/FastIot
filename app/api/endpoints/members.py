@@ -12,6 +12,9 @@ from app.db.models.member_device_permission import MemberDevicePermission
 from app.crud.account import create_account, get_account_by_account_name, get_account_by_phone, get_account_by_email, update_account, get_account, delete_account
 from app.models.member import Member, MemberCreate, MemberUpdate, MemberInDB
 from app.models.account import AccountCreate, AccountRole, AccountGender, AccountUpdate
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+from app.api.dependencies import get_current_account
 router = APIRouter()
 
 
@@ -123,6 +126,29 @@ async def create_member_for_user(
         ])
         await db.commit()
 
+    # 记录添加成员操作
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.member_add,
+                description=f"添加新成员：{acc.account}",
+                extra={
+                    "member_id": m.id,
+                    "member_account": acc.account,
+                    "member_name": acc.name,
+                    "member_phone": acc.phone,
+                    "member_email": acc.email,
+                    "user_id": payload.user_id,
+                    "account_id": acc.id
+                }
+            ),
+            account_id=owner.account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响创建流程
+        print(f"记录添加成员操作失败: {e}")
+
     return m
 
 
@@ -225,6 +251,41 @@ async def update_member_detail(
         AccountUpdate(**updated),
     )
 
+    # 记录更新成员操作
+    try:
+        # 获取更新后的账号信息
+        updated_account = await get_account(db, m.account_id)
+        
+        # 构建更新字段的描述
+        updated_fields = []
+        for field, value in updated.items():
+            if field == "password":
+                updated_fields.append("密码: [已更新]")
+            else:
+                updated_fields.append(f"{field}: {value}")
+
+        description = f"更新成员信息（{updated_account.account if updated_account else f'ID:{member_id}'}）: {', '.join(updated_fields)}"
+
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.member_update,
+                description=description,
+                extra={
+                    "member_id": member_id,
+                    "member_account_id": m.account_id,
+                    "member_account_name": updated_account.account if updated_account else None,
+                    "updated_fields": list(updated.keys()),
+                    "updated_values": {k: v for k, v in updated.items() if k != "password"},  # 不记录密码
+                    "user_id": m.user_id
+                }
+            ),
+            account_id=m.account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响更新流程
+        print(f"记录更新成员操作失败: {e}")
+
     # 重新返回成员（不展开 account）
     m = await get_member(db, member_id)
     return m
@@ -234,6 +295,7 @@ async def update_member_detail(
 async def remove_member(
     member_id: int, 
     db: AsyncSession = Depends(get_db),
+    current_account = Depends(get_current_account),
 ):
     # 先查询成员
     m = await get_member(db, member_id)
@@ -264,6 +326,35 @@ async def remove_member(
         
         # 统一提交事务
         await db.commit()
+        
+        # 记录删除成员操作
+        try:
+            # 获取成员账号信息用于记录
+            member_account = await get_account(db, m.account_id)
+            member_account_name = member_account.account if member_account else f"ID:{m.account_id}"
+            member_name = member_account.name if member_account else None
+
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.member_delete,
+                    description=f"删除成员：{member_account_name}",
+                    extra={
+                        "member_id": member_id,
+                        "member_account_id": m.account_id,
+                        "member_account_name": member_account_name,
+                        "member_name": member_name,
+                        "member_phone": member_account.phone if member_account else None,
+                        "member_email": member_account.email if member_account else None,
+                        "user_id": m.user_id
+                    }
+                ),
+                account_id=current_account.id
+            )
+        except Exception as e:
+            # 记录操作失败不影响删除流程
+            print(f"记录删除成员操作失败: {e}")
+        
         return {"message": "删除成功"}
     except Exception as e:
         await db.rollback()
