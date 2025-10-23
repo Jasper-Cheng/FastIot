@@ -32,8 +32,6 @@ class UserOperationLogCreate(UserOperationLogBase):
 class UserOperationLogUpdate(BaseModel):
     operation_type: Optional[OperationTypeEnum] = None
     description: Optional[str] = Field(None, max_length=500)
-    result: Optional[ResultEnum] = None
-    error_message: Optional[str] = None
     extra: Optional[Dict[str, Any]] = None
 
 class UserOperationLog(UserOperationLogBase):
