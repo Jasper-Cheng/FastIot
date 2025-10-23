@@ -100,15 +100,6 @@ CREATE TABLE IF NOT EXISTS `room_device` (
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='房间设备关联表';
 
--- 设备日志表：记录设备运行历史记录和事件
-CREATE TABLE IF NOT EXISTS `device_log` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
-    `device_id` BIGINT NOT NULL COMMENT '设备ID',
-    `type` ENUM('properties','services','events') NOT NULL COMMENT '事件类型',
-    `params` JSON COMMENT '事件参数JSON',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备日志表';
 
 -- 成员设备权限表：控制成员对设备的访问权限
 CREATE TABLE IF NOT EXISTS `member_device_permission` (
