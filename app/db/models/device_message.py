@@ -7,7 +7,7 @@ class DeviceMessage(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     device_id = Column(BigInteger, ForeignKey("device.id", ondelete="CASCADE"), nullable=False, index=True)
-    level = Column(Enum('normal', 'error', 'fatal', name='device_message_level'), nullable=False)
+    level = Column(Enum('low', 'normal', 'error', 'fatal', name='device_message_level'), nullable=False, default='low')
     status = Column(Enum('new', 'read', name='device_message_status'), default='new')
     message = Column(String(255))
     detail = Column(JSON, nullable=True)

@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS `member_device_permission` (
 CREATE TABLE IF NOT EXISTS `device_message` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '消息ID',
     `device_id` BIGINT NOT NULL COMMENT '设备ID',
-    `level` ENUM('normal','error','fatal') NOT NULL COMMENT '消息级别',
+    `level` ENUM('low','normal','error','fatal') NOT NULL DEFAULT 'low' COMMENT '消息级别',
     `status` ENUM('new','read') DEFAULT 'new' COMMENT '消息状态',
     `message` VARCHAR(255) COMMENT '消息内容',
     `detail` JSON NULL COMMENT '消息详细参数',

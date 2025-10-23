@@ -8,13 +8,14 @@ class DeviceMessageStatus(str, Enum):
     read = "read"
 
 class DeviceMessageLevel(str, Enum):
+    low = "low"         # 低级别
     normal = "normal"   # 正常
     error = "error"     # 错误
     fatal = "fatal"     # 致命
 
 class DeviceMessageBase(BaseModel):
     device_id: int
-    level: DeviceMessageLevel
+    level: DeviceMessageLevel = DeviceMessageLevel.low
     message: Optional[str] = None
     detail: Optional[Dict[str, Any]] = None
 
