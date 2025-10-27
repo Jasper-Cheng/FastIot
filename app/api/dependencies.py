@@ -227,34 +227,6 @@ async def get_current_account(
     except JWTError:
         raise credentials_exception
 
-async def get_current_admin(
-    db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
-) -> Admin:
-    """获取当前管理员信息"""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        account_id: int | None = payload.get("account_id")
-        role: str | None = payload.get("role")
-        
-        if not account_id or role != "admin":
-            raise credentials_exception
-            
-        # 获取管理员信息
-        admin = await get_admin(db, account_id)
-        if admin is None:
-            raise credentials_exception
-        return admin
-        
-    except JWTError:
-        raise credentials_exception
-
 # 重新导出数据库会话依赖和认证依赖
 __all__ = [
     "get_db",
@@ -262,7 +234,6 @@ __all__ = [
     "get_current_user_id",
     "get_current_guard",
     "get_current_account",
-    "get_current_admin",
     "check_device_message_permission",
     "check_device_message_permission_by_device",
 ]

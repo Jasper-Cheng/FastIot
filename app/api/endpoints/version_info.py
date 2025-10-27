@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from app.api.dependencies import get_db, get_current_admin
+from app.api.dependencies import get_db
 from app.crud.version_info import version_info
 from app.models.version_info import VersionInfo, VersionInfoCreate, VersionInfoUpdate
-from app.db.models.admin import Admin
 
 router = APIRouter()
 
@@ -13,8 +12,7 @@ router = APIRouter()
 async def create_version_info(
     *,
     db: AsyncSession = Depends(get_db),
-    version_info_in: VersionInfoCreate,
-    current_admin: Admin = Depends(get_current_admin)
+    version_info_in: VersionInfoCreate
 ):
     """创建版本信息"""
     # 检查版本号和平台组合是否已存在
@@ -85,8 +83,7 @@ async def update_version_info(
     *,
     db: AsyncSession = Depends(get_db),
     version_id: int,
-    version_info_in: VersionInfoUpdate,
-    current_admin: Admin = Depends(get_current_admin)
+    version_info_in: VersionInfoUpdate
 ):
     """更新版本信息"""
     version = await version_info.get(db=db, id=version_id)
@@ -115,8 +112,7 @@ async def update_version_info(
 async def delete_version_info(
     *,
     db: AsyncSession = Depends(get_db),
-    version_id: int,
-    current_admin: Admin = Depends(get_current_admin)
+    version_id: int
 ):
     """删除版本信息"""
     version = await version_info.get(db=db, id=version_id)

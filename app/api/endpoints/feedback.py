@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
-from app.api.dependencies import get_db, get_current_account, get_current_admin
+from app.api.dependencies import get_db, get_current_account
 from app.crud.feedback import feedback
 from app.models.feedback import Feedback, FeedbackCreate, FeedbackUpdate
 from app.db.models.account import Account
@@ -174,8 +174,7 @@ async def update_feedback_status(
     db: AsyncSession = Depends(get_db),
     feedback_id: int,
     status: str,
-    replay: Optional[str] = Query(None),
-    current_admin: Admin = Depends(get_current_admin)
+    replay: Optional[str] = Query(None)
 ):
     """更新反馈状态（管理员）"""
     feedback_obj = await feedback.get(db=db, id=feedback_id)
@@ -232,8 +231,7 @@ async def search_feedbacks(
     db: AsyncSession = Depends(get_db),
     keyword: str,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    current_admin: Admin = Depends(get_current_admin)
+    limit: int = Query(100, ge=1, le=1000)
 ):
     """搜索意见反馈"""
     return await feedback.search(db=db, keyword=keyword, skip=skip, limit=limit)
