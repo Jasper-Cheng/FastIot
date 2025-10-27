@@ -5,9 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.core.config import settings
 from app.crud.account import get_account
-from app.crud.user import get_user
-from app.crud.member import get_member
-from app.crud.admin import get_admin
 from app.models.account import Account
 
 # 让 Swagger 的 Authorize 使用表单登录端点

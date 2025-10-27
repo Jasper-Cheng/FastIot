@@ -17,7 +17,6 @@ from app.crud.device_model import get_device_model
 from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_account
 from pydantic import BaseModel
 
 class DeviceNameUpdate(BaseModel):

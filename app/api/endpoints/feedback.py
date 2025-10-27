@@ -2,11 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
-from app.api.dependencies import get_db, get_current_account
+from app.api.dependencies import get_db, get_current_token
 from app.crud.feedback import feedback
 from app.models.feedback import Feedback, FeedbackCreate, FeedbackUpdate
-from app.db.models.account import Account
-from app.db.models.admin import Admin
 
 router = APIRouter()
 
@@ -16,10 +14,10 @@ async def create_feedback(
     *,
     db: AsyncSession = Depends(get_db),
     feedback_in: FeedbackCreate,
-    current_account: Account = Depends(get_current_account)
+    token_info: dict = Depends(get_current_token)
 ):
     """创建意见反馈"""
-    return await feedback.create(db=db, obj_in=feedback_in, account_id=current_account.id)
+    return await feedback.create(db=db, obj_in=feedback_in, account_id=token_info["account_id"])
 
 
 @router.get("/", response_model=List[Feedback])
@@ -32,11 +30,11 @@ async def get_feedbacks(
     source: Optional[str] = Query(None),
     order_by: str = Query("created_at"),
     order_desc: bool = Query(True),
-    current_account: Account = Depends(get_current_account)
+    token_info: dict = Depends(get_current_token)
 ):
     """获取意见反馈列表"""
     # 根据用户角色决定返回的数据
-    if current_account.role == "admin":
+    if token_info["role"] == "admin":
         # 管理员可以看到所有反馈
         return await feedback.get_multi(
             db=db,
@@ -48,15 +46,15 @@ async def get_feedbacks(
             order_by=order_by,
             order_desc=order_desc
         )
-    elif current_account.role == "owner":
+    elif token_info["role"] == "owner":
         # 主账号可以看到自己和所有成员的反馈
         return await feedback.get_by_user_and_members(
             db=db,
-            user_account_id=current_account.id,
+            user_account_id=token_info["account_id"],
             skip=skip,
             limit=limit
         )
-    elif current_account.role == "member":
+    elif token_info["role"] == "member":
         # 成员可以看到自己和所属user的所有反馈
         # 首先找到成员所属的user
         from app.db.models.user import User
@@ -66,7 +64,7 @@ async def get_feedbacks(
         user_result = await db.execute(
             select(User.account_id)
             .join(Member, User.id == Member.user_id)
-            .where(Member.account_id == current_account.id)
+            .where(Member.account_id == token_info["account_id"])
         )
         user_account_id = user_result.scalar_one_or_none()
         
@@ -84,7 +82,7 @@ async def get_feedbacks(
                 db=db,
                 skip=skip,
                 limit=limit,
-                account_id=current_account.id,
+                account_id=token_info["account_id"],
                 type=type,
                 status=status,
                 source=source,
@@ -97,7 +95,7 @@ async def get_feedbacks(
             db=db,
             skip=skip,
             limit=limit,
-            account_id=current_account.id,
+            account_id=token_info["account_id"],
             type=type,
             status=status,
             source=source,
@@ -113,7 +111,7 @@ async def get_feedback(
     *,
     db: AsyncSession = Depends(get_db),
     feedback_id: int,
-    current_account: Account = Depends(get_current_account)
+    token_info: dict = Depends(get_current_token)
 ):
     """根据ID获取意见反馈"""
     feedback_obj = await feedback.get(db=db, id=feedback_id)
@@ -122,9 +120,9 @@ async def get_feedback(
             status_code=404,
             detail="反馈不存在"
         )
-    
+
     # 只有反馈创建者或管理员可以查看
-    if feedback_obj.account_id != current_account.id and current_account.role != "admin":
+    if feedback_obj.account_id != token_info["account_id"] and token_info["role"] != "admin":
         raise HTTPException(
             status_code=403,
             detail="无权限查看此反馈"
@@ -139,7 +137,7 @@ async def update_feedback(
     db: AsyncSession = Depends(get_db),
     feedback_id: int,
     feedback_in: FeedbackUpdate,
-    current_account: Account = Depends(get_current_account)
+    token_info: dict = Depends(get_current_token)
 ):
     """更新意见反馈"""
     feedback_obj = await feedback.get(db=db, id=feedback_id)
@@ -150,7 +148,7 @@ async def update_feedback(
         )
     
     # 只有反馈创建者可以更新
-    if feedback_obj.account_id != current_account.id:
+    if feedback_obj.account_id != token_info["account_id"]:
         raise HTTPException(
             status_code=403,
             detail="无权限修改此反馈"
@@ -204,7 +202,7 @@ async def delete_feedback(
     *,
     db: AsyncSession = Depends(get_db),
     feedback_id: int,
-    current_account: Account = Depends(get_current_account)
+    token_info: dict = Depends(get_current_token)
 ):
     """删除意见反馈"""
     feedback_obj = await feedback.get(db=db, id=feedback_id)
@@ -215,7 +213,7 @@ async def delete_feedback(
         )
     
     # 只有反馈创建者或管理员可以删除
-    if feedback_obj.account_id != current_account.id and current_account.role != "admin":
+    if feedback_obj.account_id != token_info["account_id"] and token_info["role"] != "admin":
         raise HTTPException(
             status_code=403,
             detail="无权限删除此反馈"
