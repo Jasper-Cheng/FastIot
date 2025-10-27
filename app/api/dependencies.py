@@ -26,15 +26,15 @@ async def get_current_token(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         account_id: int | None = payload.get("account_id")
-        user_id: int | None = payload.get("id")  # 使用统一的id字段
+        id: int | None = payload.get("id")  # 使用统一的id字段
         role: str | None = payload.get("role")  # 直接使用token中的role字段
         
-        if not account_id or not user_id or not role:
+        if not account_id or not id or not role:
             raise credentials_exception
             
         return {
             "account_id": account_id,
-            "id": user_id,
+            "id": id,
             "role": role
         }
     except JWTError:
