@@ -15,9 +15,15 @@ from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from pydantic import BaseModel
+from app.api.dependencies import get_current_token
+from app.db.models.member import Member
+from sqlalchemy import select
 
 class DeviceNameUpdate(BaseModel):
     name: str
+
+class DeviceBindBySNRequest(BaseModel):
+    sn: str
 
 router = APIRouter()
 
@@ -27,12 +33,11 @@ async def list_devices(
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
-    user_id: Optional[int] = Query(None),
+    token_info: dict = Depends(get_current_token),
 ):
-    if user_id is not None:
-        return await get_devices_by_user(db, user_id=user_id, skip=skip, limit=limit)
-    else:
-        return await get_devices(db, skip=skip, limit=limit)
+    # 直接使用token中的id字段来获取设备
+    user_id = token_info["id"]
+    return await get_devices_by_user(db, user_id=user_id, skip=skip, limit=limit)
 
 
 @router.patch("/{device_id}/name", response_model=DeviceInDB)
@@ -53,21 +58,24 @@ async def update_device_name(device_id: int, payload: DeviceNameUpdate, db: Asyn
 
 @router.post("/bind-by-sn/", response_model=DeviceInDB)
 async def bind_device_by_sn(
-    payload: DeviceBindRequest,
-    db: AsyncSession = Depends(get_db)
+    payload: DeviceBindBySNRequest,
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
-    """通过序列号绑定设备到用户
+    """通过序列号绑定设备到当前用户
     
     - sn: 设备序列号
-    - user_id: 要绑定的用户ID
     """
     # 通过序列号查找设备
     device = await get_device_by_sn(db, payload.sn)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
+    # 使用当前用户的ID
+    user_id = token_info["id"]
+    
     # 验证用户存在
-    user = await get_user(db, payload.user_id)
+    user = await get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=400, detail="用户不存在")
     
@@ -79,7 +87,7 @@ async def bind_device_by_sn(
         raise HTTPException(status_code=400, detail="设备状态不允许激活，当前状态：" + device.status)
     
     # 绑定设备：绑定用户并更新状态
-    device.user_id = payload.user_id
+    device.user_id = user_id
     device.status = 'bound'  # 激活后状态变为已绑定
     
     await db.commit()
@@ -96,7 +104,7 @@ async def bind_device_by_sn(
                     "device_id": device.id,
                     "device_name": device.name,
                     "device_sn": device.sn,
-                    "bound_user_id": payload.user_id,
+                    "bound_user_id": user_id,
                     "device_status": device.status
                 }
             ),
