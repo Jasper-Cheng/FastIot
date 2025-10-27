@@ -41,7 +41,12 @@ async def list_devices(
 
 
 @router.patch("/{device_id}/name", response_model=DeviceInDB)
-async def update_device_name(device_id: int, payload: DeviceNameUpdate, db: AsyncSession = Depends(get_db)):
+async def update_device_name(
+    device_id: int, 
+    payload: DeviceNameUpdate, 
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
+):
     """修改设备名称
     
     - name: 新的设备名称
@@ -50,6 +55,10 @@ async def update_device_name(device_id: int, payload: DeviceNameUpdate, db: Asyn
     device = await get_device(db, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
+    
+    # 验证设备是否属于当前用户
+    if device.user_id != token_info["id"]:
+        raise HTTPException(status_code=403, detail="无权修改此设备")
     
     # 更新设备名称
     updated = await update_device(db, device_id, DeviceUpdate(name=payload.name))
@@ -119,7 +128,11 @@ async def bind_device_by_sn(
 
 
 @router.delete("/unbind-by-sn/{sn}", response_model=DeviceInDB)
-async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
+async def unbind_device_by_sn(
+    sn: str, 
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
+):
     """通过序列号解绑设备，将设备从用户中移除
     
     - sn: 设备序列号
@@ -128,6 +141,10 @@ async def unbind_device_by_sn(sn: str, db: AsyncSession = Depends(get_db)):
     device = await get_device_by_sn(db, sn)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
+    
+    # 验证设备是否属于当前用户
+    if device.user_id != token_info["id"]:
+        raise HTTPException(status_code=403, detail="无权解绑此设备")
     
     # 检查设备是否已绑定
     if device.user_id is None:
