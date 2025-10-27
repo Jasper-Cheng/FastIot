@@ -21,7 +21,7 @@ from app.crud.admin import get_admin_by_account_id
 from app.crud.user_operation_log import user_operation_log
 from app.models.account import AccountCreate, AccountLogin, Account, AccountRole, AccountGender
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_token
+from app.api.dependencies import get_current_account
 
 router = APIRouter()
 
@@ -257,22 +257,18 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/logout")
 async def logout(
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    current_account: Account = Depends(get_current_account)
 ):
     """用户登出"""
-    # 获取账号信息用于记录操作
-    from app.crud.account import get_account
-    account = await get_account(db, token_info["account_id"])
-    
     # 记录登出操作
     try:
         await user_operation_log.create(
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.logout,
-                description=f"用户登出系统（{account.account}）",
+                description=f"用户登出系统（{current_account.account}）",
             ),
-            account_id=account.id
+            account_id=current_account.id
         )
     except Exception as e:
         # 记录操作失败不影响登出流程
