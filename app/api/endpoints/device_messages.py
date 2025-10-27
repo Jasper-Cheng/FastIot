@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import timedelta
 from app.utils.time_utils import get_local_time
 
 from app.db.session import get_db
@@ -13,17 +13,14 @@ from app.crud.device_message import (
     get_user_device_messages,
     get_all_device_messages,
     update_device_message_status,
-    update_device_message_content,
     update_device_message_full,
     get_unread_device_messages_count,
-    mark_device_messages_as_read,
 )
 from app.crud.device import get_device
 from app.models.device_message import (
     DeviceMessageCreate,
     DeviceMessageUpdate,
     DeviceMessageInDB,
-    DeviceMessageLevel,
     DeviceMessageStatus,
 )
 router = APIRouter()

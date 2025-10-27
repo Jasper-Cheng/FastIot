@@ -10,7 +10,6 @@ from app.crud.check_in import (
     get_check_in_by_date, 
     create_check_in, 
     get_check_in_calendar,
-    get_continuous_days,
     get_check_in_stats,
     calculate_continuous_days
 )

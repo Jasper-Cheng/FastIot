@@ -7,15 +7,12 @@ from app.crud.device import (
     get_devices,
     get_device,
     get_device_by_sn,
-    create_device,
-    update_device,
-    delete_device,
     get_devices_by_user,
+    update_device,
 )
 from app.crud.user import get_user
-from app.crud.device_model import get_device_model
 from app.crud.user_operation_log import user_operation_log
-from app.models.device import DeviceCreate, DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
+from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from pydantic import BaseModel
 
@@ -38,67 +35,6 @@ async def list_devices(
         return await get_devices(db, skip=skip, limit=limit)
 
 
-@router.get("/{device_id}", response_model=DeviceInDB)
-async def get_device_detail(device_id: int, db: AsyncSession = Depends(get_db)):
-    d = await get_device(db, device_id)
-    if not d:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    return d
-
-
-@router.post("/", response_model=DeviceInDB)
-async def create_device_item(payload: DeviceCreate, db: AsyncSession = Depends(get_db)):
-    """创建设备
-    
-    - user_id: 可选，不提供则创建设备为未绑定状态
-    - model_id: 必填，设备型号ID
-    - name: 必填，设备名称
-    - sn: 必填，设备序列号（全局唯一）
-    - status: 可选，默认为 unconfigured（未配网）
-    """
-    # 验证 user 存在（如果提供了 user_id）
-    if payload.user_id is not None:
-        owner = await get_user(db, payload.user_id)
-        if not owner:
-            raise HTTPException(status_code=400, detail="归属的用户不存在")
-    # 验证 device_model 存在
-    model = await get_device_model(db, payload.model_id)
-    if not model:
-        raise HTTPException(status_code=400, detail="设备型号不存在")
-    # SN 唯一
-    existed = await get_device_by_sn(db, payload.sn)
-    if existed:
-        raise HTTPException(status_code=400, detail="设备序列号已存在")
-    return await create_device(db, payload)
-
-
-@router.put("/{device_id}", response_model=DeviceInDB)
-async def update_device_item(device_id: int, payload: DeviceUpdate, db: AsyncSession = Depends(get_db)):
-    """更新设备信息
-    
-    - name: 可选，设备名称
-    - sn: 可选，设备序列号（全局唯一）
-    - status: 可选，设备状态
-    - user_id: 可选，绑定用户ID（设为null可解绑设备）
-    """
-    # 如果修改了 user_id，需要验证用户存在
-    if payload.user_id is not None:
-        owner = await get_user(db, payload.user_id)
-        if not owner:
-            raise HTTPException(status_code=400, detail="归属的用户不存在")
-    
-    # 如果修改了 sn，需要校验唯一
-    if payload.sn is not None:
-        existed = await get_device_by_sn(db, payload.sn)
-        if existed and existed.id != device_id:
-            raise HTTPException(status_code=400, detail="设备序列号已存在")
-    
-    updated = await update_device(db, device_id, payload)
-    if not updated:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    return updated
-
-
 @router.patch("/{device_id}/name", response_model=DeviceInDB)
 async def update_device_name(device_id: int, payload: DeviceNameUpdate, db: AsyncSession = Depends(get_db)):
     """修改设备名称
@@ -113,14 +49,6 @@ async def update_device_name(device_id: int, payload: DeviceNameUpdate, db: Asyn
     # 更新设备名称
     updated = await update_device(db, device_id, DeviceUpdate(name=payload.name))
     return updated
-
-
-@router.delete("/{device_id}")
-async def delete_device_item(device_id: int, db: AsyncSession = Depends(get_db)):
-    ok = await delete_device(db, device_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    return {"message": "删除成功"}
 
 
 @router.post("/bind-by-sn/", response_model=DeviceInDB)
