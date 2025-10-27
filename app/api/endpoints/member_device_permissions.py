@@ -15,7 +15,6 @@ from app.crud.member import get_member
 from app.crud.device import get_device
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_account
 from app.models.member_device_permission import (
     MemberDevicePermissionCreate,
     MemberDevicePermissionInDB,

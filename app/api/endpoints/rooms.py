@@ -1,14 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.db.session import get_db
 from app.crud.room import get_room, get_rooms_by_user, create_room, update_room, delete_room
-from app.models.room import Room, RoomCreate, RoomUpdate, RoomInDB
+from app.models.room import RoomCreate, RoomUpdate, RoomInDB
 from app.crud.user import get_user
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_account
-
+from app.api.dependencies import get_current_token
 router = APIRouter()
 
 @router.get("/", response_model=List[RoomInDB])
@@ -122,7 +121,7 @@ async def update_room_info(
 async def delete_room_by_id(
     room_id: int,
     db: AsyncSession = Depends(get_db),
-    current_account = Depends(get_current_account),
+    token_info: dict = Depends(get_current_token),
 ):
     """
     删除房间
@@ -159,7 +158,7 @@ async def delete_room_by_id(
                     "user_id": user_id
                 }
             ),
-            account_id=current_account.id
+            account_id=token_info["account_id"]
         )
     except Exception as e:
         # 记录操作失败不影响删除流程

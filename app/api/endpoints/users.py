@@ -1,16 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from pydantic import BaseModel, constr
+from pydantic import BaseModel
 from app.models.account import AccountGender, AccountUpdate
 
 from app.db.session import get_db
-from app.crud.user import get_users, get_user, create_user, delete_user
+from app.crud.user import get_users, get_user, delete_user
 from app.crud.account import get_account, update_account, get_account_by_account_name, get_account_by_phone, get_account_by_email
 from app.crud.user_operation_log import user_operation_log
-from app.models.user import User, UserCreate, UserInDB
+from app.models.user import User
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_account
 router = APIRouter()
 
 

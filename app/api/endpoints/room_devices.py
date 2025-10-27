@@ -1,16 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Union
-from pydantic import BaseModel
+from typing import List
 
 from app.db.session import get_db
-from app.api.dependencies import get_current_token, get_current_account
+from app.api.dependencies import get_current_token
 from app.crud.room_device import (
     get_room_devices_by_room,
     get_room_devices_by_device,
-    get_room_device,
     create_room_device,
-    update_room_device,
     delete_room_device,
     batch_update_room_devices,
 )
@@ -20,7 +17,6 @@ from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.models.room_device import (
     RoomDeviceCreate, 
-    RoomDeviceUpdate, 
     RoomDeviceInDB,
     RoomDeviceBatchSortRequest,
     RoomDeviceBatchSortResponse
@@ -64,8 +60,7 @@ async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = 
 async def batch_update_sort(
     payload: RoomDeviceBatchSortRequest, 
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token),
-    current_account = Depends(get_current_account)
+    token_info: dict = Depends(get_current_token)
 ):
     """批量更新房间设备关联排序
     
@@ -113,7 +108,7 @@ async def batch_update_sort(
                         "user_id": current_user_id
                     }
                 ),
-                account_id=current_account.id
+                account_id=token_info["account_id"]
             )
         except Exception as e:
             # 记录操作失败不影响排序流程

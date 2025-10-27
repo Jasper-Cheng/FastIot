@@ -1,20 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from pydantic import BaseModel, constr
+from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.crud.member import get_members_by_user, get_member, create_member, update_member, delete_member
+from app.crud.member import get_members_by_user, get_member, create_member, delete_member
 from app.crud.user import get_user
 from sqlalchemy import select
 from app.db.models.device import Device
 from app.db.models.member_device_permission import MemberDevicePermission
 from app.crud.account import create_account, get_account_by_account_name, get_account_by_phone, get_account_by_email, update_account, get_account, delete_account
-from app.models.member import Member, MemberCreate, MemberUpdate, MemberInDB
+from app.models.member import Member, MemberCreate, MemberInDB
 from app.models.account import AccountCreate, AccountRole, AccountGender, AccountUpdate
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_account
+from app.api.dependencies import get_current_token
 router = APIRouter()
 
 
@@ -295,7 +295,7 @@ async def update_member_detail(
 async def remove_member(
     member_id: int, 
     db: AsyncSession = Depends(get_db),
-    current_account = Depends(get_current_account),
+    token_info: dict = Depends(get_current_token),
 ):
     # 先查询成员
     m = await get_member(db, member_id)
@@ -349,7 +349,7 @@ async def remove_member(
                         "user_id": m.user_id
                     }
                 ),
-                account_id=current_account.id
+                account_id=token_info["account_id"]
             )
         except Exception as e:
             # 记录操作失败不影响删除流程
