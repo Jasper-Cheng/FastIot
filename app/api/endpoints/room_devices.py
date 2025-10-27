@@ -4,7 +4,7 @@ from typing import List, Union
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.api.dependencies import get_current_user_id, get_current_account
+from app.api.dependencies import get_current_token, get_current_account
 from app.crud.room_device import (
     get_room_devices_by_room,
     get_room_devices_by_device,
@@ -64,7 +64,7 @@ async def create_room_device_item(payload: RoomDeviceCreate, db: AsyncSession = 
 async def batch_update_sort(
     payload: RoomDeviceBatchSortRequest, 
     db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    token_info: dict = Depends(get_current_token),
     current_account = Depends(get_current_account)
 ):
     """批量更新房间设备关联排序
@@ -75,6 +75,16 @@ async def batch_update_sort(
     如果之前存在传入的列表不存在则删除，
     如果之前不存在传入的列表存在则添加。
     """
+    # 获取用户ID
+    from app.crud.member import get_member
+    if token_info["role"] == "member":
+        # 对于成员，我们需要获取其所属的用户ID
+        member = await get_member(db, token_info["id"])
+        current_user_id = member.user_id
+    else:
+        # owner 和 admin 直接返回用户ID
+        current_user_id = token_info["id"]
+    
     try:
         # 调用CRUD函数进行批量更新
         updated_room_devices = await batch_update_room_devices(

@@ -4,8 +4,6 @@ WebSocket API端点
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from typing import Optional
 from app.services.websocket_tool import websocket_tool
-from app.api.dependencies import get_current_user
-from app.models.account import Account
 from jose import JWTError, jwt
 from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession

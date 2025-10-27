@@ -4,8 +4,6 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 from app.db.session import get_db
-from app.api.dependencies import get_current_user
-from app.models.account import Account
 from app.crud.points import (
     get_user_points_balance,
     get_points_history

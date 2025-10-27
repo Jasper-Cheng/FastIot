@@ -4,8 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import date, datetime
 from app.db.session import get_db
-from app.api.dependencies import get_current_user
-from app.models.account import Account
+from app.api.dependencies import get_current_token
 from app.utils.time_utils import get_local_time
 from app.crud.check_in import (
     get_check_in_by_date, 
@@ -54,19 +53,20 @@ class CheckInStatsResponse(BaseModel):
 @router.post("/", response_model=CheckInResponse)
 async def check_in(
     request: CheckInRequest,
-    current_user: Account = Depends(get_current_user),
+    token_info: dict = Depends(get_current_token),
     db: AsyncSession = Depends(get_db)
 ):
     """用户签到"""
     today = date.today()
+    account_id = token_info["account_id"]
     
     # 检查今天是否已经签到
-    existing_check_in = await get_check_in_by_date(db, current_user.account_id, today)
+    existing_check_in = await get_check_in_by_date(db, account_id, today)
     if existing_check_in:
         raise HTTPException(status_code=400, detail="今天已经签到过了")
     
     # 计算连续签到天数
-    continuous_days = await calculate_continuous_days(db, current_user.account_id)
+    continuous_days = await calculate_continuous_days(db, account_id)
     
     # 计算积分奖励
     if continuous_days >= 7:
@@ -78,7 +78,7 @@ async def check_in(
     
     # 创建签到记录
     check_in_data = {
-        "account_id": current_user.account_id,
+        "account_id": account_id,
         "check_in_date": today,
         "check_in_time": get_local_time(),
         "points_earned": points_earned,
@@ -95,11 +95,11 @@ async def check_in(
 async def get_check_in_calendar_data(
     year: int = Query(..., ge=2020, le=2030),
     month: int = Query(..., ge=1, le=12),
-    current_user: Account = Depends(get_current_user),
+    token_info: dict = Depends(get_current_token),
     db: AsyncSession = Depends(get_db)
 ):
     """获取签到日历数据"""
-    calendar_data = await get_check_in_calendar(db, current_user.account_id, year, month)
+    calendar_data = await get_check_in_calendar(db, token_info["account_id"], year, month)
     return calendar_data
 
 

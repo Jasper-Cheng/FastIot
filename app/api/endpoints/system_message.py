@@ -16,8 +16,7 @@ from app.crud.system_message import (
     delete_system_message as crud_delete_system_message
 )
 from app.models.system_message import SystemMessage, SystemMessageList, SystemMessageCreate, SystemMessageUpdate, Platform, SystemMessageType, SystemMessagePriority
-from app.api.dependencies import get_current_user
-from app.models.account import Account
+from app.api.dependencies import get_current_token
 
 router = APIRouter()
 
@@ -26,7 +25,6 @@ router = APIRouter()
 async def get_system_messages(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user),
     skip: int = Query(0, ge=0, description="跳过数量"),
     limit: int = Query(100, ge=1, le=500, description="限制数量"),
     type: Optional[str] = Query(None, description="消息类型 (notification, announcement, alert, maintenance, update)"),
@@ -99,7 +97,6 @@ async def get_system_messages(
 async def get_system_messages_paginated(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user),
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(10, ge=1, le=100, description="每页数量"),
     type: Optional[str] = Query(None, description="消息类型"),
@@ -144,7 +141,6 @@ async def get_system_messages_paginated(
 async def get_latest_messages(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user),
     limit: int = Query(10, ge=1, le=50, description="数量限制"),
     platform: Optional[Platform] = Query(None, description="平台")
 ):
@@ -161,7 +157,6 @@ async def get_messages_by_platform(
     platform: Platform,
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user),
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(10, ge=1, le=100, description="每页数量")
 ):
@@ -180,8 +175,7 @@ async def get_messages_by_platform(
 async def get_system_message_detail(
     message_id: int,
     *,
-    db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
 ):
     """根据ID获取系统消息详情"""
     message = await crud_get_system_message(db=db, message_id=message_id)
@@ -194,12 +188,12 @@ async def get_system_message_detail(
 async def create_system_message_item(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user),
+    token_info: dict = Depends(get_current_token),
     message_in: SystemMessageCreate
 ):
     """创建系统消息（需要管理员权限）"""
     # 检查用户是否为管理员
-    if current_user.role != "admin":
+    if token_info["role"] != "admin":
         raise HTTPException(status_code=403, detail="只有管理员可以创建系统消息")
     
     message = await crud_create_system_message(db=db, message_in=message_in)
@@ -211,12 +205,12 @@ async def update_system_message_item(
     message_id: int,
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user),
+    token_info: dict = Depends(get_current_token),
     message_in: SystemMessageUpdate
 ):
     """更新系统消息（需要管理员权限）"""
     # 检查用户是否为管理员
-    if current_user.role != "admin":
+    if token_info["role"] != "admin":
         raise HTTPException(status_code=403, detail="只有管理员可以更新系统消息")
     
     message = await crud_get_system_message(db=db, message_id=message_id)
@@ -232,11 +226,11 @@ async def delete_system_message_item(
     message_id: int,
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user)
+    token_info: dict = Depends(get_current_token)
 ):
     """删除系统消息（需要管理员权限）"""
     # 检查用户是否为管理员
-    if current_user.role != "admin":
+    if token_info["role"] != "admin":
         raise HTTPException(status_code=403, detail="只有管理员可以删除系统消息")
     
     message = await crud_get_system_message(db=db, message_id=message_id)
@@ -251,11 +245,11 @@ async def delete_system_message_item(
 async def get_message_stats(
     *,
     db: AsyncSession = Depends(get_db),
-    current_user: Account = Depends(get_current_user)
+    token_info: dict = Depends(get_current_token)
 ):
     """获取系统消息统计信息（需要管理员权限）"""
     # 检查用户是否为管理员
-    if current_user.role != "admin":
+    if token_info["role"] != "admin":
         raise HTTPException(status_code=403, detail="只有管理员可以查看统计信息")
     
     from sqlalchemy import select, func
