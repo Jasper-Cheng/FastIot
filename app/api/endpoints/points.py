@@ -7,29 +7,32 @@ from app.crud.points import (
     get_points_history
 )
 from app.models.points import PointsResponse, PointsBalanceResponse
+from app.api.dependencies import get_current_token
 
 router = APIRouter()
 
 
-@router.get("/balance/{account_id}", response_model=PointsBalanceResponse)
+@router.get("/balance", response_model=PointsBalanceResponse)
 async def get_points_balance(
-    account_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
     """获取用户积分余额"""
+    account_id = token_info["account_id"]
     balance = await get_user_points_balance(db, account_id)
     return {"available_balance": balance["total_balance"]}
 
 
-@router.get("/history/{account_id}", response_model=List[PointsResponse])
+@router.get("/history", response_model=List[PointsResponse])
 async def get_points_history_data(
-    account_id: int,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     type: Optional[str] = Query(None, description="积分类型筛选"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
     """获取积分历史记录"""
+    account_id = token_info["account_id"]
     history = await get_points_history(
         db, 
         account_id, 
