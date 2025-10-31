@@ -23,6 +23,7 @@ from app.models.device_message import (
     DeviceMessageInDB,
     DeviceMessageStatus,
 )
+from app.api.dependencies import get_current_token
 router = APIRouter()
 
 
@@ -31,15 +32,14 @@ async def list_device_messages(
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    device_id: Optional[int] = Query(None, description="按设备ID筛选"),
-    user_id: Optional[int] = Query(None, description="按用户ID筛选"),
     level: Optional[List[str]] = Query(None, description="按消息级别筛选，可传入多个值 (low, normal, error, fatal)"),
     status: Optional[str] = Query(None, description="按消息状态筛选 (new, read)"),
     days: Optional[int] = Query(None, ge=1, le=365, description="最近N天的消息"),
+    token_info: dict = Depends(get_current_token)
 ):
-    """获取设备消息列表
+    """获取当前用户的设备消息列表
     
-    支持按设备ID、用户ID、级别、状态、时间范围筛选
+    支持按级别、状态、时间范围筛选
     """
     # 验证 level 参数
     if level is not None:
@@ -60,12 +60,11 @@ async def list_device_messages(
                 detail=f"无效的消息状态 '{status}'。有效值: {', '.join(valid_statuses)}"
             )
     
-    if device_id:
-        alerts = await get_device_messages_by_device(db, device_id, limit)
-    elif user_id:
-        alerts = await get_user_device_messages(db, user_id, limit)
-    else:
-        alerts = await get_all_device_messages(db, limit)
+    # 使用当前用户的ID
+    user_id = token_info["id"]
+    
+    # 获取当前用户的所有设备消息
+    alerts = await get_user_device_messages(db, user_id, limit)
     
     # 应用过滤条件
     filtered_alerts = []
