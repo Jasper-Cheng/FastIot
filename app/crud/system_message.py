@@ -56,8 +56,8 @@ async def get_system_messages(
     if conditions:
         query = query.where(and_(*conditions))
     
-    # 排序：按创建时间倒序
-    query = query.order_by(SystemMessageModel.created_at.desc())
+    # 排序：如果updated_at存在则按updated_at排序，不存在则按created_at排序
+    query = query.order_by(func.coalesce(SystemMessageModel.updated_at, SystemMessageModel.created_at).desc())
     
     # 分页
     query = query.offset(skip).limit(limit)
