@@ -1,32 +1,14 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from pydantic import BaseModel
-from datetime import datetime
 from app.db.session import get_db
 from app.crud.points import (
     get_user_points_balance,
     get_points_history
 )
+from app.models.points import PointsResponse, PointsBalanceResponse
 
 router = APIRouter()
-
-
-class PointsResponse(BaseModel):
-    """积分记录响应"""
-    id: int
-    account_id: int
-    points: int
-    balance: int
-    type: str
-    description: Optional[str] = None
-    extra: Optional[dict] = None
-    created_at: datetime
-
-
-class PointsBalanceResponse(BaseModel):
-    """积分余额响应"""
-    available_balance: int
 
 
 @router.get("/balance/{account_id}", response_model=PointsBalanceResponse)

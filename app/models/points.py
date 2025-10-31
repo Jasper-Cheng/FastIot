@@ -1,71 +1,20 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-from enum import Enum
+from typing import Optional, Dict, Any
 
 
-class PointsType(str, Enum):
-    """积分类型枚举"""
-    CHECK_IN = "check_in"
-    TASK = "task"
-    REWARD = "reward"
-    EXCHANGE = "exchange"
-    PENALTY = "penalty"
-    ADMIN_ADJUST = "admin_adjust"
-
-
-class PointsBase(BaseModel):
-    """积分基础模型"""
-    points: int
-    balance: int
-    type: PointsType
-    description: Optional[str] = None
-    extra: Optional[Dict[str, Any]] = None
-
-
-class PointsCreate(PointsBase):
-    """创建积分模型"""
-    account_id: int
-
-
-class PointsUpdate(BaseModel):
-    """更新积分模型"""
-    description: Optional[str] = None
-    extra: Optional[Dict[str, Any]] = None
-
-
-class Points(PointsBase):
-    """积分模型"""
+class PointsResponse(BaseModel):
+    """积分记录响应"""
     id: int
     account_id: int
+    points: int
+    balance: int
+    type: str
+    description: Optional[str] = None
+    extra: Optional[Dict[str, Any]] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
 
-
-class PointsBalance(BaseModel):
-    """积分余额模型"""
-    total_balance: int
+class PointsBalanceResponse(BaseModel):
+    """积分余额响应"""
     available_balance: int
-    frozen_balance: int = 0
-
-
-class PointsStats(BaseModel):
-    """积分统计模型"""
-    total_earned: int
-    total_spent: int
-    current_balance: int
-    this_month_earned: int
-    this_month_spent: int
-    check_in_points: int
-    task_points: int
-    reward_points: int
-    exchange_points: int
-
-
-class MonthlyPointsSummary(BaseModel):
-    """月度积分汇总模型"""
-    month: int
-    total_points: int
-    total_records: int
