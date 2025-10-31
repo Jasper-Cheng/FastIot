@@ -39,33 +39,11 @@ class DeviceInDB(DeviceBase):
 class Device(DeviceInDB):
     pass
 
-# 设备控制相关模型
-class DeviceControl(BaseModel):
-    device_id: int
-    command: str
-    params: Optional[Dict[str, Any]] = None
-
-class DeviceControlResult(BaseModel):
-    success: bool
-    message: Optional[str] = None
-
-class DeviceStatusResponse(BaseModel):
-    device_id: int
-    online: bool
-    status: Optional[Dict[str, Any]] = None
-
-class DeviceListResponse(BaseModel):
-    devices: List[Device]
-    total: int
-    online_count: int
-
-# 创建设备时的输入模型
-class DeviceCreateInput(BaseModel):
+# 设备名称更新模型
+class DeviceNameUpdate(BaseModel):
     name: str
-    sn: str
-    model_id: int
 
-# 设备绑定请求模型
-class DeviceBindRequest(BaseModel):
+
+# 设备绑定请求模型（通过序列号）
+class DeviceBindBySNRequest(BaseModel):
     sn: str
-    user_id: int

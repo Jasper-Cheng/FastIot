@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import List
 
 from app.db.session import get_db
 from app.crud.device import (
-    get_devices,
     get_device,
     get_device_by_sn,
     get_devices_by_user,
@@ -12,18 +11,9 @@ from app.crud.device import (
 )
 from app.crud.user import get_user
 from app.crud.user_operation_log import user_operation_log
-from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceBindRequest
+from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceNameUpdate, DeviceBindBySNRequest
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from pydantic import BaseModel
 from app.api.dependencies import get_current_token
-from app.db.models.member import Member
-from sqlalchemy import select
-
-class DeviceNameUpdate(BaseModel):
-    name: str
-
-class DeviceBindBySNRequest(BaseModel):
-    sn: str
 
 router = APIRouter()
 
