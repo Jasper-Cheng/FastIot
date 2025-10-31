@@ -3,6 +3,9 @@ from app.api.dependencies import get_current_token
 
 api_router = APIRouter()
 
+# 创建 web 路由器，用于统一管理所有 web API
+web_router = APIRouter(tags=["web"])
+
 # 注册端点路由
 from app.api.endpoints import auth as auth_endpoints
 from app.api.endpoints import users as users_endpoints
@@ -19,22 +22,21 @@ from app.api.endpoints import version_info as version_info_endpoints
 from app.api.endpoints import feedback as feedback_endpoints
 from app.api.endpoints import websocket as websocket_endpoints
 
-api_router.include_router(auth_endpoints.router, prefix="/auth", tags=["auth"])
-api_router.include_router(users_endpoints.router, prefix="/users", tags=["users"], dependencies=[Depends(get_current_token)])
-api_router.include_router(members_endpoints.router, prefix="/members", tags=["members"], dependencies=[Depends(get_current_token)])
-api_router.include_router(rooms_endpoints.router, prefix="/rooms", tags=["rooms"], dependencies=[Depends(get_current_token)])
-api_router.include_router(devices_endpoints.router, prefix="/devices", tags=["devices"], dependencies=[Depends(get_current_token)])
-api_router.include_router(room_devices_endpoints.router, prefix="/room-devices", tags=["room-devices"], dependencies=[Depends(get_current_token)])
-api_router.include_router(device_messages_endpoints.router, prefix="/device-messages", tags=["device-messages"], dependencies=[Depends(get_current_token)])
-api_router.include_router(member_device_permissions_endpoints.router, prefix="/member-device-permissions", tags=["member-device-permissions"], dependencies=[Depends(get_current_token)])
-api_router.include_router(check_in_endpoints.router, prefix="/check-in", tags=["check-in"], dependencies=[Depends(get_current_token)])
-api_router.include_router(points_endpoints.router, prefix="/points", tags=["points"], dependencies=[Depends(get_current_token)])
-api_router.include_router(system_message_endpoints.router, prefix="/system-messages", tags=["system-messages"], dependencies=[Depends(get_current_token)])
-api_router.include_router(version_info_endpoints.router, prefix="/version-info", tags=["version-info"])
-api_router.include_router(feedback_endpoints.router, prefix="/feedback", tags=["feedback"])
-api_router.include_router(websocket_endpoints.router, prefix="/ws", tags=["websocket"])
+# 将所有路由添加到 web_router
+web_router.include_router(auth_endpoints.router, prefix="/auth")
+web_router.include_router(users_endpoints.router, prefix="/users", dependencies=[Depends(get_current_token)])
+web_router.include_router(members_endpoints.router, prefix="/members", dependencies=[Depends(get_current_token)])
+web_router.include_router(rooms_endpoints.router, prefix="/rooms", dependencies=[Depends(get_current_token)])
+web_router.include_router(devices_endpoints.router, prefix="/devices", dependencies=[Depends(get_current_token)])
+web_router.include_router(room_devices_endpoints.router, prefix="/room-devices", dependencies=[Depends(get_current_token)])
+web_router.include_router(device_messages_endpoints.router, prefix="/device-messages", dependencies=[Depends(get_current_token)])
+web_router.include_router(member_device_permissions_endpoints.router, prefix="/member-device-permissions", dependencies=[Depends(get_current_token)])
+web_router.include_router(check_in_endpoints.router, prefix="/check-in", dependencies=[Depends(get_current_token)])
+web_router.include_router(points_endpoints.router, prefix="/points", dependencies=[Depends(get_current_token)])
+web_router.include_router(system_message_endpoints.router, prefix="/system-messages", dependencies=[Depends(get_current_token)])
+web_router.include_router(version_info_endpoints.router, prefix="/version-info")
+web_router.include_router(feedback_endpoints.router, prefix="/feedback")
+web_router.include_router(websocket_endpoints.router, prefix="/ws")
 
-# 基础路由 - 可以在这里添加简单的健康检查等
-@api_router.get("/health", dependencies=[Depends(get_current_token)])
-async def health_check():
-    return {"status": "ok", "message": "Service is running"}
+# 将 web_router 添加到 api_router，添加 /web 前缀
+api_router.include_router(web_router, prefix="/web")
