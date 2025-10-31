@@ -6,7 +6,7 @@ class RoomBase(BaseModel):
     name: str
 
 class RoomCreate(RoomBase):
-    user_id: int
+    pass
 
 class RoomUpdate(BaseModel):
     name: Optional[str] = None

@@ -16,10 +16,10 @@ async def get_rooms_by_user(db: AsyncSession, user_id: int, skip: int = 0, limit
     )
     return result.scalars().all()
 
-async def create_room(db: AsyncSession, room: RoomCreate) -> Room:
+async def create_room(db: AsyncSession, room: RoomCreate, user_id: int) -> Room:
     """创建新房间"""
     db_room = Room(
-        user_id=room.user_id,
+        user_id=user_id,
         name=room.name
     )
     db.add(db_room)
