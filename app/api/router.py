@@ -9,7 +9,6 @@ from app.api.endpoints import users as users_endpoints
 from app.api.endpoints import members as members_endpoints
 from app.api.endpoints import rooms as rooms_endpoints
 from app.api.endpoints import device_thing_models as device_thing_models_endpoints
-from app.api.endpoints import device_models as device_models_endpoints
 from app.api.endpoints import devices as devices_endpoints
 from app.api.endpoints import room_devices as room_devices_endpoints
 from app.api.endpoints import device_networks as device_networks_endpoints
@@ -27,7 +26,6 @@ api_router.include_router(users_endpoints.router, prefix="/users", tags=["users"
 api_router.include_router(members_endpoints.router, prefix="/members", tags=["members"], dependencies=[Depends(get_current_token)])
 api_router.include_router(rooms_endpoints.router, prefix="/rooms", tags=["rooms"], dependencies=[Depends(get_current_token)])
 api_router.include_router(device_thing_models_endpoints.router, prefix="/device-thing-models", tags=["device-thing-models"], dependencies=[Depends(get_current_token)])
-api_router.include_router(device_models_endpoints.router, prefix="/device-models", tags=["device-models"], dependencies=[Depends(get_current_token)])
 api_router.include_router(devices_endpoints.router, prefix="/devices", tags=["devices"], dependencies=[Depends(get_current_token)])
 api_router.include_router(room_devices_endpoints.router, prefix="/room-devices", tags=["room-devices"], dependencies=[Depends(get_current_token)])
 api_router.include_router(device_networks_endpoints.router, prefix="/device-networks", tags=["device-networks"], dependencies=[Depends(get_current_token)])
