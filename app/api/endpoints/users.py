@@ -1,62 +1,45 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
-from pydantic import BaseModel
-from app.models.account import AccountGender, AccountUpdate
+from app.models.account import AccountUpdate
 
 from app.db.session import get_db
-from app.crud.user import get_users, get_user, delete_user
+from app.crud.user import get_user, delete_user
 from app.crud.account import get_account, update_account, get_account_by_account_name, get_account_by_phone, get_account_by_email
 from app.crud.user_operation_log import user_operation_log
-from app.models.user import User
+from app.models.user import User, UserUpdateRequest
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+from app.api.dependencies import get_current_token
+from app.models.account import AccountRole
 router = APIRouter()
 
 
-class UserUpdateRequest(BaseModel):
-    """用户信息更新请求
-    
-    所有字段都是可选的，至少需要提供一个字段进行更新
-    """
-    account: str | None = None
-    name: str | None = None
-    gender: AccountGender | None = None
-    phone: str | None = None
-    email: str | None = None
-    avatar: str | None = None
-    password: str | None = None
-
-
-@router.get("/", response_model=List[User])
-async def list_users(
-    db: AsyncSession = Depends(get_db),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
-):
-    return await get_users(db, skip=skip, limit=limit)
-
-
-@router.get("/{user_id}", response_model=User)
+@router.get("/", response_model=User)
 async def get_user_detail(
-    user_id: int, 
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
 ):
+    user_id = token_info["user_id"]
     user = await get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
     return user
 
 
-@router.put("/{user_id}", response_model=User)
+@router.put("/", response_model=User)
 async def update_user_detail(
-    user_id: int, 
     payload: UserUpdateRequest, 
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
 ):
     """更新用户信息
     
     更新用户的账号信息，包括账号名、姓名、性别、手机号、邮箱、头像、密码等
     """
+    user_id = token_info["user_id"]
+
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权更新用户信息")
+
     # 读取用户
     u = await get_user(db, user_id)
     if not u:
@@ -172,10 +155,10 @@ async def update_user_detail(
     return u
 
 
-@router.delete("/{user_id}")
+@router.delete("/")
 async def remove_user(
-    user_id: int, 
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
 ):
     """删除用户
     
@@ -186,6 +169,9 @@ async def remove_user(
     - 删除该用户的账号信息
     - 设备保留但变为未绑定状态，可以被其他用户重新激活
     """
+    user_id = token_info["user_id"]
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权删除用户")
     # 先获取要删除的用户信息，用于记录操作
     user_to_delete = await get_user(db, user_id)
     if not user_to_delete:
