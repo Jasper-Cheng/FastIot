@@ -281,9 +281,6 @@ async def remove_member(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
-    # 验证只有 owner 角色才能删除成员
-    if token_info["role"] != AccountRole.owner:
-        raise HTTPException(status_code=403, detail="无权删除成员")
     
     # 从 token 中获取 user_id
     user_id = token_info["user_id"]

@@ -45,9 +45,6 @@ async def batch_update_sort(
     如果之前不存在传入的列表存在则添加。
     """
 
-    if token_info["role"] != AccountRole.owner:
-        raise HTTPException(status_code=403, detail="无权更新房间设备关联排序")
-
     user_id = token_info["user_id"]
     
     try:
