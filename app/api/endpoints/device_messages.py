@@ -11,6 +11,7 @@ from app.crud.device_message import (
 from app.models.device_message import (
     DeviceMessageInDB,
     DeviceMessageStatus,
+    DeviceMessageLevel,
 )
 from app.api.dependencies import get_current_token
 router = APIRouter()
@@ -31,7 +32,7 @@ async def list_device_messages(
     """
     # 验证 level 参数
     if level is not None:
-        valid_levels = ["low", "normal", "error", "fatal"]
+        valid_levels = [l.value for l in DeviceMessageLevel]
         invalid_levels = [l for l in level if l not in valid_levels]
         if invalid_levels:
             raise HTTPException(
@@ -41,8 +42,10 @@ async def list_device_messages(
     
     # 验证 status 参数
     if status is not None:
-        valid_statuses = ["new", "read"]
-        if status not in valid_statuses:
+        try:
+            DeviceMessageStatus(status)
+        except ValueError:
+            valid_statuses = [s.value for s in DeviceMessageStatus]
             raise HTTPException(
                 status_code=400, 
                 detail=f"无效的消息状态 '{status}'。有效值: {', '.join(valid_statuses)}"
