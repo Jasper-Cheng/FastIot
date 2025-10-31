@@ -19,11 +19,15 @@ router = APIRouter()
 
 @router.get("/", response_model=List[Member], response_model_exclude={"user"})
 async def list_members(
-    user_id: int, 
     db: AsyncSession = Depends(get_db), 
     skip: int = Query(0, ge=0), 
     limit: int = Query(100, ge=1, le=200),
+    token_info: dict = Depends(get_current_token)
 ):
+    user_id = token_info["user_id"]
+    if not user_id:
+        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
+
     return await get_members_by_user(db, user_id=user_id, skip=skip, limit=limit)
 
 
