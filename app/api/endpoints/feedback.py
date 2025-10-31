@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from typing import List, Optional
 from app.api.dependencies import get_db, get_current_token
 from app.crud.feedback import feedback
@@ -56,17 +55,9 @@ async def get_feedbacks(
         )
     elif token_info["role"] == "member":
         # 成员可以看到自己和所属user的所有反馈
-        # 首先找到成员所属的user
-        from app.db.models.user import User
-        from app.db.models.member import Member
-        
         # 获取成员所属的user的account_id
-        user_result = await db.execute(
-            select(User.account_id)
-            .join(Member, User.id == Member.user_id)
-            .where(Member.account_id == token_info["account_id"])
-        )
-        user_account_id = user_result.scalar_one_or_none()
+        from app.crud.member import get_user_account_id_by_member_account_id
+        user_account_id = await get_user_account_id_by_member_account_id(db, token_info["account_id"])
         
         if user_account_id:
             # 返回user及其所有成员的反馈

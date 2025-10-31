@@ -23,6 +23,16 @@ async def get_member_by_account_id(db: AsyncSession, account_id: int) -> Optiona
     )
     return result.scalar_one_or_none()
 
+async def get_user_account_id_by_member_account_id(db: AsyncSession, member_account_id: int) -> Optional[int]:
+    """根据成员账号ID获取所属用户的账号ID"""
+    from app.db.models.user import User
+    result = await db.execute(
+        select(User.account_id)
+        .join(Member, User.id == Member.user_id)
+        .where(Member.account_id == member_account_id)
+    )
+    return result.scalar_one_or_none()
+
 async def get_members_by_user(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Member]:
     """获取用户下的所有成员"""
     result = await db.execute(
