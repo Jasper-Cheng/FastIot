@@ -27,11 +27,10 @@ class Member(MemberInDB):
 class MemberRegisterRequest(BaseModel):
     """创建成员（子账号）请求
 
-    必填: user_id(归属主账号), account(登录名), password(密码), phone(手机号)
+    必填: account(登录名), password(密码), phone(手机号)
     可选: name, gender, email, avatar
-    说明: role 不可填写，强制为 member
+    说明: role 不可填写，强制为 member；user_id 从当前登录的 owner 的 token 中获取
     """
-    user_id: int
     account: str
     password: str
     phone: str

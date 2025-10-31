@@ -42,9 +42,19 @@ async def get_member_detail(
 async def create_member_for_user(
     payload: MemberRegisterRequest, 
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
+    # 验证只有 owner 角色才能创建成员
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权创建成员")
+    
+    # 从 token 中获取 user_id
+    user_id = token_info["user_id"]
+    if not user_id:
+        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
+    
     # 校验 user 是否存在
-    owner = await get_user(db, payload.user_id)
+    owner = await get_user(db, user_id)
     if not owner:
         raise HTTPException(status_code=400, detail="归属的用户不存在")
 
@@ -93,12 +103,12 @@ async def create_member_for_user(
     # 2) 创建 member 绑定 user_id 与 account_id
     m = await create_member(
         db,
-        MemberCreate(user_id=payload.user_id, account_id=acc.id),
+        MemberCreate(user_id=user_id, account_id=acc.id),
     )
     
     # 3) 为成员添加该用户下所有设备默认控制权限
     device_ids_result = await db.execute(
-        select(Device.id).where(Device.user_id == payload.user_id)
+        select(Device.id).where(Device.user_id == user_id)
     )
     device_ids = [row[0] for row in device_ids_result.all()]
     if device_ids:
@@ -121,7 +131,7 @@ async def create_member_for_user(
                     "member_name": acc.name,
                     "member_phone": acc.phone,
                     "member_email": acc.email,
-                    "user_id": payload.user_id,
+                    "user_id": user_id,
                     "account_id": acc.id
                 }
             ),
@@ -139,11 +149,25 @@ async def update_member_detail(
     member_id: int, 
     payload: MemberUpdateRequest, 
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
+    # 验证只有 owner 角色才能修改成员
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权修改成员")
+    
+    # 从 token 中获取 user_id
+    user_id = token_info["user_id"]
+    if not user_id:
+        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
+    
     # 读取成员
     m = await get_member(db, member_id)
     if not m:
         raise HTTPException(status_code=404, detail="成员不存在")
+    
+    # 验证该成员是否属于当前 owner 的 user
+    if m.user_id != user_id:
+        raise HTTPException(status_code=403, detail="无权修改此成员")
 
     # 至少提供一个可更新字段
     if not any([
@@ -264,10 +288,23 @@ async def remove_member(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
+    # 验证只有 owner 角色才能删除成员
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权删除成员")
+    
+    # 从 token 中获取 user_id
+    user_id = token_info["user_id"]
+    if not user_id:
+        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
+    
     # 先查询成员
     m = await get_member(db, member_id)
     if not m:
         raise HTTPException(status_code=404, detail="成员不存在")
+    
+    # 验证该成员是否属于当前 owner 的 user
+    if m.user_id != user_id:
+        raise HTTPException(status_code=403, detail="无权删除此成员")
 
     try:
         # 先删除 member（会级联删除权限等依赖）
