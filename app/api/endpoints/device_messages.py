@@ -7,7 +7,9 @@ from app.crud.device_message import (
     get_user_device_messages,
     update_device_message_status,
     mark_all_user_device_messages_read,
+    get_device_message,
 )
+from app.crud.device import get_device
 from app.models.device_message import (
     DeviceMessageInDB,
     DeviceMessageStatus,
@@ -70,9 +72,25 @@ async def list_device_messages(
 @router.patch("/{message_id}/make-read", response_model=DeviceMessageInDB)
 async def make_device_message_read(
     message_id: int, 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
     """标记设备消息为已读状态"""
+    user_id = token_info["user_id"]
+    
+    # 获取消息记录
+    message = await get_device_message(db, message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="设备消息不存在")
+    
+    # 获取消息关联的设备
+    device = await get_device(db, message.device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    
+    # 验证设备是否属于当前用户
+    if device.user_id != user_id:
+        raise HTTPException(status_code=403, detail="无权标记此设备消息")
     
     updated = await update_device_message_status(db, message_id, DeviceMessageStatus.read)
     if not updated:
