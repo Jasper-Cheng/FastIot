@@ -54,25 +54,17 @@ async def list_device_messages(
     # 使用当前用户的ID
     user_id = token_info["id"]
     
-    # 获取当前用户的所有极设备消息
-    alerts = await get_user_device_messages(db, user_id, limit)
+    # 在数据库查询中应用过滤条件和分页
+    alerts = await get_user_device_messages(
+        db, 
+        user_id, 
+        skip=skip,
+        limit=limit,
+        level=level,
+        status=status
+    )
     
-    # 应用过滤条件
-    filtered_alerts = []
-    for alert in alerts:
-        # 级别过滤
-        if level and alert.level not in level:
-            continue
-        # 状态过滤
-        if status and alert.status != status:
-            continue
-        
-        filtered_alerts.append(alert)
-    
-    # 按 updated_at 排序，如果 updated_at 为 None 则按 created_at 排序
-    filtered_alerts.sort(key=lambda x: x.updated_at or x.created_at, reverse=True)
-    
-    return filtered_alerts[skip:skip + limit]
+    return alerts
 
 
 @router.patch("/{message_id}/make-read", response_model=DeviceMessageInDB)
@@ -93,11 +85,6 @@ async def mark_all_device_messages_read(
     token_info: dict = Depends(get_current_token)
 ):
     """标记当前用户所有设备消息为已读"""
-    from sqlalchemy import update
-    from app.db.models.device_message import DeviceMessage
-    from app.models.device_message import DeviceMessageStatus
-    from app.db.models.device import Device
-    
     # 使用当前用户的ID
     user_id = token_info["id"]
     

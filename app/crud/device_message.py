@@ -37,19 +37,37 @@ async def get_device_messages_by_device(db: AsyncSession, device_id: int, limit:
     )
     return result.scalars().all()
 
-async def get_user_device_messages(db: AsyncSession, user_id: int, limit: int = 100) -> List[DeviceMessage]:
-    """获取指定用户所有设备的消息记录"""
-    # 这里需要关联查询用户拥有的设备
+async def get_user_device_messages(
+    db: AsyncSession, 
+    user_id: int, 
+    skip: int = 0,
+    limit: int = 100,
+    level: Optional[List[str]] = None,
+    status: Optional[str] = None
+) -> List[DeviceMessage]:
+    """获取指定用户所有设备的消息记录，支持按级别和状态筛选"""
     from app.db.models.device import Device
-    result = await db.execute(
+    
+    query = (
         select(DeviceMessage)
         .join(Device, DeviceMessage.device_id == Device.id)
         .where(Device.user_id == user_id)
-        .order_by(
-            func.coalesce(DeviceMessage.updated_at, DeviceMessage.created_at).desc()
-        )
-        .limit(limit)
     )
+    
+    # 添加级别过滤
+    if level:
+        query = query.where(DeviceMessage.level.in_(level))
+    
+    # 添加状态过滤
+    if status:
+        query = query.where(DeviceMessage.status == status)
+    
+    # 排序和分页
+    query = query.order_by(
+        func.coalesce(DeviceMessage.updated_at, DeviceMessage.created_at).desc()
+    ).offset(skip).limit(limit)
+    
+    result = await db.execute(query)
     return result.scalars().all()
 
 async def get_all_device_messages(db: AsyncSession, limit: int = 100) -> List[DeviceMessage]:
