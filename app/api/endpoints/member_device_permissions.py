@@ -7,7 +7,7 @@ from app.crud.member_device_permission import (
     get_permissions_by_member,
     batch_update_member_permissions,
 )
-from app.crud.member import get_member, get_member_by_account_id
+from app.crud.member import get_member
 from app.crud.device import get_device
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
@@ -30,24 +30,18 @@ async def list_member_device_permissions(
     member_id: int = Query(..., description="成员ID"),
     token_info: dict = Depends(get_current_token)
 ):
-    """获取成员设备权限列表
+    """获取成员设备权限列表"""
+    # 获取user_id
+    user_id = token_info["user_id"]
     
-    owner 可以查看自己 user 下所有成员的权限，member 只能查看自己的权限
-    """
-    # 权限验证：owner 验证成员归属，member 验证是否是自己
-    if token_info["role"] == AccountRole.owner:
-        user_id = token_info["user_id"]
-        if not user_id:
-            raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
-        member = await get_member(db, member_id)
-        if not member or member.user_id != user_id:
-            raise HTTPException(status_code=403, detail="无权查看此成员的权限")
-    elif token_info["role"] == AccountRole.member:
-        current_member = await get_member_by_account_id(db, token_info["account_id"])
-        if not current_member or current_member.id != member_id:
-            raise HTTPException(status_code=403, detail="无权查看此成员的权限")
-    else:
-        raise HTTPException(status_code=403, detail="无权查看成员权限")
+    # 验证成员存在
+    member = await get_member(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="成员不存在")
+    
+    # 验证成员是否属于当前用户
+    if member.user_id != user_id:
+        raise HTTPException(status_code=403, detail="无权查看此成员的权限")
     
     return await get_permissions_by_member(db, member_id, skip, limit)
 
@@ -77,8 +71,6 @@ async def batch_update_member_permissions_endpoint(
     
     # 从 token 中获取 user_id
     user_id = token_info["user_id"]
-    if not user_id:
-        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
     
     # 验证成员存在
     member = await get_member(db, member_id)

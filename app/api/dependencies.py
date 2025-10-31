@@ -27,7 +27,7 @@ async def get_current_token(
         role: str | None = payload.get("role")  # 直接使用token中的role字段
         user_id: int | None = payload.get("user_id")  # user_id（owner和member有，admin可能没有）
         
-        if not account_id or not id or not role:
+        if not account_id or not id or not role or not user_id:
             raise credentials_exception
             
         return {

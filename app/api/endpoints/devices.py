@@ -42,13 +42,19 @@ async def update_device_name(
     
     - name: 新的设备名称
     """
+    # 使用token中的user_id来获取设备
+    user_id = token_info["user_id"]
+    
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权修改设备名称")
+
     # 检查设备是否存在
     device = await get_device(db, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
     # 验证设备是否属于当前用户
-    if device.user_id != token_info["id"]:
+    if device.user_id != user_id:
         raise HTTPException(status_code=403, detail="无权修改此设备")
     
     # 更新设备名称
@@ -67,17 +73,17 @@ async def bind_device_by_sn(
     - sn: 设备序列号
     - 只有owner角色才能绑定设备
     """
+
+    user_id = token_info["user_id"]
+
     # 验证只有owner角色才能绑定设备
     if token_info["role"] != AccountRole.owner:
-        raise HTTPException(status_code=403, detail="无权绑定此设备")
+        raise HTTPException(status_code=403, detail="无权绑定设备")
     
     # 通过序列号查找设备
     device = await get_device_by_sn(db, payload.sn)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
-    
-    # 使用token中的user_id
-    user_id = token_info["user_id"]
     
     # 检查设备状态是否允许绑定
     if device.user_id is not None:
@@ -128,6 +134,12 @@ async def unbind_device_by_sn(
     
     - sn: 设备序列号
     """
+
+    user_id = token_info["user_id"]
+    
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权解绑设备")
+
     # 通过序列号查找设备
     device = await get_device_by_sn(db, sn)
     if not device:
@@ -138,7 +150,7 @@ async def unbind_device_by_sn(
         raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
     
     # 验证设备是否属于当前用户
-    if device.user_id != token_info["id"]:
+    if device.user_id != user_id:
         raise HTTPException(status_code=403, detail="无权解绑此设备")
     
     # 记录解绑前的设备信息

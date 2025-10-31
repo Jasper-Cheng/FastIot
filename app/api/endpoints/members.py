@@ -25,9 +25,6 @@ async def list_members(
     token_info: dict = Depends(get_current_token)
 ):
     user_id = token_info["user_id"]
-    if not user_id:
-        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
-
     return await get_members_by_user(db, user_id=user_id, skip=skip, limit=limit)
 
 
@@ -54,8 +51,6 @@ async def create_member_for_user(
     
     # 从 token 中获取 user_id
     user_id = token_info["user_id"]
-    if not user_id:
-        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
     
     # 校验 user 是否存在
     owner = await get_user(db, user_id)
@@ -155,14 +150,8 @@ async def update_member_detail(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
-    # 验证只有 owner 角色才能修改成员
-    if token_info["role"] != AccountRole.owner:
-        raise HTTPException(status_code=403, detail="无权修改成员")
-    
     # 从 token 中获取 user_id
     user_id = token_info["user_id"]
-    if not user_id:
-        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
     
     # 读取成员
     m = await get_member(db, member_id)
@@ -298,8 +287,6 @@ async def remove_member(
     
     # 从 token 中获取 user_id
     user_id = token_info["user_id"]
-    if not user_id:
-        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
     
     # 先查询成员
     m = await get_member(db, member_id)

@@ -31,6 +31,7 @@ async def check_in(
     """用户签到"""
     today = date.today()
     account_id = token_info["account_id"]
+    user_id = token_info["user_id"]
     
     # 检查今天是否已经签到
     existing_check_in = await get_check_in_by_date(db, account_id, today)
@@ -38,7 +39,7 @@ async def check_in(
         raise HTTPException(status_code=400, detail="今天已经签到过了")
     
     # 计算连续签到天数
-    continuous_days = await calculate_continuous_days(db, account_id)
+    continuous_days = await calculate_continuous_days(db, user_id)
     
     # 计算积分奖励
     if continuous_days >= 7:

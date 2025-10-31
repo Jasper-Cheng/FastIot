@@ -53,8 +53,6 @@ async def list_device_messages(
     
     # 使用token中的user_id
     user_id = token_info["user_id"]
-    if not user_id:
-        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
     
     # 在数据库查询中应用过滤条件和分页
     alerts = await get_user_device_messages(
@@ -75,6 +73,7 @@ async def make_device_message_read(
     db: AsyncSession = Depends(get_db)
 ):
     """标记设备消息为已读状态"""
+    
     updated = await update_device_message_status(db, message_id, DeviceMessageStatus.read)
     if not updated:
         raise HTTPException(status_code=404, detail="设备消息不存在")
@@ -89,8 +88,6 @@ async def mark_all_device_messages_read(
     """标记当前用户所有设备消息为已读"""
     # 使用token中的user_id
     user_id = token_info["user_id"]
-    if not user_id:
-        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
     
     # 更新用户所有设备的消息状态为已读
     count = await mark_all_user_device_messages_read(db, user_id)
