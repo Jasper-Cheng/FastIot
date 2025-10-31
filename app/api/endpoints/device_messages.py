@@ -48,8 +48,10 @@ async def list_device_messages(
                 detail=f"无效的消息状态 '{status}'。有效值: {', '.join(valid_statuses)}"
             )
     
-    # 使用当前用户的ID
-    user_id = token_info["id"]
+    # 使用token中的user_id
+    user_id = token_info.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
     
     # 在数据库查询中应用过滤条件和分页
     alerts = await get_user_device_messages(
