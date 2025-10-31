@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.api.dependencies import get_db, get_current_token
 from app.crud.feedback import feedback
 from app.models.feedback import Feedback, FeedbackCreate
+from app.models.account import AccountRole
 
 router = APIRouter()
 
@@ -33,7 +34,7 @@ async def get_feedbacks(
 ):
     """获取意见反馈列表"""
     # 根据用户角色决定返回的数据
-    if token_info["role"] == "admin":
+    if token_info["role"] == AccountRole.admin:
         # 管理员可以看到所有反馈
         return await feedback.get_multi(
             db=db,
@@ -45,7 +46,7 @@ async def get_feedbacks(
             order_by=order_by,
             order_desc=order_desc
         )
-    elif token_info["role"] == "owner":
+    elif token_info["role"] == AccountRole.owner:
         # 主账号可以看到自己和所有成员的反馈
         return await feedback.get_by_user_and_members(
             db=db,
@@ -53,7 +54,7 @@ async def get_feedbacks(
             skip=skip,
             limit=limit
         )
-    elif token_info["role"] == "member":
+    elif token_info["role"] == AccountRole.member:
         # 成员可以看到自己和所属user的所有反馈
         # 获取成员所属的user的account_id
         from app.crud.member import get_user_account_id_by_member_account_id
