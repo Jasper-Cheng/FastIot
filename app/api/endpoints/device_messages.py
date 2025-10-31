@@ -1,20 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
 from typing import List, Optional
-from app.utils.time_utils import get_local_time
 
 from app.db.session import get_db
 from app.crud.device_message import (
     get_user_device_messages,
     update_device_message_status,
+    mark_all_user_device_messages_read,
 )
 from app.models.device_message import (
     DeviceMessageInDB,
     DeviceMessageStatus,
 )
-from app.db.models.device_message import DeviceMessage
-from app.db.models.device import Device
 from app.api.dependencies import get_current_token
 router = APIRouter()
 
@@ -89,16 +86,6 @@ async def mark_all_device_messages_read(
     user_id = token_info["id"]
     
     # 更新用户所有设备的消息状态为已读
-    await db.execute(
-        update(DeviceMessage)
-        .where(
-            DeviceMessage.device_id.in_(
-                select(Device.id).where(Device.user_id == user_id)
-            )
-        )
-        .where(DeviceMessage.status == DeviceMessageStatus.new)
-        .values(status=DeviceMessageStatus.read, updated_at=get_local_time())
-    )
-    await db.commit()
+    count = await mark_all_user_device_messages_read(db, user_id)
     
-    return {"message": f"用户 {user_id} 的所有设备消息已标记为已读"}
+    return {"message": f"用户 {user_id} 的 {count} 条设备消息已标记为已读"}
