@@ -49,7 +49,7 @@ async def list_device_messages(
             )
     
     # 使用token中的user_id
-    user_id = token_info.get("user_id")
+    user_id = token_info["user_id"]
     if not user_id:
         raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
     
