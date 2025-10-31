@@ -1,10 +1,7 @@
 from pydantic import BaseModel
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 from datetime import datetime
-from app.models.account import Account
-
-if TYPE_CHECKING:
-    from app.models.account import AccountGender
+from app.models.account import Account, AccountGender
 
 class MemberBase(BaseModel):
     user_id: int
@@ -39,7 +36,7 @@ class MemberRegisterRequest(BaseModel):
     password: str
     phone: str
     name: str | None = None
-    gender: Optional["AccountGender"] = None
+    gender: Optional[AccountGender] = None
     email: str | None = None
     avatar: str | None = None
 
@@ -52,7 +49,7 @@ class MemberUpdateRequest(BaseModel):
     """
     account: str | None = None
     name: str | None = None
-    gender: Optional["AccountGender"] = None
+    gender: Optional[AccountGender] = None
     phone: str | None = None
     email: str | None = None
     avatar: str | None = None
