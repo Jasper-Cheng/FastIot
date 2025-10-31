@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import List
 
 from app.db.session import get_db
 from app.crud.member_device_permission import (
     get_permissions_by_member,
-    get_permissions_by_device,
     batch_update_member_permissions,
 )
-from app.crud.member import get_member
+from app.crud.member import get_member, get_member_by_account_id
 from app.crud.device import get_device
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
@@ -17,6 +16,8 @@ from app.models.member_device_permission import (
     MemberPermissionBatchUpdateRequest,
     MemberPermissionBatchUpdateResponse,
 )
+from app.api.dependencies import get_current_token
+from app.models.account import AccountRole
 
 router = APIRouter()
 
@@ -26,57 +27,76 @@ async def list_member_device_permissions(
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    member_id: Optional[int] = Query(None, description="按成员ID筛选"),
-    device_id: Optional[int] = Query(None, description="按设备ID筛选"),
+    member_id: int = Query(..., description="成员ID"),
+    token_info: dict = Depends(get_current_token)
 ):
     """获取成员设备权限列表
     
-    支持按成员ID、设备ID筛选
+    owner 可以查看自己 user 下所有成员的权限，member 只能查看自己的权限
     """
-    if member_id:
-        # 验证成员存在
+    # 权限验证：owner 验证成员归属，member 验证是否是自己
+    if token_info["role"] == AccountRole.owner:
+        user_id = token_info["user_id"]
+        if not user_id:
+            raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
         member = await get_member(db, member_id)
-        if not member:
-            raise HTTPException(status_code=404, detail="成员不存在")
-        
-        return await get_permissions_by_member(db, member_id, skip, limit)
-    elif device_id:
-        # 验证设备存在
-        device = await get_device(db, device_id)
-        if not device:
-            raise HTTPException(status_code=404, detail="设备不存在")
-        
-        return await get_permissions_by_device(db, device_id, skip, limit)
+        if not member or member.user_id != user_id:
+            raise HTTPException(status_code=403, detail="无权查看此成员的权限")
+    elif token_info["role"] == AccountRole.member:
+        current_member = await get_member_by_account_id(db, token_info["account_id"])
+        if not current_member or current_member.id != member_id:
+            raise HTTPException(status_code=403, detail="无权查看此成员的权限")
     else:
-        raise HTTPException(status_code=400, detail="必须指定成员ID或设备ID")
+        raise HTTPException(status_code=403, detail="无权查看成员权限")
+    
+    return await get_permissions_by_member(db, member_id, skip, limit)
 
 
 @router.put("/member/{member_id}/batch-update", response_model=MemberPermissionBatchUpdateResponse)
 async def batch_update_member_permissions_endpoint(
     member_id: int,
     payload: MemberPermissionBatchUpdateRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
     """批量更新成员设备权限
     
     根据传入的member_id，先删除该成员的所有权限，
     然后根据传入的设备ID列表重新添加权限
     
+    只有 owner 才能更新成员权限，且只能更新自己 user 下的成员
+    
     请求体示例：
     {
         "device_ids": [1, 2, 3]
     }
     """
+    # 验证只有 owner 角色才能更新成员权限
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权更新成员权限")
+    
+    # 从 token 中获取 user_id
+    user_id = token_info["user_id"]
+    if not user_id:
+        raise HTTPException(status_code=400, detail="当前账号没有关联的用户ID")
+    
     # 验证成员存在
     member = await get_member(db, member_id)
     if not member:
         raise HTTPException(status_code=404, detail="成员不存在")
     
-    # 验证所有设备存在
+    # 验证该成员是否属于当前 owner 的 user
+    if member.user_id != user_id:
+        raise HTTPException(status_code=403, detail="无权更新此成员的权限")
+    
+    # 验证所有设备存在，并且都属于当前 owner 的 user
     for device_id in payload.device_ids:
         device = await get_device(db, device_id)
         if not device:
             raise HTTPException(status_code=400, detail=f"设备ID {device_id} 不存在")
+        # 验证设备属于当前 owner 的 user
+        if device.user_id != user_id:
+            raise HTTPException(status_code=403, detail=f"无权为设备ID {device_id} 设置权限")
     
     try:
         # 执行批量更新
@@ -116,7 +136,7 @@ async def batch_update_member_permissions_endpoint(
                         "user_id": member.user_id
                     }
                 ),
-                account_id=member.account_id
+                account_id=token_info["account_id"]
             )
         except Exception as e:
             # 记录操作失败不影响权限更新流程
