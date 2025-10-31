@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from pydantic import BaseModel
 
 from app.db.session import get_db
 from app.crud.member import get_members_by_user, get_member, create_member, delete_member
@@ -10,7 +9,7 @@ from sqlalchemy import select
 from app.db.models.device import Device
 from app.db.models.member_device_permission import MemberDevicePermission
 from app.crud.account import create_account, get_account_by_account_name, get_account_by_phone, get_account_by_email, update_account, get_account, delete_account
-from app.models.member import Member, MemberCreate, MemberInDB
+from app.models.member import Member, MemberCreate, MemberInDB, MemberRegisterRequest, MemberUpdateRequest
 from app.models.account import AccountCreate, AccountRole, AccountGender, AccountUpdate
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
@@ -37,23 +36,6 @@ async def get_member_detail(
     if not m:
         raise HTTPException(status_code=404, detail="成员不存在")
     return m
-
-
-class MemberRegisterRequest(BaseModel):
-    """创建成员（子账号）
-
-    必填: user_id(归属主账号), account(登录名), password(密码), phone(手机号)
-    可选: name, gender, email, avatar
-    说明: role 不可填写，强制为 member
-    """
-    user_id: int
-    account: str
-    password: str
-    phone: str
-    name: str | None = None
-    gender: AccountGender | None = None
-    email: str | None = None
-    avatar: str | None = None
 
 
 @router.post("/", response_model=MemberInDB)
@@ -150,21 +132,6 @@ async def create_member_for_user(
         print(f"记录添加成员操作失败: {e}")
 
     return m
-
-
-class MemberUpdateRequest(BaseModel):
-    """更新成员信息（更新 account 数据）
-
-    可选字段：name, gender, phone, email, avatar, password
-    注意：提供至少一个字段
-    """
-    account: str | None = None
-    name: str | None = None
-    gender: AccountGender | None = None
-    phone: str | None = None
-    email: str | None = None
-    avatar: str | None = None
-    password: str | None = None
 
 
 @router.put("/{member_id}", response_model=MemberInDB)
