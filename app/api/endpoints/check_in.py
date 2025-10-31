@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
-from pydantic import BaseModel
-from datetime import date, datetime
+from typing import List
+from datetime import date
 from app.db.session import get_db
 from app.api.dependencies import get_current_token
 from app.utils.time_utils import get_local_time
@@ -13,40 +12,14 @@ from app.crud.check_in import (
     get_check_in_stats,
     calculate_continuous_days
 )
+from app.models.check_in import (
+    CheckInRequest,
+    CheckInResponse,
+    CheckInCalendarResponse,
+    CheckInStatsResponse
+)
 
 router = APIRouter()
-
-
-class CheckInRequest(BaseModel):
-    """签到请求"""
-    extra: Optional[dict] = None
-
-
-class CheckInResponse(BaseModel):
-    """签到响应"""
-    id: int
-    account_id: int
-    check_in_date: date
-    check_in_time: datetime
-    points_earned: int
-    continuous_days: int
-    check_in_type: str
-    extra: Optional[dict] = None
-    created_at: datetime
-
-
-class CheckInCalendarResponse(BaseModel):
-    """签到日历响应"""
-    year: int
-    month: int
-    check_in_dates: List[date]
-
-
-class CheckInStatsResponse(BaseModel):
-    """签到统计响应"""
-    total_check_ins: int
-    continuous_days: int
-    longest_continuous: int
 
 
 @router.post("/", response_model=CheckInResponse)
