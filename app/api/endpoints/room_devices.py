@@ -16,17 +16,17 @@ from app.models.room_device import (
     RoomDeviceBatchSortRequest,
     RoomDeviceBatchSortResponse
 )
+from app.models.account import AccountRole
 router = APIRouter()
 
-
-
-
 @router.get("/by-room/{room_id}", response_model=List[RoomDeviceInDB])
-async def list_by_room(room_id: int, db: AsyncSession = Depends(get_db)):
+async def list_by_room(room_id: int, db: AsyncSession = Depends(get_db), token_info: dict = Depends(get_current_token)):
     # 验证房间存在
     room = await get_room(db, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="房间不存在")
+    if room.user_id != token_info["user_id"]:
+        raise HTTPException(status_code=403, detail="无权查看此房间的设备关联")
     return await get_room_devices_by_room(db, room_id)
 
 
@@ -44,15 +44,11 @@ async def batch_update_sort(
     如果之前存在传入的列表不存在则删除，
     如果之前不存在传入的列表存在则添加。
     """
-    # 获取用户ID
-    from app.crud.member import get_member
-    if token_info["role"] == "member":
-        # 对于成员，我们需要获取其所属的用户ID
-        member = await get_member(db, token_info["id"])
-        current_user_id = member.user_id
-    else:
-        # owner 和 admin 直接返回用户ID
-        current_user_id = token_info["id"]
+
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权更新房间设备关联排序")
+
+    user_id = token_info["user_id"]
     
     try:
         # 调用CRUD函数进行批量更新
@@ -60,7 +56,7 @@ async def batch_update_sort(
             db=db,
             room_id=payload.room_id,
             devices=payload.devices,
-            user_id=current_user_id
+            user_id=user_id
         )
         
         # 记录设备排序操作
@@ -79,7 +75,7 @@ async def batch_update_sort(
                         "room_name": room_name,
                         "device_count": device_count,
                         "device_names": device_names,
-                        "user_id": current_user_id
+                        "user_id": user_id
                     }
                 ),
                 account_id=token_info["account_id"]
