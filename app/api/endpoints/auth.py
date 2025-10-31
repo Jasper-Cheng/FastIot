@@ -52,23 +52,25 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         "account_id": acc.id,
         "role": acc.role,
     }
-    # 根据账号角色获取真正的ID
-    real_id = None
+    # 根据账号角色获取真正的ID和user_id
+    user_id = None
     if acc.role == AccountRole.admin:
         admin = await get_admin_by_account_id(db, acc.id)
         if admin:
-            real_id = admin.id
             extra_claims["id"] = admin.id
+            # admin 没有 user_id
     elif acc.role == AccountRole.member:
         member = await get_member_by_account_id(db, acc.id)
         if member:
-            real_id = member.id
             extra_claims["id"] = member.id
+            user_id = member.user_id
+            extra_claims["user_id"] = user_id
     elif acc.role == AccountRole.owner:
         user = await get_user_by_account_id(db, acc.id)
         if user:
-            real_id = user.id
             extra_claims["id"] = user.id
+            user_id = user.id
+            extra_claims["user_id"] = user_id
 
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
 
@@ -90,7 +92,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         access_token=token, 
         role=acc.role, 
         account=Account.model_validate(acc),
-        id=real_id
+        id=extra_claims.get("id")
     )
 
 
@@ -115,23 +117,25 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
         "account_id": acc.id,
         "role": acc.role,
     }
-    # 根据账号角色获取真正的ID
-    real_id = None
+    # 根据账号角色获取真正的ID和user_id
+    user_id = None
     if acc.role == AccountRole.admin:
         admin = await get_admin_by_account_id(db, acc.id)
         if admin:
-            real_id = admin.id
             extra_claims["id"] = admin.id
+            # admin 没有 user_id
     elif acc.role == AccountRole.member:
         member = await get_member_by_account_id(db, acc.id)
         if member:
-            real_id = member.id
             extra_claims["id"] = member.id
+            user_id = member.user_id
+            extra_claims["user_id"] = user_id
     elif acc.role == AccountRole.owner:
         user = await get_user_by_account_id(db, acc.id)
         if user:
-            real_id = user.id
             extra_claims["id"] = user.id
+            user_id = user.id
+            extra_claims["user_id"] = user_id
 
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
 
@@ -153,7 +157,7 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
         access_token=token, 
         role=acc.role, 
         account=Account.model_validate(acc),
-        id=real_id
+        id=extra_claims.get("id")
     )
 
 
