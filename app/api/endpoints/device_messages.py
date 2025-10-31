@@ -1,28 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from typing import List, Optional
-from datetime import timedelta
 from app.utils.time_utils import get_local_time
 
 from app.db.session import get_db
 from app.crud.device_message import (
-    create_device_message,
-    get_device_message,
-    get_device_messages_by_device,
     get_user_device_messages,
-    get_all_device_messages,
     update_device_message_status,
-    update_device_message_full,
-    get_unread_device_messages_count,
 )
-from app.crud.device import get_device
 from app.models.device_message import (
-    DeviceMessageCreate,
-    DeviceMessageUpdate,
     DeviceMessageInDB,
     DeviceMessageStatus,
 )
+from app.db.models.device_message import DeviceMessage
+from app.db.models.device import Device
 from app.api.dependencies import get_current_token
 router = APIRouter()
 
@@ -83,86 +75,31 @@ async def list_device_messages(
     return filtered_alerts[skip:skip + limit]
 
 
-@router.get("/{message_id}", response_model=DeviceMessageInDB)
-async def get_device_message_detail(message_id: int, db: AsyncSession = Depends(get_db)):
-    """获取设备消息详情"""
-    message = await get_device_message(db, message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="设备消息不存在")
-    return message
-
-
-@router.post("/", response_model=DeviceMessageInDB)
-async def create_device_message_item(payload: DeviceMessageCreate, db: AsyncSession = Depends(get_db)):
-    """创建设备消息
-    
-    示例请求体：
-    {
-      "device_id": 1,
-      "level": "high",
-      "message": "设备温度过高，请检查散热系统"
-    }
-    """
-    # 验证设备存在
-    device = await get_device(db, payload.device_id)
-    if not device:
-        raise HTTPException(status_code=400, detail="设备不存在")
-    
-    return await create_device_message(db, payload)
-
-
-@router.put("/{message_id}", response_model=DeviceMessageInDB)
-async def update_device_message_item(message_id: int, payload: DeviceMessageUpdate, db: AsyncSession = Depends(get_db)):
-    """更新设备消息
-    
-    示例请求体：
-    {
-      "level": "medium",
-      "message": "设备温度已恢复正常",
-      "status": "read"
-    }
-    """
-    # 验证消息存在
-    existing_message = await get_device_message(db, message_id)
-    if not existing_message:
-        raise HTTPException(status_code=404, detail="设备消息不存在")
-    
-    updated = await update_device_message_full(db, message_id, payload)
-    return updated
-
-
-@router.patch("/{message_id}/status", response_model=DeviceMessageInDB)
-async def update_device_message_status_item(
+@router.patch("/{message_id}/make-read", response_model=DeviceMessageInDB)
+async def make_device_message_read(
     message_id: int, 
-    status: DeviceMessageStatus, 
     db: AsyncSession = Depends(get_db)
 ):
-    """更新设备消息状态"""
-    updated = await update_device_message_status(db, message_id, status)
+    """标记设备消息为已读状态"""
+    updated = await update_device_message_status(db, message_id, DeviceMessageStatus.read)
     if not updated:
         raise HTTPException(status_code=404, detail="设备消息不存在")
     return updated
 
 
-@router.delete("/{message_id}")
-async def delete_device_message_item(message_id: int, db: AsyncSession = Depends(get_db)):
-    """删除设备消息"""
-    message = await get_device_message(db, message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="设备消息不存在")
-    
-    await db.delete(message)
-    await db.commit()
-    return {"message": "删除成功"}
-
-
-@router.patch("/user/{user_id}/mark-read")
-async def mark_user_all_device_messages_read(user_id: int, db: AsyncSession = Depends(get_db)):
-    """标记用户所有设备消息为已读"""
+@router.patch("/mark-all-read")
+async def mark_all_device_messages_read(
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
+):
+    """标记当前用户所有设备消息为已读"""
     from sqlalchemy import update
     from app.db.models.device_message import DeviceMessage
     from app.models.device_message import DeviceMessageStatus
     from app.db.models.device import Device
+    
+    # 使用当前用户的ID
+    user_id = token_info["id"]
     
     # 更新用户所有设备的消息状态为已读
     await db.execute(
@@ -178,123 +115,3 @@ async def mark_user_all_device_messages_read(user_id: int, db: AsyncSession = De
     await db.commit()
     
     return {"message": f"用户 {user_id} 的所有设备消息已标记为已读"}
-
-
-@router.get("/device/{device_id}/stats", response_model=dict)
-async def get_device_message_stats(device_id: int, db: AsyncSession = Depends(get_db)):
-    """获取设备消息统计信息"""
-    # 验证设备存在
-    device = await get_device(db, device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    
-    from sqlalchemy import select, func
-    from app.db.models.device_message import DeviceMessage
-    
-    # 总消息数
-    total_result = await db.execute(
-        select(func.count(DeviceMessage.id)).filter(DeviceMessage.device_id == device_id)
-    )
-    total_messages = total_result.scalar()
-    
-    # 按级别统计
-    level_stats_result = await db.execute(
-        select(
-            DeviceMessage.level,
-            func.count(DeviceMessage.id).label('count')
-        )
-        .filter(DeviceMessage.device_id == device_id)
-        .group_by(DeviceMessage.level)
-    )
-    level_stats = {row[0]: row[1] for row in level_stats_result.fetchall()}
-    
-    # 按状态统计
-    status_stats_result = await db.execute(
-        select(
-            DeviceMessage.status,
-            func.count(DeviceMessage.id).label('count')
-        )
-        .filter(DeviceMessage.device_id == device_id)
-        .group_by(DeviceMessage.status)
-    )
-    status_stats = {row[0]: row[1] for row in status_stats_result.fetchall()}
-    
-    # 最近24小时消息数
-    yesterday = get_local_time() - timedelta(days=1)
-    recent_result = await db.execute(
-        select(func.count(DeviceMessage.id))
-        .filter(DeviceMessage.device_id == device_id)
-        .filter(DeviceMessage.created_at >= yesterday)
-    )
-    recent_messages = recent_result.scalar()
-    
-    # 最早和最晚消息时间
-    time_range_result = await db.execute(
-        select(
-            func.min(DeviceMessage.created_at).label('earliest'),
-            func.max(DeviceMessage.created_at).label('latest')
-        )
-        .filter(DeviceMessage.device_id == device_id)
-    )
-    time_range = time_range_result.fetchone()
-    
-    return {
-        "device_id": device_id,
-        "total_messages": total_messages,
-        "recent_24h_messages": recent_messages,
-        "level_stats": level_stats,
-        "status_stats": status_stats,
-        "earliest_message": time_range[0].isoformat() if time_range[0] else None,
-        "latest_message": time_range[1].isoformat() if time_range[1] else None,
-    }
-
-
-@router.get("/user/{user_id}/stats", response_model=dict)
-async def get_user_device_message_stats(user_id: int, db: AsyncSession = Depends(get_db)):
-    """获取用户设备消息统计信息"""
-    from sqlalchemy import select, func
-    from app.db.models.device_message import DeviceMessage
-    from app.db.models.device import Device
-    
-    # 总消息数
-    total_result = await db.execute(
-        select(func.count(DeviceMessage.id))
-        .join(Device, DeviceMessage.device_id == Device.id)
-        .where(Device.user_id == user_id)
-    )
-    total_messages = total_result.scalar()
-    
-    # 未读消息数
-    unread_count = await get_unread_device_messages_count(db, user_id)
-    
-    # 按级别统计
-    level_stats_result = await db.execute(
-        select(
-            DeviceMessage.level,
-            func.count(DeviceMessage.id).label('count')
-        )
-        .join(Device, DeviceMessage.device_id == Device.id)
-        .where(Device.user_id == user_id)
-        .group_by(DeviceMessage.level)
-    )
-    level_stats = {row[0]: row[1] for row in level_stats_result.fetchall()}
-    
-    # 按状态统计
-    status_stats_result = await db.execute(
-        select(
-            DeviceMessage.status,
-            func.count(DeviceMessage.id).label('count')
-        )
-        .join(Device, DeviceMessage.device_id == Device.id)
-        .where(Device.user_id == user_id)
-        .group_by(DeviceMessage.status)
-    )
-    status_stats = {row[0]: row[1] for row in status_stats_result.fetchall()}
-    
-    return {
-        "user_id": user_id,
-        "total_messages": total_messages,
-        "unread_messages": unread_count,
-        "level_stats": level_stats,
-        "status_stats": status_stats,
-    }
