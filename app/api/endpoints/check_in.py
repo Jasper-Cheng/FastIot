@@ -102,24 +102,26 @@ async def get_check_in_calendar_data(
     return calendar_data
 
 
-@router.get("/stats/{account_id}", response_model=CheckInStatsResponse)
+@router.get("/stats", response_model=CheckInStatsResponse)
 async def get_check_in_statistics(
-    account_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
-    """获取签到统计信息"""
+    """获取当前用户的签到统计信息"""
+    account_id = token_info["account_id"]
     stats = await get_check_in_stats(db, account_id)
     return stats
 
 
-@router.get("/history/{account_id}", response_model=List[CheckInResponse])
+@router.get("/history", response_model=List[CheckInResponse])
 async def get_check_in_history(
-    account_id: int,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
 ):
-    """获取签到历史记录"""
+    """获取当前用户的签到历史记录"""
+    account_id = token_info["account_id"]
     from app.crud.check_in import get_check_in_history
     history = await get_check_in_history(db, account_id, skip=skip, limit=limit)
     return history
