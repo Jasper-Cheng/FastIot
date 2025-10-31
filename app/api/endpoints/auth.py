@@ -2,8 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
-from typing import Literal
-from pydantic import BaseModel, constr
 import re
 
 from app.db.session import get_db
@@ -19,23 +17,18 @@ from app.crud.user import create_user, get_user_by_account_id
 from app.crud.member import create_member, get_member_by_account_id
 from app.crud.admin import get_admin_by_account_id
 from app.crud.user_operation_log import user_operation_log
-from app.models.account import AccountCreate, AccountLogin, Account, AccountRole, AccountGender
+from app.models.account import (
+    AccountCreate, 
+    Account, 
+    AccountRole, 
+    LoginRequest,
+    TokenResponse,
+    RegisterRequest
+)
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_account
 
 router = APIRouter()
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: Literal["bearer"] = "bearer"
-    role: AccountRole
-    account: Account
-    id: int | None = None  # 统一的用户ID（admin/owner/member的真正ID）
-
-class LoginRequest(BaseModel):
-    account: str
-    password: str
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -162,23 +155,6 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
         account=Account.model_validate(acc),
         id=real_id
     )
-
-
-class RegisterRequest(BaseModel):
-    """注册请求体（主账号）
-
-    必填字段: account(登录名), password(密码), phone(手机号)
-    可选字段: name, gender, email, avatar
-    说明: 不需要填写 role，默认为 owner
-    手机号格式: 11 位中国大陆手机号, 以 1 开头
-    """
-    account: str
-    password: str
-    phone: str  # 手机号，在方法中手动验证格式
-    name: str | None = None
-    gender: AccountGender | None = None
-    email: str | None = None
-    avatar: str | None = None
 
 
 @router.post("/register", response_model=Account)
