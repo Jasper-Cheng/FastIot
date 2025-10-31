@@ -2,8 +2,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.models.account import Account
 from app.models.account import AccountCreate, AccountUpdate
-from app.core.security import get_password_hash, verify_password
-from typing import Optional, List
+from app.core.security import get_password_hash
+from typing import Optional
 
 async def get_account(db: AsyncSession, account_id: int) -> Optional[Account]:
     """根据ID获取账号"""
@@ -24,11 +24,6 @@ async def get_account_by_phone(db: AsyncSession, phone: str) -> Optional[Account
     """根据手机号获取账号"""
     result = await db.execute(select(Account).filter(Account.phone == phone))
     return result.scalar_one_or_none()
-
-async def get_accounts(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[Account]:
-    """获取账号列表"""
-    result = await db.execute(select(Account).offset(skip).limit(limit))
-    return result.scalars().all()
 
 async def create_account(db: AsyncSession, account: AccountCreate) -> Account:
     """创建新账号"""
@@ -74,21 +69,3 @@ async def delete_account(db: AsyncSession, account_id: int) -> bool:
     await db.delete(db_account)
     # 不在这里commit，让调用方管理事务
     return True
-
-async def authenticate_account(db: AsyncSession, account_name: str, password: str) -> Optional[Account]:
-    """验证账号凭据"""
-    print(f"🔍 [AUTH] 验证账号: {account_name}")
-    
-    account = await get_account_by_account_name(db, account_name)
-    if not account:
-        print(f"❌ [AUTH] 账号不存在: {account_name}")
-        return None
-    
-    print(f"✅ [AUTH] 找到账号: {account_name}")
-    
-    if not verify_password(password, account.password_hash):
-        print(f"❌ [AUTH] 密码验证失败: {account_name}")
-        return None
-    
-    print(f"✅ [AUTH] 认证成功: {account_name}")
-    return account
