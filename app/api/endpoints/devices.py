@@ -12,6 +12,7 @@ from app.crud.device import (
 from app.crud.user import get_user
 from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceNameUpdate, DeviceBindBySNRequest
+from app.models.account import AccountRole
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
 
@@ -25,8 +26,8 @@ async def list_devices(
     limit: int = Query(100, ge=1, le=200),
     token_info: dict = Depends(get_current_token),
 ):
-    # 直接使用token中的id字段来获取设备
-    user_id = token_info["id"]
+    # 使用token中的user_id来获取设备
+    user_id = token_info["user_id"]
     return await get_devices_by_user(db, user_id=user_id, skip=skip, limit=limit)
 
 
@@ -64,19 +65,19 @@ async def bind_device_by_sn(
     """通过序列号绑定设备到当前用户
     
     - sn: 设备序列号
+    - 只有owner角色才能绑定设备
     """
+    # 验证只有owner角色才能绑定设备
+    if token_info["role"] != AccountRole.owner:
+        raise HTTPException(status_code=403, detail="无权绑定此设备")
+    
     # 通过序列号查找设备
     device = await get_device_by_sn(db, payload.sn)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
-    # 使用当前用户的ID
-    user_id = token_info["id"]
-    
-    # 验证用户存在
-    user = await get_user(db, user_id)
-    if not user:
-        raise HTTPException(status_code=400, detail="用户不存在")
+    # 使用token中的user_id
+    user_id = token_info["user_id"]
     
     # 检查设备状态是否允许绑定
     if device.user_id is not None:
@@ -107,7 +108,7 @@ async def bind_device_by_sn(
                     "device_status": device.status
                 }
             ),
-            account_id=user.account_id
+            account_id=token_info["account_id"]
         )
     except Exception as e:
         # 记录操作失败不影响绑定流程
@@ -131,14 +132,14 @@ async def unbind_device_by_sn(
     device = await get_device_by_sn(db, sn)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
+
+    # 检查设备是否已绑定
+    if device.user_id is None:
+        raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
     
     # 验证设备是否属于当前用户
     if device.user_id != token_info["id"]:
         raise HTTPException(status_code=403, detail="无权解绑此设备")
-    
-    # 检查设备是否已绑定
-    if device.user_id is None:
-        raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
     
     # 记录解绑前的设备信息
     original_user_id = device.user_id
