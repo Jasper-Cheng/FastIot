@@ -42,7 +42,7 @@ class WebSocketTool:
         
         print(f"✅ [WebSocket] 客户端 {client_id} 已连接")
         
-    def disconnect(self, client_id: str):
+    async def disconnect(self, client_id: str):
         """断开WebSocket连接"""
         if client_id in self.active_connections:
             del self.active_connections[client_id]
