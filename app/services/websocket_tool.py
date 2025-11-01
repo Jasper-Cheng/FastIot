@@ -429,14 +429,7 @@ async def family_message_handler(client_id: str, request_id: str, params: Dict[s
     # 获取发送者的family信息
     sender_metadata = websocket_tool.get_connection_info(client_id)
     if not sender_metadata or "metadata" not in sender_metadata or "family_clients" not in sender_metadata["metadata"]:
-        await websocket_tool.send_response(
-            client_id, 
-            request_id, 
-            "family.message", 
-            {}, 
-            success=False, 
-            error="无法获取family信息"
-        )
+        print(f"❌ [WebSocket] 无法获取客户端 {client_id} 的family信息")
         return
     
     family_clients = sender_metadata["metadata"]["family_clients"]
@@ -452,7 +445,7 @@ async def family_message_handler(client_id: str, request_id: str, params: Dict[s
         "timestamp": int(datetime.now().timestamp() * 1000)
     }
     
-    # 发送给family中的所有客户端（包括发送者）
+    # 发送给family中的所有客户端
     sent_count = 0
     print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送family消息: {family_clients}")
     for family_client_id in family_clients:
@@ -463,15 +456,6 @@ async def family_message_handler(client_id: str, request_id: str, params: Dict[s
                 print(f"📤 [WebSocket] Family消息已发送给 {family_client_id}")
             except Exception as e:
                 print(f"❌ [WebSocket] 发送family消息给 {family_client_id} 失败: {e}")
-    
-    
-    response_params = {
-        "type": message_type,
-        "family_clients": family_clients,
-        "sent_count": sent_count
-    }
-    
-    await websocket_tool.send_response(client_id, request_id, "family.message", response_params)
 
 
 async def system_message_handler(client_id: str, request_id: str, params: Dict[str, Any]):
@@ -499,22 +483,13 @@ async def system_message_handler(client_id: str, request_id: str, params: Dict[s
     
     # 发送给所有连接的客户端
     sent_count = 0
-    for client_id in websocket_tool.active_connections:
+    for target_client_id in websocket_tool.active_connections:
         try:
-            await websocket_tool.send_message(client_id, system_message)
+            await websocket_tool.send_message(target_client_id, system_message)
             sent_count += 1
-            print(f"📤 [WebSocket] 系统消息已发送给 {client_id}")
+            print(f"📤 [WebSocket] 系统消息已发送给 {target_client_id}")
         except Exception as e:
-            print(f"❌ [WebSocket] 发送系统消息给 {client_id} 失败: {e}")
-    
-    
-    response_params = {
-        "type": message_type,
-        "total_clients": len(websocket_tool.active_connections),
-        "sent_count": sent_count
-    }
-    
-    await websocket_tool.send_response(client_id, request_id, "system.message", response_params)
+            print(f"❌ [WebSocket] 发送系统消息给 {target_client_id} 失败: {e}")
 
 
 # 注册默认方法处理器
