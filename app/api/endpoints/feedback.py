@@ -5,6 +5,7 @@ from app.api.dependencies import get_db, get_current_token
 from app.crud.feedback import feedback
 from app.models.feedback import Feedback, FeedbackCreate
 from app.models.account import AccountRole
+from app.services.websocket_tool import websocket_tool
 
 router = APIRouter()
 
@@ -17,7 +18,33 @@ async def create_feedback(
     token_info: dict = Depends(get_current_token)
 ):
     """创建意见反馈"""
-    return await feedback.create(db=db, obj_in=feedback_in, account_id=token_info["account_id"])
+    created_feedback = await feedback.create(db=db, obj_in=feedback_in, account_id=token_info["account_id"])
+    
+    # 发送family消息通知创建意见反馈
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="feedback.create",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "意见反馈",
+                    "message": f"已创建意见反馈：{feedback_in.content[:50] if len(feedback_in.content) > 50 else feedback_in.content}",
+                    "level": "normal",
+                    "feedbackId": created_feedback.id,
+                    "feedbackType": feedback_in.type if hasattr(feedback_in, 'type') else None,
+                    "feedbackContent": feedback_in.content[:100] if len(feedback_in.content) > 100 else feedback_in.content
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送意见反馈创建通知失败: {e}")
+    
+    return created_feedback
 
 
 @router.get("/", response_model=List[Feedback])
