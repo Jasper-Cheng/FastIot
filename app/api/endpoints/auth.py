@@ -75,6 +75,28 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
 
+    # 发送family消息通知登录（仅owner和member）
+    if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
+        try:
+            role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
+            user_id = extra_claims["id"]
+            client_id = f"{role_str}_{user_id}"
+            
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="login",
+                data={
+                    "senderId": user_id,
+                    "senderRole": role_str,
+                    "title": "用户登录",
+                    "message": f"{acc.name or acc.account} 已登录",
+                    "level": "normal"
+                }
+            )
+        except Exception as e:
+            # 发送消息失败不影响登录流程
+            print(f"发送登录消息失败: {e}")
+
     # 记录登录操作
     try:
         await user_operation_log.create(
@@ -139,6 +161,28 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
             extra_claims["user_id"] = user_id
 
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
+
+    # 发送family消息通知登录（仅owner和member）
+    if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
+        try:
+            role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
+            user_id = extra_claims["id"]
+            client_id = f"{role_str}_{user_id}"
+            
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="login",
+                data={
+                    "senderId": user_id,
+                    "senderRole": role_str,
+                    "title": "用户登录",
+                    "message": f"{acc.name or acc.account} 已登录",
+                    "level": "normal"
+                }
+            )
+        except Exception as e:
+            # 发送消息失败不影响登录流程
+            print(f"发送登录消息失败: {e}")
 
     # 记录登录操作
     try:
@@ -258,7 +302,7 @@ async def logout(
                     "senderId": user_id,
                     "senderRole": role,
                     "title": "用户登出",
-                    "message": f"用户 {current_account.name} 已登出",
+                    "message": f"{current_account.name} 已登出",
                     "level": "normal"
                 }
             )
