@@ -82,7 +82,8 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             # 连接成功，设置客户端ID和元数据
             metadata = {
                 "client_id": client_id,
-                "connection_type": role,
+                "role": role,
+                "real_id": real_id,
                 "family_clients": family_clients
             }
             
@@ -94,6 +95,23 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             
             # 更新当前连接的family_clients活跃状态
             websocket_tool.update_family_clients_for_client(client_id)
+            
+            # 发送用户连接消息给所有family_clients
+            try:
+                await websocket_tool.send_family_message(
+                    client_id=client_id,
+                    message_type="connect",
+                    data={
+                        "senderId": real_id,
+                        "senderRole": role,
+                        "title": "用户连接",
+                        "message": f"{account.name} 已连接",
+                        "level": "normal"
+                    }
+                )
+            except Exception as e:
+                # 发送消息失败不影响连接流程
+                print(f"发送连接消息失败: {e}")
            
             try:
                 while True:
@@ -101,10 +119,45 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                     await websocket_tool.handle_message(client_id, data)
                     
             except WebSocketDisconnect:
-                websocket_tool.disconnect(client_id)
+                # 在断开前发送断开连接消息
+                try:
+                    await websocket_tool.send_family_message(
+                        client_id=client_id,
+                        message_type="disconnect",
+                        data={
+                            "senderId": real_id,
+                            "senderRole": role,
+                            "title": "用户断开连接",
+                            "message": f"{account.name} 已断开连接",
+                            "level": "normal"
+                        }
+                    )
+                except Exception as e:
+                    # 发送消息失败不影响断开流程
+                    print(f"发送断开连接消息失败: {e}")
+                
+                await websocket_tool.disconnect(client_id)
             except Exception as e:
                 print(f"❌ [WebSocket] 用户连接异常: {e}")
-                websocket_tool.disconnect(client_id)
+                
+                # 在断开前发送断开连接消息
+                try:
+                    await websocket_tool.send_family_message(
+                        client_id=client_id,
+                        message_type="disconnect",
+                        data={
+                            "senderId": real_id,
+                            "senderRole": role,
+                            "title": "用户断开连接",
+                            "message": f"{account.name} 已断开连接",
+                            "level": "normal"
+                        }
+                    )
+                except Exception as e2:
+                    # 发送消息失败不影响断开流程
+                    print(f"发送断开连接消息失败: {e2}")
+                
+                await websocket_tool.disconnect(client_id)
             break
             
         except JWTError:
