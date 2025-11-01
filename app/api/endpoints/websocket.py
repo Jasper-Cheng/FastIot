@@ -8,30 +8,10 @@ from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.crud.account import get_account
-from typing import List
+from app.crud.user import get_user
+from app.crud.member import get_members_by_user
 
 router = APIRouter()
-
-
-async def get_family_clients(user_id: int, db: AsyncSession) -> List[str]:
-    """根据user_id获取family相关的所有client_id"""
-    family_clients = []
-    
-    # 获取owner的client_id (user的role固定为"owner")
-    from app.crud.user import get_user
-    owner = await get_user(db, user_id)
-    if owner:
-        owner_client_id = f"owner_{owner.id}"
-        family_clients.append(owner_client_id)
-    
-    # 获取所有member的client_id (member的role固定为"member")
-    from app.crud.member import get_members_by_user
-    members = await get_members_by_user(db, user_id)
-    for member in members:
-        member_client_id = f"member_{member.id}"
-        family_clients.append(member_client_id)
-    
-    return family_clients
 
 
 
@@ -77,7 +57,19 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             client_id = f"{role}_{real_id}"
             
             # 获取family相关的所有client_id
-            family_clients = await get_family_clients(user_id, db)
+            family_clients = []
+            
+            # 获取owner的client_id (user的role固定为"owner")
+            owner = await get_user(db, user_id)
+            if owner:
+                owner_client_id = f"owner_{owner.id}"
+                family_clients.append(owner_client_id)
+            
+            # 获取所有member的client_id (member的role固定为"member")
+            members = await get_members_by_user(db, user_id)
+            for member in members:
+                member_client_id = f"member_{member.id}"
+                family_clients.append(member_client_id)
             
             # 连接成功，设置客户端ID和元数据
             metadata = {
@@ -98,6 +90,18 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             
             # 发送用户连接消息给所有family_clients
             try:
+                # 获取所有在线的用户ID（从family_clients中筛选出在线的，包括当前用户）
+                connect_user_ids = []
+                for family_client_id in family_clients:
+                    if family_client_id in websocket_tool.active_connections:
+                        # 从连接元数据中获取real_id
+                        if family_client_id in websocket_tool.connection_metadata:
+                            metadata_info = websocket_tool.connection_metadata[family_client_id]
+                            if "metadata" in metadata_info:
+                                family_real_id = metadata_info["metadata"].get("real_id")
+                                if family_real_id is not None:
+                                    connect_user_ids.append(family_real_id)
+                
                 await websocket_tool.send_family_message(
                     client_id=client_id,
                     message_type="connect",
@@ -106,7 +110,8 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                         "senderRole": role,
                         "title": "用户连接",
                         "message": f"{account.name} 已连接",
-                        "level": "normal"
+                        "level": "normal",
+                        "connectUserIds": connect_user_ids
                     }
                 )
             except Exception as e:
