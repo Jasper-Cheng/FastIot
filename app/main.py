@@ -75,6 +75,13 @@ async def lifespan(app: FastAPI):
         pass
     print("💔 WebSocket心跳检查任务已停止")
     
+    # 关闭数据库引擎的连接池
+    try:
+        await engine.dispose()
+        print("✅ 数据库连接池已关闭")
+    except Exception as e:
+        print(f"⚠️ 关闭数据库连接池时出现异常（可忽略）: {e}")
+    
     mqtt_service.disconnect()
     print("🔌 MQTT连接已断开")
 
