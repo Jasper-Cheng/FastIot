@@ -17,6 +17,7 @@ from app.models.room_device import (
     RoomDeviceBatchSortResponse
 )
 from app.models.account import AccountRole
+from app.services.websocket_tool import websocket_tool
 router = APIRouter()
 
 @router.get("/by-room/{room_id}", response_model=List[RoomDeviceInDB])
@@ -56,12 +57,13 @@ async def batch_update_sort(
             user_id=user_id
         )
         
+        # 获取房间和设备信息（用于记录操作和发送消息）
+        device_count = len(updated_room_devices)
+        device_names = [device.device_name if hasattr(device, 'device_name') else f"设备ID:{device.device_id}" for device in updated_room_devices]
+        room_name = updated_room_devices[0].room_name if updated_room_devices and hasattr(updated_room_devices[0], 'room_name') else f"房间ID:{payload.room_id}"
+        
         # 记录设备排序操作
         try:
-            device_count = len(updated_room_devices)
-            device_names = [device.device_name if hasattr(device, 'device_name') else f"设备ID:{device.device_id}" for device in updated_room_devices]
-            room_name = updated_room_devices[0].room_name if updated_room_devices and hasattr(updated_room_devices[0], 'room_name') else f"房间ID:{payload.room_id}"
-            
             await user_operation_log.create(
                 db=db,
                 obj_in=UserOperationLogCreate(
@@ -80,6 +82,39 @@ async def batch_update_sort(
         except Exception as e:
             # 记录操作失败不影响排序流程
             print(f"记录设备排序操作失败: {e}")
+        
+        # 发送family消息通知设备排序更新
+        try:
+            role = token_info.get("role")
+            real_id = token_info.get("id")
+            if role and real_id is not None:
+                client_id = f"{role}_{real_id}"
+                
+                # 将 updated_room_devices 转换为字典列表
+                room_devices_data = []
+                for rd in updated_room_devices:
+                    room_devices_data.append({
+                        "id": rd.id,
+                        "roomId": rd.room_id,
+                        "deviceId": rd.device_id,
+                        "sortOrder": rd.sort_order
+                    })
+                
+                await websocket_tool.send_family_message(
+                    client_id=client_id,
+                    message_type="room.device.sort",
+                    data={
+                        "senderId": real_id,
+                        "senderRole": role,
+                        "title": "设备排序更新",
+                        "message": f"已调整房间 {room_name} 内的设备排序（共{device_count}个设备）",
+                        "level": "normal",
+                        "roomDevicesData": room_devices_data
+                    }
+                )
+        except Exception as e:
+            # 发送消息失败不影响业务流程
+            print(f"发送设备排序更新通知失败: {e}")
         
         return RoomDeviceBatchSortResponse(
             success=True,
