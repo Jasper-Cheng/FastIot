@@ -15,6 +15,7 @@ from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceName
 from app.models.account import AccountRole
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
+from app.services.websocket_tool import websocket_tool
 
 router = APIRouter()
 
@@ -45,9 +46,6 @@ async def update_device_name(
     # 使用token中的user_id来获取设备
     user_id = token_info["user_id"]
     
-    if token_info["role"] != AccountRole.owner:
-        raise HTTPException(status_code=403, detail="无权修改设备名称")
-
     # 检查设备是否存在
     device = await get_device(db, device_id)
     if not device:
@@ -58,7 +56,33 @@ async def update_device_name(
         raise HTTPException(status_code=403, detail="无权修改此设备")
     
     # 更新设备名称
+    old_name = device.name
     updated = await update_device(db, device_id, DeviceUpdate(name=payload.name))
+    
+    # 发送family消息通知设备名称修改
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="device.name.update",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "设备名称修改",
+                    "message": f"设备 {old_name} 已更名为 {payload.name}",
+                    "level": "normal",
+                    "deviceId": device.id,
+                    "deviceName": payload.name,
+                    "oldName": old_name
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送设备名称修改通知失败: {e}")
+    
     return updated
 
 
@@ -119,6 +143,30 @@ async def bind_device_by_sn(
     except Exception as e:
         # 记录操作失败不影响绑定流程
         print(f"记录设备绑定操作失败: {e}")
+
+    # 发送family消息通知设备绑定
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="device.bind",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "设备绑定",
+                    "message": f"设备 {device.name} 已绑定",
+                    "level": "normal",
+                    "deviceId": device.id,
+                    "deviceName": device.name,
+                    "deviceSn": device.sn
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送设备绑定通知失败: {e}")
 
     return device
 
@@ -183,6 +231,30 @@ async def unbind_device_by_sn(
     except Exception as e:
         # 记录操作失败不影响解绑流程
         print(f"记录设备解绑操作失败: {e}")
+    
+    # 发送family消息通知设备解绑
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="device.unbind",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "设备解绑",
+                    "message": f"设备 {device_name} 已解绑",
+                    "level": "normal",
+                    "deviceId": device.id,
+                    "deviceName": device_name,
+                    "deviceSn": sn
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送设备解绑通知失败: {e}")
     
     return updated
 
