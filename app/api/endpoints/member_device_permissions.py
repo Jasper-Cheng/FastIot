@@ -9,6 +9,7 @@ from app.crud.member_device_permission import (
 )
 from app.crud.member import get_member
 from app.crud.device import get_device
+from app.crud.account import get_account
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.models.member_device_permission import (
@@ -18,6 +19,7 @@ from app.models.member_device_permission import (
 )
 from app.api.dependencies import get_current_token
 from app.models.account import AccountRole
+from app.services.websocket_tool import websocket_tool
 
 router = APIRouter()
 
@@ -98,21 +100,22 @@ async def batch_update_member_permissions_endpoint(
             device_ids=payload.device_ids
         )
         
+        # 获取成员账号信息和设备名称列表（用于记录操作和发送消息）
+        member_account = await get_account(db, member.account_id)
+        member_account_name = member_account.account if member_account else f"成员ID:{member_id}"
+        member_name = member_account.name if member_account and member_account.name else f"成员ID:{member_id}"
+        
+        # 获取设备名称列表
+        device_names = []
+        for device_id in payload.device_ids:
+            device = await get_device(db, device_id)
+            if device:
+                device_names.append(device.name)
+            else:
+                device_names.append(f"设备ID:{device_id}")
+        
         # 记录权限更新操作
         try:
-            # 获取成员账号信息
-            from app.crud.account import get_account
-            member_account = await get_account(db, member.account_id)
-            member_account_name = member_account.account if member_account else f"成员ID:{member_id}"
-            
-            # 获取设备名称用于记录
-            device_names = []
-            for device_id in payload.device_ids:
-                device = await get_device(db, device_id)
-                if device:
-                    device_names.append(device.name)
-                else:
-                    device_names.append(f"设备ID:{device_id}")
             
             await user_operation_log.create(
                 db=db,
@@ -133,6 +136,33 @@ async def batch_update_member_permissions_endpoint(
         except Exception as e:
             # 记录操作失败不影响权限更新流程
             print(f"记录权限更新操作失败: {e}")
+        
+        # 发送family消息通知权限更新
+        try:
+            role = token_info.get("role")
+            real_id = token_info.get("id")
+            if role and real_id is not None:
+                client_id = f"{role}_{real_id}"
+                
+                await websocket_tool.send_family_message(
+                    client_id=client_id,
+                    message_type="member.permission.update",
+                    data={
+                        "senderId": real_id,
+                        "senderRole": role,
+                        "title": "成员权限更新",
+                        "message": f"已更新成员 {member_name} 的设备权限（共{len(payload.device_ids)}个设备）",
+                        "level": "normal",
+                        "memberId": member_id,
+                        "memberName": member_name,
+                        "deviceCount": len(payload.device_ids),
+                        "deviceIds": payload.device_ids,
+                        "deviceNames": device_names
+                    }
+                )
+        except Exception as e:
+            # 发送消息失败不影响业务流程
+            print(f"发送权限更新通知失败: {e}")
         
         return MemberPermissionBatchUpdateResponse(
             success=True,
