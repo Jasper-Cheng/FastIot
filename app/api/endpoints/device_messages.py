@@ -16,6 +16,7 @@ from app.models.device_message import (
     DeviceMessageLevel,
 )
 from app.api.dependencies import get_current_token
+from app.services.websocket_tool import websocket_tool
 router = APIRouter()
 
 
@@ -95,6 +96,31 @@ async def make_device_message_read(
     updated = await update_device_message_status(db, message_id, DeviceMessageStatus.read)
     if not updated:
         raise HTTPException(status_code=404, detail="设备消息不存在")
+    
+    # 发送family消息通知设备消息已读
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="device.message.read",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "设备消息已读",
+                    "message": f"设备 {device.name or device.device_id} 的消息已标记为已读",
+                    "level": "normal",
+                    "deviceId": device.id,
+                    "deviceName": device.name,
+                    "messageId": message_id
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送设备消息已读通知失败: {e}")
+    
     return updated
 
 
@@ -109,5 +135,27 @@ async def mark_all_device_messages_read(
     
     # 更新用户所有设备的消息状态为已读
     count = await mark_all_user_device_messages_read(db, user_id)
+    
+    # 发送family消息通知所有设备消息已读
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="device.message.mark_all_read",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "所有设备消息已读",
+                    "message": f"{count} 条设备消息已标记为已读",
+                    "level": "normal",
+                    "count": count
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送所有设备消息已读通知失败: {e}")
     
     return {"message": f"用户 {user_id} 的 {count} 条设备消息已标记为已读"}
