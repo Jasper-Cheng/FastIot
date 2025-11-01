@@ -26,7 +26,8 @@ from app.models.account import (
     RegisterRequest
 )
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_account
+from app.api.dependencies import get_current_account, get_current_token
+from app.services.websocket_tool import websocket_tool
 
 router = APIRouter()
 
@@ -237,9 +238,34 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/logout")
 async def logout(
     db: AsyncSession = Depends(get_db),
-    current_account: Account = Depends(get_current_account)
+    current_account: Account = Depends(get_current_account),
+    token_info: dict = Depends(get_current_token)
 ):
     """用户登出"""
+    
+    # 构建 client_id
+    user_id = token_info["id"] if "id" in token_info else None
+    role = token_info["role"] if "role" in token_info else None
+    if user_id and role:
+        client_id = f"{role}_{user_id}"
+        
+        # 发送family消息通知登出
+        try:
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="logout",
+                data={
+                    "senderId": user_id,
+                    "senderRole": role,
+                    "title": "用户登出",
+                    "message": f"用户 {current_account.name} 已登出",
+                    "level": "normal"
+                }
+            )
+        except Exception as e:
+            # 发送消息失败不影响登出流程
+            print(f"发送登出消息失败: {e}")
+    
     # 记录登出操作
     try:
         await user_operation_log.create(
