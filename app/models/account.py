@@ -58,6 +58,7 @@ class TokenResponse(BaseModel):
     role: AccountRole
     account: Account
     id: int | None = None  # 统一的用户ID（admin/owner/member的真正ID）
+    user_id: int | None = None  # user_id（owner和member有，admin没有）
 
 
 class RegisterRequest(BaseModel):

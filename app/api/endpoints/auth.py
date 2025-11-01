@@ -79,14 +79,14 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
         try:
             role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-            user_id = extra_claims["id"]
-            client_id = f"{role_str}_{user_id}"
+            real_id = extra_claims["id"]
+            client_id = f"{role_str}_{real_id}"
             
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="login",
                 data={
-                    "senderId": user_id,
+                    "senderId": real_id,
                     "senderRole": role_str,
                     "title": "用户登录",
                     "message": f"{acc.name or acc.account} 已登录",
@@ -115,7 +115,8 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         access_token=token, 
         role=acc.role, 
         account=Account.model_validate(acc),
-        id=extra_claims.get("id")
+        id=extra_claims.get("id"),
+        user_id=extra_claims.get("user_id")
     )
 
 
@@ -166,14 +167,14 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
     if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
         try:
             role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-            user_id = extra_claims["id"]
-            client_id = f"{role_str}_{user_id}"
+            real_id = extra_claims["id"]
+            client_id = f"{role_str}_{real_id}"
             
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="login",
                 data={
-                    "senderId": user_id,
+                    "senderId": real_id,
                     "senderRole": role_str,
                     "title": "用户登录",
                     "message": f"{acc.name or acc.account} 已登录",
@@ -202,7 +203,8 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
         access_token=token, 
         role=acc.role, 
         account=Account.model_validate(acc),
-        id=extra_claims.get("id")
+        id=extra_claims.get("id"),
+        user_id=extra_claims.get("user_id")
     )
 
 
