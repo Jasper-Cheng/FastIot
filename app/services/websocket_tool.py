@@ -1,7 +1,8 @@
 """
 WebSocket工具类
 支持收发信息、心跳机制、连接管理
-支持标准请求-响应模式：property.get, service.invoke, event.subscribe, family.message, system.message
+支持标准请求-响应模式：property.get, service.invoke, event.subscribe
+支持后端直接发送：family.message, system.message
 """
 import json
 import asyncio
@@ -17,11 +18,11 @@ class WebSocketTool:
     
     def __init__(self):
         # 活跃连接管理
-        self.active_connections: Dict[str, WebSocket] = {}
+        self.active_connections: Dict[str, WebSocket] = {}  # client_id -> WebSocket
         # 连接元数据
-        self.connection_metadata: Dict[str, Dict[str, Any]] = {}
+        self.connection_metadata: Dict[str, Dict[str, Any]] = {}  # client_id -> metadata dict
         # 方法处理器
-        self.method_handlers: Dict[str, Callable] = {}
+        self.method_handlers: Dict[str, Callable] = {}  # method_name -> handler_function
         # 事件订阅管理
         self.event_subscriptions: Dict[str, Dict[str, Set[str]]] = {}  # device_id -> event_type -> set of client_ids
         # 待处理请求
@@ -317,6 +318,96 @@ class WebSocketTool:
         """设置心跳超时时间"""
         self.heartbeat_timeout = timeout_seconds
         print(f"✅ [WebSocket] 心跳超时设置为 {timeout_seconds} 秒")
+    
+    async def send_family_message(
+        self,
+        client_id: str,
+        message_type: str,
+        data: Dict[str, Any]
+    ):
+        """
+        发送family消息给指定发送者的family成员
+        
+        Args:
+            client_id: 发送者客户端ID
+            message_type: 消息类型，例如：delete.member
+            data: 消息数据
+        """
+        print(f"👨‍👩‍👧‍👦 [WebSocket] 发送family消息: {message_type}")
+        
+        # 获取发送者的family信息
+        sender_metadata = self.get_connection_info(client_id)
+        if not sender_metadata or "metadata" not in sender_metadata or "family_clients" not in sender_metadata["metadata"]:
+            print(f"❌ [WebSocket] 无法获取客户端 {client_id} 的family信息")
+            return
+        
+        family_clients = sender_metadata["metadata"]["family_clients"]
+        
+        # 生成消息ID和时间戳
+        message_id = f"fam_{uuid.uuid4().hex[:8]}"
+        timestamp = int(datetime.now().timestamp() * 1000)
+        
+        # 构建family消息
+        family_message = {
+            "id": message_id,
+            "method": "family.message",
+            "params": {
+                "type": message_type,
+                "data": data
+            },
+            "timestamp": timestamp
+        }
+        
+        # 发送给family中的所有客户端
+        print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送family消息: {family_clients}")
+        for family_client_id in family_clients:
+            if family_client_id in self.active_connections:
+                try:
+                    await self.send_message(family_client_id, family_message)
+                    print(f"📤 [WebSocket] Family消息已发送给 {family_client_id}")
+                except Exception as e:
+                    print(f"❌ [WebSocket] 发送family消息给 {family_client_id} 失败: {e}")
+    
+    async def send_system_message(
+        self,
+        message_type: str,
+        data: Dict[str, Any]
+    ):
+        """
+        发送系统消息给所有连接的客户端
+        
+        Args:
+            message_type: 消息类型
+            data: 消息数据
+        """
+        print(f"🔔 [WebSocket] 发送系统消息: {message_type}")
+        
+        # 生成时间戳和消息ID
+        current_timestamp = int(datetime.now().timestamp() * 1000)
+        message_id = f"sys_{uuid.uuid4().hex[:8]}"
+        
+        # 确保data中包含timestamp
+        if "timestamp" not in data:
+            data["timestamp"] = current_timestamp
+        
+        # 构建系统消息
+        system_message = {
+            "id": message_id,
+            "method": "system.message",
+            "params": {
+                "type": message_type,
+                "data": data
+            },
+            "timestamp": current_timestamp
+        }
+        
+        # 发送给所有连接的客户端
+        for target_client_id in self.active_connections:
+            try:
+                await self.send_message(target_client_id, system_message)
+                print(f"📤 [WebSocket] 系统消息已发送给 {target_client_id}")
+            except Exception as e:
+                print(f"❌ [WebSocket] 发送系统消息给 {target_client_id} 失败: {e}")
 
 
 # 全局WebSocket工具实例
@@ -419,83 +510,8 @@ async def event_unsubscribe_handler(client_id: str, request_id: str, params: Dic
     await websocket_tool.send_response(client_id, request_id, "event.unsubscribe", response_params)
 
 
-async def family_message_handler(client_id: str, request_id: str, params: Dict[str, Any]):
-    """处理 family.message 请求"""
-    message_type = params.get("type")
-    data = params.get("data", {})
-    
-    print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送family消息: {message_type}")
-    
-    # 获取发送者的family信息
-    sender_metadata = websocket_tool.get_connection_info(client_id)
-    if not sender_metadata or "metadata" not in sender_metadata or "family_clients" not in sender_metadata["metadata"]:
-        print(f"❌ [WebSocket] 无法获取客户端 {client_id} 的family信息")
-        return
-    
-    family_clients = sender_metadata["metadata"]["family_clients"]
-    
-    # 构建family消息
-    family_message = {
-        "id": f"fam_{request_id}",
-        "method": "family.message",
-        "params": {
-            "type": message_type,
-            "data": data
-        },
-        "timestamp": int(datetime.now().timestamp() * 1000)
-    }
-    
-    # 发送给family中的所有客户端
-    sent_count = 0
-    print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送family消息: {family_clients}")
-    for family_client_id in family_clients:
-        if family_client_id in websocket_tool.active_connections:
-            try:
-                await websocket_tool.send_message(family_client_id, family_message)
-                sent_count += 1
-                print(f"📤 [WebSocket] Family消息已发送给 {family_client_id}")
-            except Exception as e:
-                print(f"❌ [WebSocket] 发送family消息给 {family_client_id} 失败: {e}")
-
-
-async def system_message_handler(client_id: str, request_id: str, params: Dict[str, Any]):
-    """处理 system.message 请求"""
-    message_type = params.get("type")
-    data = params.get("data", {})
-    
-    print(f"🔔 [WebSocket] 客户端 {client_id} 发送系统消息: {message_type}")
-    
-    # 确保data中包含timestamp
-    current_timestamp = int(datetime.now().timestamp() * 1000)
-    if "timestamp" not in data:
-        data["timestamp"] = current_timestamp
-    
-    # 构建系统消息
-    system_message = {
-        "id": f"sys_{request_id}",
-        "method": "system.message",
-        "params": {
-            "type": message_type,
-            "data": data
-        },
-        "timestamp": current_timestamp
-    }
-    
-    # 发送给所有连接的客户端
-    sent_count = 0
-    for target_client_id in websocket_tool.active_connections:
-        try:
-            await websocket_tool.send_message(target_client_id, system_message)
-            sent_count += 1
-            print(f"📤 [WebSocket] 系统消息已发送给 {target_client_id}")
-        except Exception as e:
-            print(f"❌ [WebSocket] 发送系统消息给 {target_client_id} 失败: {e}")
-
-
 # 注册默认方法处理器
 websocket_tool.register_method_handler("property.get", property_get_handler)
 websocket_tool.register_method_handler("service.invoke", service_invoke_handler)
 websocket_tool.register_method_handler("event.subscribe", event_subscribe_handler)
 websocket_tool.register_method_handler("event.unsubscribe", event_unsubscribe_handler)
-websocket_tool.register_method_handler("family.message", family_message_handler)
-websocket_tool.register_method_handler("system.message", system_message_handler)
