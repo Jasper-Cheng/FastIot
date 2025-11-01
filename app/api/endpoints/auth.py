@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 import re
+import asyncio
 
 from app.db.session import get_db
 from app.core.config import settings
@@ -76,26 +77,32 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
 
     # 发送family消息通知登录（仅owner和member）
+    # 延迟一秒发送，防止客户端的websocket连接还没建立
     if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
-        try:
-            role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-            real_id = extra_claims["id"]
-            client_id = f"{role_str}_{real_id}"
-            
-            await websocket_tool.send_family_message(
-                client_id=client_id,
-                message_type="login",
-                data={
-                    "senderId": real_id,
-                    "senderRole": role_str,
-                    "title": "用户登录",
-                    "message": f"{acc.name or acc.account} 已登录",
-                    "level": "normal"
-                }
-            )
-        except Exception as e:
-            # 发送消息失败不影响登录流程
-            print(f"发送登录消息失败: {e}")
+        async def send_login_message():
+            await asyncio.sleep(1)  # 延迟一秒
+            try:
+                role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
+                real_id = extra_claims["id"]
+                client_id = f"{role_str}_{real_id}"
+                
+                await websocket_tool.send_family_message(
+                    client_id=client_id,
+                    message_type="login",
+                    data={
+                        "senderId": real_id,
+                        "senderRole": role_str,
+                        "title": "用户登录",
+                        "message": f"{acc.name or acc.account} 已登录",
+                        "level": "normal"
+                    }
+                )
+            except Exception as e:
+                # 发送消息失败不影响登录流程
+                print(f"发送登录消息失败: {e}")
+        
+        # 在后台任务中发送消息，不阻塞登录响应
+        asyncio.create_task(send_login_message())
 
     # 记录登录操作
     try:
@@ -164,26 +171,32 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
 
     # 发送family消息通知登录（仅owner和member）
+    # 延迟一秒发送，防止客户端的websocket连接还没建立
     if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
-        try:
-            role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-            real_id = extra_claims["id"]
-            client_id = f"{role_str}_{real_id}"
-            
-            await websocket_tool.send_family_message(
-                client_id=client_id,
-                message_type="login",
-                data={
-                    "senderId": real_id,
-                    "senderRole": role_str,
-                    "title": "用户登录",
-                    "message": f"{acc.name or acc.account} 已登录",
-                    "level": "normal"
-                }
-            )
-        except Exception as e:
-            # 发送消息失败不影响登录流程
-            print(f"发送登录消息失败: {e}")
+        async def send_login_message():
+            await asyncio.sleep(1)  # 延迟一秒
+            try:
+                role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
+                real_id = extra_claims["id"]
+                client_id = f"{role_str}_{real_id}"
+                
+                await websocket_tool.send_family_message(
+                    client_id=client_id,
+                    message_type="login",
+                    data={
+                        "senderId": real_id,
+                        "senderRole": role_str,
+                        "title": "用户登录",
+                        "message": f"{acc.name or acc.account} 已登录",
+                        "level": "normal"
+                    }
+                )
+            except Exception as e:
+                # 发送消息失败不影响登录流程
+                print(f"发送登录消息失败: {e}")
+        
+        # 在后台任务中发送消息，不阻塞登录响应
+        asyncio.create_task(send_login_message())
 
     # 记录登录操作
     try:
