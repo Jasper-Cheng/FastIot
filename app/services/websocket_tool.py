@@ -2,14 +2,11 @@
 WebSocket工具类
 支持收发信息、心跳机制、连接管理
 支持标准请求-响应模式：property.get, service.invoke, event.subscribe, family.message, system.message
-支持模拟响应功能
 """
 import json
 import asyncio
 import uuid
-import random
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Set, Callable, Any, Optional, List
 from fastapi import WebSocket, WebSocketDisconnect
 from app.utils.time_utils import get_local_time
@@ -31,17 +28,6 @@ class WebSocketTool:
         self.pending_requests: Dict[str, Dict[str, Any]] = {}  # request_id -> request_info
         # 心跳超时时间（秒）
         self.heartbeat_timeout = 60  # 默认60秒超时
-        
-        # 模拟功能相关
-        self.mock_mode = True  # 是否启用模拟模式
-        self.mock_devices: Dict[str, Dict[str, Any]] = {}  # 模拟设备数据
-        self.mock_history: Dict[str, List[Dict[str, Any]]] = {
-            "property": [],
-            "service": [],
-            "event": [],
-            "family": [],
-            "system": []
-        }
         
     async def connect(self, websocket: WebSocket, client_id: str, metadata: Optional[Dict[str, Any]] = None):
         """接受WebSocket连接"""
@@ -331,325 +317,6 @@ class WebSocketTool:
         """设置心跳超时时间"""
         self.heartbeat_timeout = timeout_seconds
         print(f"✅ [WebSocket] 心跳超时设置为 {timeout_seconds} 秒")
-    
-    # ==================== 模拟功能相关方法 ====================
-    
-    def enable_mock_mode(self, enabled: bool = True):
-        """启用或禁用模拟模式"""
-        self.mock_mode = enabled
-        print(f"✅ [WebSocket] 模拟模式 {'启用' if enabled else '禁用'}")
-    
-    def initialize_mock_devices(self, device_configs: List[Dict[str, Any]]):
-        """初始化模拟设备数据"""
-        for config in device_configs:
-            device_id = config.get("deviceId")
-            if device_id:
-                self.mock_devices[device_id] = {
-                    "deviceId": device_id,
-                    "name": config.get("name", f"设备_{device_id}"),
-                    "type": config.get("type", "sensor"),
-                    "status": config.get("status", "online"),
-                    "properties": config.get("properties", {}),
-                    "services": config.get("services", []),
-                    "events": config.get("events", []),
-                    "last_update": get_local_time(),
-                    "simulation_config": config.get("simulation", {})
-                }
-        print(f"✅ [WebSocket] 已初始化 {len(device_configs)} 个模拟设备")
-    
-    def _generate_mock_property_value(self, property_name: str) -> Any:
-        """根据属性名生成模拟值"""
-        property_name_lower = property_name.lower()
-        
-        if "temperature" in property_name_lower:
-            return round(random.uniform(15.0, 35.0), 1)
-        elif "humidity" in property_name_lower:
-            return random.randint(30, 90)
-        elif "pressure" in property_name_lower:
-            return round(random.uniform(950.0, 1050.0), 1)
-        elif "voltage" in property_name_lower:
-            return round(random.uniform(3.0, 5.0), 2)
-        elif "current" in property_name_lower:
-            return round(random.uniform(0.1, 2.0), 3)
-        elif "power" in property_name_lower:
-            return random.choice([True, False])
-        elif "status" in property_name_lower:
-            return random.choice(["unconfigured", "configured", "unbound", "bound", "offline", "online", "fault"])
-        elif "battery" in property_name_lower:
-            return random.randint(0, 100)
-        elif "signal" in property_name_lower:
-            return random.randint(-100, -30)
-        elif "speed" in property_name_lower:
-            return random.randint(0, 100)
-        elif "count" in property_name_lower:
-            return random.randint(0, 1000)
-        elif "level" in property_name_lower:
-            return random.randint(0, 100)
-        elif "switch" in property_name_lower or "enable" in property_name_lower:
-            return random.choice([True, False])
-        # 音响相关属性
-        elif property_name_lower == "power":
-            return random.choice([True, False])
-        elif property_name_lower == "volume":
-            return random.randint(0, 100)
-        elif property_name_lower == "mute":
-            return random.choice([True, False])
-        elif property_name_lower == "source":
-            return random.choice(["bluetooth", "wifi", "aux", "usb"])
-        elif property_name_lower == "playing":
-            return random.choice([True, False])
-        elif property_name_lower == "track":
-            return random.choice(["未知歌曲", "随机歌曲", "测试音乐", "背景音乐"])
-        elif property_name_lower == "artist":
-            return random.choice(["未知艺术家", "测试艺术家", "随机歌手", "背景音乐"])
-        elif property_name_lower == "album":
-            return random.choice(["未知专辑", "测试专辑", "精选集", "背景音乐"])
-        elif property_name_lower == "duration":
-            return random.randint(60, 300)  # 1-5分钟
-        elif property_name_lower == "position":
-            return random.randint(0, 180)   # 0-3分钟
-        elif property_name_lower == "repeat":
-            return random.choice(["none", "one", "all"])
-        elif property_name_lower == "shuffle":
-            return random.choice([True, False])
-        elif property_name_lower == "equalizer":
-            return random.choice(["normal", "pop", "rock", "jazz", "classical"])
-        elif property_name_lower == "bass":
-            return random.randint(-10, 10)
-        elif property_name_lower == "treble":
-            return random.randint(-10, 10)
-        elif property_name_lower == "battery":
-            return random.randint(0, 100)
-        elif property_name_lower == "wifisignal":
-            return random.randint(-80, -30)
-        elif property_name_lower == "bluetoothconnected":
-            return random.choice([True, False])
-        elif property_name_lower == "bluetoothdevice":
-            return random.choice(["iPhone 15", "Samsung Galaxy", "iPad", "MacBook", "Android Phone"])
-        elif property_name_lower == "firmwareversion":
-            return f"{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}"
-        else:
-            return f"mock_value_{random.randint(1, 100)}"
-    
-    def _generate_mock_service_result(self, device_id: str, service_name: str, 
-                                    arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """生成模拟服务调用结果"""
-        service_name_lower = service_name.lower()
-        
-        if "setpower" in service_name_lower or "set_power" in service_name_lower:
-            power = arguments.get("power", True)
-            return {
-                "status": "success",
-                "message": f"设备电源已{'开启' if power else '关闭'}",
-                "newPower": power,
-                "changeTime": int(get_local_time().timestamp() * 1000)
-            }
-        else:
-            return {
-                "status": "success",
-                "message": f"服务 {service_name} 执行成功",
-                "executionTime": int(get_local_time().timestamp() * 1000)
-            }
-    
-    def _generate_mock_event_data(self, device_id: str, event_type: str, 
-                                base_data: Dict[str, Any]) -> Dict[str, Any]:
-        """生成模拟事件数据"""
-        event_type_lower = event_type.lower()
-        
-        # 基础事件数据
-        event_data = {
-            "deviceId": device_id,
-            "eventType": event_type,
-            "timestamp": int(get_local_time().timestamp() * 1000),
-            **base_data
-        }
-        
-        if "alarm" in event_type_lower or "alert" in event_type_lower:
-            event_data.update({
-                "severity": random.choice(["low", "medium", "high", "critical"]),
-                "description": f"设备 {device_id} 发生 {event_type} 事件",
-                "alarmCode": f"ALM_{random.randint(1000, 9999)}"
-            })
-        elif "status" in event_type_lower:
-            event_data.update({
-                "oldStatus": random.choice(["online", "offline", "error"]),
-                "newStatus": random.choice(["online", "offline", "error"]),
-                "reason": random.choice(["manual", "automatic", "scheduled", "error"])
-            })
-        elif "data" in event_type_lower or "sensor" in event_type_lower:
-            event_data.update({
-                "sensorData": {
-                    "temperature": round(random.uniform(15.0, 35.0), 1),
-                    "humidity": random.randint(30, 90),
-                    "pressure": round(random.uniform(950.0, 1050.0), 1)
-                },
-                "quality": random.choice(["good", "fair", "poor"])
-            })
-        elif "connect" in event_type_lower:
-            event_data.update({
-                "connectionType": random.choice(["wifi", "ethernet", "cellular"]),
-                "signalStrength": random.randint(-100, -30),
-                "ipAddress": f"192.168.1.{random.randint(1, 254)}"
-            })
-        elif "disconnect" in event_type_lower:
-            event_data.update({
-                "reason": random.choice(["timeout", "manual", "error", "maintenance"]),
-                "duration": random.randint(1, 3600)  # 1秒到1小时
-            })
-        # 音响相关事件
-        elif "power_change" in event_type_lower:
-            event_data.update({
-                "oldPower": random.choice([True, False]),
-                "newPower": random.choice([True, False]),
-                "reason": random.choice(["manual", "timer", "remote", "app"])
-            })
-        elif "volume_change" in event_type_lower:
-            event_data.update({
-                "oldVolume": random.randint(0, 100),
-                "newVolume": random.randint(0, 100),
-                "reason": random.choice(["manual", "auto", "remote"])
-            })
-        elif "mute_change" in event_type_lower:
-            event_data.update({
-                "oldMute": random.choice([True, False]),
-                "newMute": random.choice([True, False]),
-                "reason": random.choice(["manual", "auto", "remote"])
-            })
-        elif "source_change" in event_type_lower:
-            event_data.update({
-                "oldSource": random.choice(["bluetooth", "wifi", "aux", "usb"]),
-                "newSource": random.choice(["bluetooth", "wifi", "aux", "usb"]),
-                "reason": random.choice(["manual", "auto", "connection"])
-            })
-        elif "playback_start" in event_type_lower:
-            event_data.update({
-                "track": random.choice(["未知歌曲", "随机歌曲", "测试音乐"]),
-                "artist": random.choice(["未知艺术家", "测试艺术家", "随机歌手"]),
-                "album": random.choice(["未知专辑", "测试专辑", "精选集"]),
-                "duration": random.randint(60, 300),
-                "startTime": int(get_local_time().timestamp() * 1000)
-            })
-        elif "playback_pause" in event_type_lower:
-            event_data.update({
-                "position": random.randint(0, 180),
-                "pauseTime": int(get_local_time().timestamp() * 1000)
-            })
-        elif "playback_stop" in event_type_lower:
-            event_data.update({
-                "stopTime": int(get_local_time().timestamp() * 1000),
-                "reason": random.choice(["manual", "end_of_track", "error"])
-            })
-        elif "track_change" in event_type_lower:
-            event_data.update({
-                "oldTrack": random.choice(["上一首歌曲", "随机歌曲", "测试音乐"]),
-                "newTrack": random.choice(["下一首歌曲", "随机歌曲", "测试音乐"]),
-                "changeTime": int(get_local_time().timestamp() * 1000),
-                "reason": random.choice(["manual", "auto", "shuffle"])
-            })
-        elif "bluetooth_connected" in event_type_lower:
-            event_data.update({
-                "deviceName": random.choice(["iPhone 15", "Samsung Galaxy", "iPad", "MacBook"]),
-                "deviceAddress": f"{random.randint(10, 99)}:{random.randint(10, 99)}:{random.randint(10, 99)}:{random.randint(10, 99)}:{random.randint(10, 99)}:{random.randint(10, 99)}",
-                "connectTime": int(get_local_time().timestamp() * 1000)
-            })
-        elif "bluetooth_disconnected" in event_type_lower:
-            event_data.update({
-                "deviceName": random.choice(["iPhone 15", "Samsung Galaxy", "iPad", "MacBook"]),
-                "disconnectTime": int(get_local_time().timestamp() * 1000),
-                "reason": random.choice(["manual", "out_of_range", "low_battery"])
-            })
-        elif "battery_low" in event_type_lower:
-            event_data.update({
-                "batteryLevel": random.randint(5, 20),
-                "warningTime": int(get_local_time().timestamp() * 1000),
-                "estimatedTimeLeft": random.randint(30, 120)  # 分钟
-            })
-        elif "wifi_status" in event_type_lower:
-            event_data.update({
-                "signalStrength": random.randint(-80, -30),
-                "connectionStatus": random.choice(["connected", "disconnected", "weak"]),
-                "ipAddress": f"192.168.1.{random.randint(1, 254)}"
-            })
-        elif "firmware_update" in event_type_lower:
-            event_data.update({
-                "oldVersion": f"{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
-                "newVersion": f"{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
-                "updateTime": int(get_local_time().timestamp() * 1000),
-                "updateSize": random.randint(10, 100)  # MB
-            })
-        
-        return event_data
-    
-    def get_mock_history(self, history_type: str = "all") -> Dict[str, List[Dict[str, Any]]]:
-        """获取模拟历史记录"""
-        if history_type == "property":
-            return {"property": self.mock_history["property"]}
-        elif history_type == "service":
-            return {"service": self.mock_history["service"]}
-        elif history_type == "event":
-            return {"event": self.mock_history["event"]}
-        else:
-            return self.mock_history.copy()
-    
-    def clear_mock_history(self, history_type: str = "all"):
-        """清除模拟历史记录"""
-        if history_type == "property" or history_type == "all":
-            self.mock_history["property"].clear()
-        if history_type == "service" or history_type == "all":
-            self.mock_history["service"].clear()
-        if history_type == "event" or history_type == "all":
-            self.mock_history["event"].clear()
-        print(f"✅ [WebSocket] 已清除 {history_type} 模拟历史记录")
-    
-    def update_mock_device_property(self, device_id: str, property_name: str, value: Any):
-        """更新模拟设备属性"""
-        if device_id in self.mock_devices:
-            if "properties" not in self.mock_devices[device_id]:
-                self.mock_devices[device_id]["properties"] = {}
-            self.mock_devices[device_id]["properties"][property_name] = value
-            self.mock_devices[device_id]["last_update"] = get_local_time()
-            print(f"✅ [WebSocket] 模拟设备 {device_id} 属性 {property_name} 已更新为 {value}")
-    
-    def get_mock_device_info(self, device_id: str) -> Optional[Dict[str, Any]]:
-        """获取模拟设备信息"""
-        return self.mock_devices.get(device_id)
-    
-    async def send_mock_event_notification(self, device_id: str, event_type: str, 
-                                         data: Dict[str, Any] = None):
-        """发送模拟事件通知给订阅的客户端"""
-        if device_id not in self.event_subscriptions:
-            return
-            
-        data = data or {}
-        
-        # 生成模拟事件数据
-        event_data = self._generate_mock_event_data(device_id, event_type, data)
-        
-        event_id = f"evt_{uuid.uuid4().hex[:8]}"
-        event_message = {
-            "id": event_id,
-            "method": "event.notify",
-            "params": {
-                "deviceId": device_id,
-                "eventType": event_type,
-                "data": event_data,
-                "occurredAt": int(get_local_time().timestamp() * 1000)
-            },
-            "timestamp": int(get_local_time().timestamp() * 1000)
-        }
-        
-        # 记录模拟历史
-        self.mock_history["event"].append({
-            "device_id": device_id,
-            "event_type": event_type,
-            "data": event_data,
-            "timestamp": get_local_time(),
-            "event_id": event_id
-        })
-        
-        # 发送给所有订阅该设备的客户端
-        for client_id in self.event_subscriptions[device_id]:
-            await self.send_message(client_id, event_message)
 
 
 # 全局WebSocket工具实例
@@ -664,43 +331,17 @@ async def property_get_handler(client_id: str, request_id: str, params: Dict[str
     
     print(f"🔍 [WebSocket] 客户端 {client_id} 查询设备 {device_id} 属性: {property_names}")
     
-    # 检查是否启用模拟模式
-    if websocket_tool.mock_mode:
-        # 使用模拟数据
-        properties = {}
-        device_properties = {}
-        
-        # 获取设备属性或生成模拟数据
-        if device_id in websocket_tool.mock_devices:
-            device_properties = websocket_tool.mock_devices[device_id].get("properties", {})
-        
-        for prop_name in property_names:
-            if prop_name in device_properties:
-                properties[prop_name] = device_properties[prop_name]
-            else:
-                # 根据属性名生成模拟数据
-                properties[prop_name] = websocket_tool._generate_mock_property_value(prop_name)
-        
-        # 记录模拟历史
-        websocket_tool.mock_history["property"].append({
-            "device_id": device_id,
-            "property_names": property_names,
-            "response": properties,
-            "timestamp": get_local_time(),
-            "client_id": client_id
-        })
-    else:
-        # 使用原有逻辑
-        properties = {}
-        for prop_name in property_names:
-            if prop_name == "temperature":
-                properties[prop_name] = 25.5
-            elif prop_name == "humidity":
-                properties[prop_name] = 60
-            elif prop_name == "status":
-                properties[prop_name] = "online"
-            else:
-                properties[prop_name] = "unknown"
+    # 使用原有逻辑
+    properties = {}
+    for prop_name in property_names:
+        if prop_name == "temperature":
+            properties[prop_name] = 25.5
+        elif prop_name == "humidity":
+            properties[prop_name] = 60
+        elif prop_name == "status":
+            properties[prop_name] = "online"
+        else:
+            properties[prop_name] = "unknown"
     
     response_params = {
         "deviceId": device_id,
@@ -718,39 +359,18 @@ async def service_invoke_handler(client_id: str, request_id: str, params: Dict[s
     
     print(f"🔧 [WebSocket] 客户端 {client_id} 调用设备 {device_id} 服务: {service_name}")
     
-    # 检查是否启用模拟模式
-    if websocket_tool.mock_mode:
-        # 使用模拟服务调用结果
-        result = websocket_tool._generate_mock_service_result(device_id, service_name, arguments)
-        
-        # 服务调用成功后，发送属性变更通知给订阅的客户端
-        await _send_property_change_notification_to_subscribers(device_id, service_name, arguments, result)
-        
-        # 模拟发送系统消息
-        await _send_mock_system_message(device_id, service_name, arguments, result)
-        
-        # 记录模拟历史
-        websocket_tool.mock_history["service"].append({
-            "device_id": device_id,
-            "service_name": service_name,
-            "arguments": arguments,
-            "result": result,
-            "timestamp": get_local_time(),
-            "client_id": client_id
-        })
-    else:
-        # 使用原有逻辑
-        result = {
-            "status": "success",
-            "message": f"Service {service_name} executed successfully"
-        }
-        
-        if service_name == "reboot":
-            delay = arguments.get("delay", 0)
-            result["message"] = f"Device will reboot in {delay} seconds"
-        elif service_name == "setTemperature":
-            temperature = arguments.get("temperature", 20)
-            result["message"] = f"Temperature set to {temperature}°C"
+    # 使用原有逻辑
+    result = {
+        "status": "success",
+        "message": f"Service {service_name} executed successfully"
+    }
+    
+    if service_name == "reboot":
+        delay = arguments.get("delay", 0)
+        result["message"] = f"Device will reboot in {delay} seconds"
+    elif service_name == "setTemperature":
+        temperature = arguments.get("temperature", 20)
+        result["message"] = f"Temperature set to {temperature}°C"
     
     response_params = {
         "deviceId": device_id,
@@ -759,48 +379,6 @@ async def service_invoke_handler(client_id: str, request_id: str, params: Dict[s
     }
     
     await websocket_tool.send_response(client_id, request_id, "service.invoke", response_params)
-
-
-async def _send_property_change_notification_to_subscribers(device_id: str, service_name: str, 
-                                                          arguments: Dict[str, Any], result: Dict[str, Any]):
-    """向订阅的客户端发送属性变更通知"""
-    if device_id not in websocket_tool.event_subscriptions:
-        return
-    
-    service_name_lower = service_name.lower()
-    
-    # 根据服务类型确定需要通知的属性
-    properties_to_notify = {}
-    
-    if "setpower" in service_name_lower or "set_power" in service_name_lower:
-        properties_to_notify["power"] = arguments.get("power", True)
-    
-    # 如果没有需要通知的属性，直接返回
-    if not properties_to_notify:
-        return
-    
-    # 构建属性变更通知消息
-    notification_id = f"prop_{uuid.uuid4().hex[:8]}"
-    timestamp = int(get_local_time().timestamp() * 1000)
-    
-    property_message = {
-        "id": notification_id,
-        "method": "event.notify",
-        "params": {
-            "deviceId": device_id,
-            "eventType": "propertyUpdate",
-            "data": properties_to_notify,
-            "occurredAt": timestamp
-        },
-        "timestamp": timestamp
-    }
-    
-    # 发送给所有订阅propertyUpdate事件的客户端
-    if "propertyUpdate" in websocket_tool.event_subscriptions[device_id]:
-        for client_id in websocket_tool.event_subscriptions[device_id]["propertyUpdate"]:
-            await websocket_tool.send_message(client_id, property_message)
-    
-    print(f"✅ [WebSocket] 属性变更通知已发送给 {len(websocket_tool.event_subscriptions[device_id].get('propertyUpdate', []))} 个订阅客户端: {properties_to_notify}")
 
 
 async def event_subscribe_handler(client_id: str, request_id: str, params: Dict[str, Any]):
@@ -886,15 +464,6 @@ async def family_message_handler(client_id: str, request_id: str, params: Dict[s
             except Exception as e:
                 print(f"❌ [WebSocket] 发送family消息给 {family_client_id} 失败: {e}")
     
-    # 记录family消息历史
-    websocket_tool.mock_history.setdefault("family", []).append({
-        "sender": client_id,
-        "type": message_type,
-        "data": data,
-        "family_clients": family_clients,
-        "sent_count": sent_count,
-        "timestamp": get_local_time()
-    })
     
     response_params = {
         "type": message_type,
@@ -938,15 +507,6 @@ async def system_message_handler(client_id: str, request_id: str, params: Dict[s
         except Exception as e:
             print(f"❌ [WebSocket] 发送系统消息给 {client_id} 失败: {e}")
     
-    # 记录系统消息历史
-    websocket_tool.mock_history.setdefault("system", []).append({
-        "sender": client_id,
-        "type": message_type,
-        "data": data,
-        "total_clients": len(websocket_tool.active_connections),
-        "sent_count": sent_count,
-        "timestamp": get_local_time()
-    })
     
     response_params = {
         "type": message_type,
@@ -964,127 +524,3 @@ websocket_tool.register_method_handler("event.subscribe", event_subscribe_handle
 websocket_tool.register_method_handler("event.unsubscribe", event_unsubscribe_handler)
 websocket_tool.register_method_handler("family.message", family_message_handler)
 websocket_tool.register_method_handler("system.message", system_message_handler)
-
-async def _send_mock_system_message(device_id: str, service_name: str, arguments: Dict[str, Any], result: Dict[str, Any]):
-    """模拟发送系统消息"""
-    try:
-        # 根据服务类型生成不同的系统消息
-        system_messages = []
-        
-        if service_name == "reboot":
-            delay = arguments.get("delay", 0)
-            system_messages.append({
-                "title": "设备重启通知",
-                "content": f"设备 {device_id} 将在 {delay} 秒后重启",
-                "type": "notification",
-                "priority": "normal",
-                "platforms": ["android", "ios", "web"]
-            })
-        elif service_name == "setTemperature":
-            temperature = arguments.get("temperature", 20)
-            system_messages.append({
-                "title": "温度设置成功",
-                "content": f"设备 {device_id} 温度已设置为 {temperature}°C",
-                "type": "notification",
-                "priority": "normal",
-                "platforms": ["android", "ios", "web"]
-            })
-        elif service_name == "setBrightness":
-            brightness = arguments.get("brightness", 50)
-            system_messages.append({
-                "title": "亮度调节完成",
-                "content": f"设备 {device_id} 亮度已调整为 {brightness}%",
-                "type": "notification",
-                "priority": "normal",
-                "platforms": ["android", "ios", "web"]
-            })
-        elif service_name == "setVolume":
-            volume = arguments.get("volume", 50)
-            system_messages.append({
-                "title": "音量调节完成",
-                "content": f"设备 {device_id} 音量已设置为 {volume}%",
-                "type": "notification",
-                "priority": "normal",
-                "platforms": ["android", "ios", "web"]
-            })
-        elif service_name == "startPlay":
-            system_messages.append({
-                "title": "播放开始",
-                "content": f"设备 {device_id} 开始播放",
-                "type": "notification",
-                "priority": "low",
-                "platforms": ["android", "ios", "web"]
-            })
-        elif service_name == "stopPlay":
-            system_messages.append({
-                "title": "播放停止",
-                "content": f"设备 {device_id} 停止播放",
-                "type": "notification",
-                "priority": "low",
-                "platforms": ["android", "ios", "web"]
-            })
-        else:
-            # 通用服务调用消息
-            system_messages.append({
-                "title": "服务调用成功",
-                "content": f"设备 {device_id} 的 {service_name} 服务执行成功",
-                "type": "notification",
-                "priority": "normal",
-                "platforms": ["android", "ios", "web"]
-            })
-        
-        # 发送系统消息给所有连接的客户端
-        for message_data in system_messages:
-            message_params = {
-                "type": "system_notification",
-                "data": {
-                    "id": f"sys_msg_{int(time.time() * 1000)}",
-                    "title": message_data["title"],
-                    "content": message_data["content"],
-                    "type": message_data["type"],
-                    "priority": message_data["priority"],
-                    "platforms": message_data["platforms"],
-                    "timestamp": get_local_time().isoformat(),
-                    "device_id": device_id,
-                    "service_name": service_name
-                }
-            }
-            
-            # 广播给所有活跃连接
-            for active_client_id in websocket_tool.active_connections:
-                try:
-                    await websocket_tool.send_response(
-                        active_client_id, 
-                        f"sys_msg_{int(time.time() * 1000)}", 
-                        "system.message", 
-                        message_params
-                    )
-                    print(f"[WebSocket] 已发送系统消息给客户端 {active_client_id}: {message_data['title']}")
-                except Exception as e:
-                    print(f"[WebSocket] 发送系统消息失败 {active_client_id}: {e}")
-                    
-    except Exception as e:
-        print(f"[WebSocket] 模拟发送系统消息失败: {e}")
-
-
-# 默认模拟设备配置
-DEFAULT_MOCK_DEVICE_CONFIGS = [
-    {
-        "deviceId": "speaker_001",
-        "name": "智能音响",
-        "type": "speaker",
-        "status": "online",
-        "properties": {
-            "power": True
-        },
-        "services": [
-            "setPower"
-        ],
-        "events": [
-            "power_change"
-        ]
-    }
-]
-
-# 初始化默认模拟设备配置
-websocket_tool.initialize_mock_devices(DEFAULT_MOCK_DEVICE_CONFIGS)
