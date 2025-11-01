@@ -14,6 +14,7 @@ from app.models.account import AccountCreate, AccountRole, AccountGender, Accoun
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
+from app.services.websocket_tool import websocket_tool
 router = APIRouter()
 
 
@@ -139,6 +140,30 @@ async def create_member_for_user(
     except Exception as e:
         # 记录操作失败不影响创建流程
         print(f"记录添加成员操作失败: {e}")
+
+    # 发送family消息通知创建成员
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="member.create",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "创建成员",
+                    "message": f"已创建成员：{acc.name or acc.account}",
+                    "level": "normal",
+                    "memberId": m.id,
+                    "memberName": acc.name,
+                    "memberAccount": acc.account
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送创建成员通知失败: {e}")
 
     return m
 
@@ -270,6 +295,32 @@ async def update_member_detail(
         # 记录操作失败不影响更新流程
         print(f"记录更新成员操作失败: {e}")
 
+    # 发送family消息通知更新成员
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            # 获取更新后的账号信息
+            updated_account = await get_account(db, m.account_id)
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="member.update",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "更新成员",
+                    "message": f"已更新成员：{updated_account.name if updated_account and updated_account.name else updated_account.account if updated_account else f'ID:{member_id}'} 的信息",
+                    "level": "normal",
+                    "memberId": member_id,
+                    "memberName": updated_account.name if updated_account else None,
+                    "updateData": {k: v for k, v in updated.items() if k != "password"}
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送更新成员通知失败: {e}")
+
     # 重新返回成员（不展开 account）
     m = await get_member(db, member_id)
     return m
@@ -295,6 +346,11 @@ async def remove_member(
         raise HTTPException(status_code=403, detail="无权删除此成员")
 
     try:
+        # 在删除前获取成员账号信息（用于记录和发送消息）
+        member_account = await get_account(db, m.account_id)
+        member_account_name = member_account.account if member_account else f"ID:{m.account_id}"
+        member_name = member_account.name if member_account else None
+        
         # 先删除 member（会级联删除权限等依赖）
         success = await delete_member(db, member_id)
         if not success:
@@ -321,10 +377,6 @@ async def remove_member(
         
         # 记录删除成员操作
         try:
-            # 获取成员账号信息用于记录
-            member_account = await get_account(db, m.account_id)
-            member_account_name = member_account.account if member_account else f"ID:{m.account_id}"
-            member_name = member_account.name if member_account else None
 
             await user_operation_log.create(
                 db=db,
@@ -346,6 +398,29 @@ async def remove_member(
         except Exception as e:
             # 记录操作失败不影响删除流程
             print(f"记录删除成员操作失败: {e}")
+        
+        # 发送family消息通知删除成员
+        try:
+            role = token_info.get("role")
+            real_id = token_info.get("id")
+            if role and real_id is not None:
+                client_id = f"{role}_{real_id}"
+                await websocket_tool.send_family_message(
+                    client_id=client_id,
+                    message_type="member.delete",
+                    data={
+                        "senderId": real_id,
+                        "senderRole": role,
+                        "title": "删除成员",
+                        "message": f"已删除成员：{member_name or member_account_name}",
+                        "level": "normal",
+                        "memberId": member_id,
+                        "memberName": member_name
+                    }
+                )
+        except Exception as e:
+            # 发送消息失败不影响业务流程
+            print(f"发送删除成员通知失败: {e}")
         
         return {"message": "删除成功"}
     except Exception as e:
