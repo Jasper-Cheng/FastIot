@@ -9,6 +9,7 @@ from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
 from app.models.account import AccountRole
+from app.services.websocket_tool import websocket_tool
 router = APIRouter()
 
 @router.get("/", response_model=List[RoomInDB])
@@ -70,6 +71,34 @@ async def create_new_room(
         # 记录操作失败不影响创建流程
         print(f"记录创建房间操作失败: {e}")
     
+    # 发送family消息通知创建房间
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="room.create",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "创建房间",
+                    "message": f"已创建房间：{db_room.name}",
+                    "level": "normal",
+                    "roomData": {
+                        "name": db_room.name,
+                        "id": db_room.id,
+                        "user_id": db_room.user_id,
+                        "created_at": db_room.created_at.isoformat() if db_room.created_at else None,
+                        "devices": []
+                    }
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送创建房间通知失败: {e}")
+    
     return db_room
 
 @router.delete("/{room_id}")
@@ -124,5 +153,28 @@ async def delete_room_by_id(
     except Exception as e:
         # 记录操作失败不影响删除流程
         print(f"记录删除房间操作失败: {e}")
+    
+    # 发送family消息通知删除房间
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="room.delete",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "删除房间",
+                    "message": f"已删除房间：{room_name}",
+                    "level": "normal",
+                    "roomId": room_id,
+                    "roomName": room_name
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送删除房间通知失败: {e}")
     
     return {"message": "房间删除成功"}
