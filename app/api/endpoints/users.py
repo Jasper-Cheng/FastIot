@@ -10,6 +10,7 @@ from app.models.user import User, UserUpdateRequest
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
 from app.models.account import AccountRole
+from app.services.websocket_tool import websocket_tool
 router = APIRouter()
 
 
@@ -110,17 +111,21 @@ async def update_user_detail(
     if payload.password is not None:
         updated["password"] = payload.password
 
-    await update_account(
+    # 更新账号信息并获取更新后的账号
+    updated_account = await update_account(
         db,
         u.account_id,
         AccountUpdate(**updated),
     )
-
+    
+    if not updated_account:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    
+    # 构建更新数据（排除密码）
+    update_data = {k: v for k, v in updated.items() if k != "password"}
+    
     # 记录用户更新操作
     try:
-        # 获取更新后的账号信息
-        updated_account = await get_account(db, u.account_id)
-        
         # 构建更新字段的描述
         updated_fields = []
         for field, value in updated.items():
@@ -141,7 +146,7 @@ async def update_user_detail(
                     "updated_account_id": u.account_id,
                     "updated_account_name": updated_account.account if updated_account else None,
                     "updated_fields": list(updated.keys()),
-                    "updated_values": {k: v for k, v in updated.items() if k != "password"}  # 不记录密码
+                    "updated_values": update_data
                 }
             ),
             account_id=u.account_id
@@ -149,9 +154,34 @@ async def update_user_detail(
     except Exception as e:
         # 记录操作失败不影响更新流程
         print(f"记录用户更新操作失败: {e}")
-
-    # 重新返回用户（包含 account 信息）
-    u = await get_user(db, user_id)
+    
+    # 发送family消息通知更新用户信息
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="user.update",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "更新用户信息",
+                    "message": f"已更新用户信息：{updated_account.name if updated_account and updated_account.name else updated_account.account if updated_account else f'ID:{user_id}'}",
+                    "level": "normal",
+                    "userId": user_id,
+                    "userName": updated_account.name if updated_account else None,
+                    "updateData": update_data
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送更新用户信息通知失败: {e}")
+    
+    # 刷新 user 对象以包含最新的 account 信息
+    await db.refresh(u)
     return u
 
 
@@ -204,6 +234,29 @@ async def remove_user(
     except Exception as e:
         # 记录操作失败不影响删除流程
         print(f"记录删除用户操作失败: {e}")
+    
+    # 发送family消息通知删除用户
+    try:
+        role = token_info.get("role")
+        real_id = token_info.get("id")
+        if role and real_id is not None:
+            client_id = f"{role}_{real_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="user.delete",
+                data={
+                    "senderId": real_id,
+                    "senderRole": role,
+                    "title": "删除用户",
+                    "message": f"已删除用户：{account_to_delete.name if account_to_delete and account_to_delete.name else account_to_delete.account if account_to_delete else f'ID:{user_id}'}",
+                    "level": "normal",
+                    "userId": user_id,
+                    "userName": account_to_delete.name if account_to_delete else None
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响业务流程
+        print(f"发送删除用户通知失败: {e}")
     
     return {"message": "删除成功，该用户的设备已变为未绑定状态"}
 
