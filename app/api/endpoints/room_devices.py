@@ -109,6 +109,8 @@ async def batch_update_sort(
                         "title": "设备排序更新",
                         "message": f"已调整房间 {room_name} 内的设备排序（共{device_count}个设备）",
                         "level": "normal",
+                        "roomId": payload.room_id,
+                        "roomName": room_name,
                         "roomDevicesData": room_devices_data
                     }
                 )
