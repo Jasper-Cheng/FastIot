@@ -81,10 +81,6 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             
             await websocket_tool.connect(websocket, client_id, metadata)
             
-            # 输出连接成功信息
-            print(f"✅ [WebSocket] 连接成功!")
-            print(f"   Metadata: {metadata}")
-            
             # 更新当前连接的family_clients活跃状态
             websocket_tool.update_family_clients_for_client(client_id)
             

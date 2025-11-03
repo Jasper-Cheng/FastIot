@@ -40,7 +40,7 @@ class WebSocketTool:
             "metadata": metadata or {}
         }
         
-        print(f"✅ [WebSocket] 客户端 {client_id} 已连接")
+        print(f"✅ [WebSocket] 客户端 {client_id} 已连接: metadata = {metadata}")
         
     async def disconnect(self, client_id: str):
         """断开WebSocket连接"""
@@ -70,10 +70,10 @@ class WebSocketTool:
         try:
             websocket = self.active_connections[client_id]
             await websocket.send_text(json.dumps(message, ensure_ascii=False))
-            print(f"✅ [WebSocket] 消息已发送给客户端 {client_id}: {message}")
+            print(f"✅ [WebSocket] 消息已发送给客户端 {client_id}，type: {message.get('params', {}).get('type')}")
             return True
         except Exception as e:
-            print(f"❌ [WebSocket] 发送消息失败: {e}")
+            print(f"❌ [WebSocket] 发送消息给客户端 {client_id} 失败: {e}")
             self.disconnect(client_id)
             return False
             
@@ -197,7 +197,6 @@ class WebSocketTool:
         }
         
         await self.send_message(client_id, pong_response)
-        print(f"💓 [WebSocket] 客户端 {client_id} 心跳包已响应")
             
     async def _handle_standard_request(self, client_id: str, data: Dict[str, Any]):
         """处理标准请求格式"""
@@ -279,7 +278,7 @@ class WebSocketTool:
                             family_metadata["metadata"] = {}
                         family_metadata["metadata"]["family_clients"] = family_clients
             
-            print(f"✅ [WebSocket] 已更新所有family_clients的关联连接列表")
+            print(f"✅ [WebSocket] 已更新所有 {family_clients} 客户端的 metadata 中 family_clients 为 {family_clients} ")
         
     async def check_heartbeat_timeouts(self):
         """检查心跳超时并断开连接"""
@@ -333,7 +332,6 @@ class WebSocketTool:
             message_type: 消息类型，例如：delete.member
             data: 消息数据
         """
-        print(f"👨‍👩‍👧‍👦 [WebSocket] 发送family消息: {message_type}")
         
         # 获取发送者的family信息
         sender_metadata = self.get_connection_info(client_id)
@@ -359,12 +357,11 @@ class WebSocketTool:
         }
         
         # 发送给family中的所有客户端
-        print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送family消息: {family_clients}")
+        print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送消息给客户端 {family_clients}，消息数据: {family_message}")
         for family_client_id in family_clients:
             if family_client_id in self.active_connections:
                 try:
                     await self.send_message(family_client_id, family_message)
-                    print(f"📤 [WebSocket] Family消息已发送给 {family_client_id}")
                 except Exception as e:
                     print(f"❌ [WebSocket] 发送family消息给 {family_client_id} 失败: {e}")
     
