@@ -29,17 +29,6 @@ async def list_members(
     return await get_members_by_user(db, user_id=user_id, skip=skip, limit=limit)
 
 
-@router.get("/{member_id}", response_model=Member, response_model_exclude={"user"})
-async def get_member_detail(
-    member_id: int, 
-    db: AsyncSession = Depends(get_db),
-):
-    m = await get_member(db, member_id)
-    if not m:
-        raise HTTPException(status_code=404, detail="成员不存在")
-    return m
-
-
 @router.post("/", response_model=MemberInDB)
 async def create_member_for_user(
     payload: MemberRegisterRequest, 
