@@ -4,7 +4,7 @@ from app.models.account import AccountUpdate
 
 from app.db.session import get_db
 from app.crud.user import get_user, delete_user
-from app.crud.account import get_account, update_account, get_account_by_account_name, get_account_by_phone, get_account_by_email
+from app.crud.account import get_account, update_account, get_account_by_unionid, get_account_by_phone, get_account_by_email
 from app.crud.user_operation_log import user_operation_log
 from app.models.user import User, UserUpdateRequest
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
@@ -48,8 +48,7 @@ async def update_user_detail(
 
     # 至少提供一个可更新字段
     if not any([
-        payload.account is not None,
-        payload.name is not None,
+        payload.nickname is not None,
         payload.gender is not None,
         payload.phone is not None,
         payload.email is not None,
@@ -57,19 +56,6 @@ async def update_user_detail(
         payload.password is not None,
     ]):
         raise HTTPException(status_code=400, detail="至少提供一个可更新字段")
-
-    # 变更账号名时校验唯一且非空
-    if payload.account is not None:
-        new_acc = payload.account.strip()
-        if new_acc == "":
-            raise HTTPException(status_code=400, detail="account 不能为空")
-        # 加载当前账号（避免触发关系懒加载）
-        current_acc = await get_account(db, u.account_id)
-        current_login = current_acc.account if current_acc else None
-        if new_acc != current_login:
-            existed = await get_account_by_account_name(db, new_acc)
-            if existed and existed.id != u.account_id:
-                raise HTTPException(status_code=400, detail="账号已存在")
 
     # 变更手机号时验证格式并检重
     if payload.phone is not None:
@@ -96,10 +82,8 @@ async def update_user_detail(
 
     # 仅传递有值的字段
     updated: dict = {}
-    if payload.account is not None:
-        updated["account"] = payload.account.strip()
-    if payload.name is not None:
-        updated["name"] = payload.name
+    if payload.nickname is not None:
+        updated["nickname"] = payload.nickname
     if payload.gender is not None:
         updated["gender"] = payload.gender  # type: ignore[assignment]
     if payload.phone is not None:
@@ -134,7 +118,7 @@ async def update_user_detail(
             else:
                 updated_fields.append(f"{field}: {value}")
         
-        description = f"更新用户信息（{updated_account.account if updated_account else f'ID:{user_id}'}）: {', '.join(updated_fields)}"
+        description = f"更新用户信息（{updated_account.nickname or updated_account.phone if updated_account else f'ID:{user_id}'}）: {', '.join(updated_fields)}"
         
         await user_operation_log.create(
             db=db,
@@ -144,7 +128,7 @@ async def update_user_detail(
                 extra={
                     "updated_user_id": user_id,
                     "updated_account_id": u.account_id,
-                    "updated_account_name": updated_account.account if updated_account else None,
+                    "updated_account_nickname": updated_account.nickname if updated_account else None,
                     "updated_fields": list(updated.keys()),
                     "updated_values": update_data
                 }
@@ -169,10 +153,10 @@ async def update_user_detail(
                     "senderId": real_id,
                     "senderRole": role,
                     "title": "更新用户信息",
-                    "message": f"已更新用户信息：{updated_account.name if updated_account and updated_account.name else updated_account.account if updated_account else f'ID:{user_id}'}",
+                    "message": f"已更新用户信息：{updated_account.nickname or updated_account.phone if updated_account else f'ID:{user_id}'}",
                     "level": "normal",
                     "userId": user_id,
-                    "userName": updated_account.name if updated_account else None,
+                    "userName": updated_account.nickname if updated_account else None,
                     "updateData": update_data
                 }
             )
@@ -221,12 +205,12 @@ async def remove_user(
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.user_delete,  # 使用user_delete表示删除用户
-                description=f"删除用户：{account_to_delete.account if account_to_delete else f'ID:{user_id}'}",
+                description=f"删除用户：{account_to_delete.nickname or account_to_delete.phone if account_to_delete else f'ID:{user_id}'}",
                 extra={
                     "deleted_user_id": user_id,
                     "deleted_account_id": user_to_delete.account_id,
-                    "deleted_account_name": account_to_delete.account if account_to_delete else None,
-                    "deleted_user_name": account_to_delete.name if account_to_delete else None
+                    "deleted_account_nickname": account_to_delete.nickname if account_to_delete else None,
+                    "deleted_user_name": account_to_delete.nickname if account_to_delete else None
                 }
             ),
             account_id=user_to_delete.account_id  # 记录在被删除用户的账号下
@@ -248,10 +232,10 @@ async def remove_user(
                     "senderId": real_id,
                     "senderRole": role,
                     "title": "删除用户",
-                    "message": f"已删除用户：{account_to_delete.name if account_to_delete and account_to_delete.name else account_to_delete.account if account_to_delete else f'ID:{user_id}'}",
+                    "message": f"已删除用户：{account_to_delete.nickname or account_to_delete.phone if account_to_delete else f'ID:{user_id}'}",
                     "level": "normal",
                     "userId": user_id,
-                    "userName": account_to_delete.name if account_to_delete else None
+                    "userName": account_to_delete.nickname if account_to_delete else None
                 }
             )
     except Exception as e:

@@ -7,9 +7,9 @@ class Account(Base):
     __tablename__ = "account"
     
     id = Column(BigInteger, primary_key=True, index=True)
-    account = Column(String(64), unique=True, nullable=False, index=True)
-    password_hash = Column(String(128), nullable=False)
-    name = Column(String(64), nullable=True)
+    password = Column(String(128), nullable=True)
+    nickname = Column(String(64), nullable=True)
+    unionid = Column(String(128), unique=True, nullable=True, index=True)
     gender = Column(Enum('male', 'female', 'other', name='gender_enum'), default='other')
     phone = Column(String(32), unique=True, nullable=False)
     email = Column(String(128), unique=True, nullable=True)
@@ -27,4 +27,4 @@ class Account(Base):
     operation_logs = relationship("UserOperationLog", back_populates="account", passive_deletes=True)
     
     def __repr__(self):
-        return f"<Account(id={self.id}, account={self.account}, name={self.name}, role={self.role})>"
+        return f"<Account(id={self.id}, nickname={self.nickname}, role={self.role})>"

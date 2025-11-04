@@ -162,9 +162,8 @@ async def create_accounts(session: AsyncSession):
     admin_names = ["系统管理员", "运维管理员", "数据管理员"]
     for i in range(3):
         admin_account = Account(
-            account=f"admin{i + 1}",
-            password_hash=get_password_hash("admin123"),
-            name=admin_names[i],
+            password=get_password_hash("admin123"),
+            nickname=admin_names[i],
             gender=random.choice(['male', 'female', 'other']),
             phone=f"1370000000{i}",
             email=f"admin{i + 1}@fastiot.com",
@@ -176,9 +175,8 @@ async def create_accounts(session: AsyncSession):
     # 创建15个主账号
     for i in range(15):
         account = Account(
-            account=f"user{i+1}",
-            password_hash=get_password_hash("password123"),
-            name=f"用户{i+1}",
+            password=get_password_hash("password123"),
+            nickname=f"用户{i+1}",
             gender=random.choice(['male', 'female', 'other']),
             phone=f"1380000000{i}" if i < 9 else f"138000000{i}",
             email=f"user{i+1}@example.com",
@@ -190,9 +188,8 @@ async def create_accounts(session: AsyncSession):
     # 创建35个子账号
     for i in range(35):
         account = Account(
-            account=f"member{i+1}",
-            password_hash=get_password_hash("password123"),
-            name=f"成员{i+1}",
+            password=get_password_hash("password123"),
+            nickname=f"成员{i+1}",
             gender=random.choice(['male', 'female', 'other']),
             phone=f"1390000000{i}" if i < 9 else f"139000000{i}",
             email=f"member{i+1}@example.com",
@@ -1484,7 +1481,7 @@ async def create_feedbacks(session: AsyncSession, accounts):
             
             feedback = Feedback(
                 account_id=account.id,
-                name=account.name if random.choice([True, False]) else None,  # 50%概率有姓名
+                name=account.nickname if random.choice([True, False]) else None,  # 50%概率有姓名
                 type=feedback_type,
                 content=content,
                 status=status,

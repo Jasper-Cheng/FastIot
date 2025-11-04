@@ -27,14 +27,14 @@ class Member(MemberInDB):
 class MemberRegisterRequest(BaseModel):
     """创建成员（子账号）请求
 
-    必填: account(登录名), password(密码), phone(手机号)
-    可选: name, gender, email, avatar
+    必填: phone(手机号)
+    可选: password(密码), nickname, unionid, gender, email, avatar
     说明: role 不可填写，强制为 member；user_id 从当前登录的 owner 的 token 中获取
     """
-    account: str
-    password: str
     phone: str
-    name: str | None = None
+    password: str | None = None
+    nickname: str | None = None
+    unionid: str | None = None
     gender: Optional[AccountGender] = None
     email: str | None = None
     avatar: str | None = None
@@ -43,11 +43,11 @@ class MemberRegisterRequest(BaseModel):
 class MemberUpdateRequest(BaseModel):
     """更新成员信息请求（更新 account 数据）
 
-    可选字段：account, name, gender, phone, email, avatar, password
+    可选字段：nickname, gender, phone, email, avatar, password
     注意：提供至少一个字段
+    unionid 不在更新范围内，只能通过创建时设置
     """
-    account: str | None = None
-    name: str | None = None
+    nickname: str | None = None
     gender: Optional[AccountGender] = None
     phone: str | None = None
     email: str | None = None

@@ -105,7 +105,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                         "senderId": real_id,
                         "senderRole": role,
                         "title": "用户连接",
-                        "message": f"{account.name} 已连接",
+                        "message": f"{account.nickname or account.phone} 已连接",
                         "level": "normal",
                         "connectUserIds": connect_user_ids
                     }
@@ -129,7 +129,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                             "senderId": real_id,
                             "senderRole": role,
                             "title": "用户断开连接",
-                            "message": f"{account.name} 已断开连接",
+                            "message": f"{account.nickname or account.phone} 已断开连接",
                             "level": "normal"
                         }
                     )
@@ -150,7 +150,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                             "senderId": real_id,
                             "senderRole": role,
                             "title": "用户断开连接",
-                            "message": f"{account.name} 已断开连接",
+                            "message": f"{account.nickname or account.phone} 已断开连接",
                             "level": "normal"
                         }
                     )

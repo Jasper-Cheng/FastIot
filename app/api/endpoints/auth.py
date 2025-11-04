@@ -9,7 +9,7 @@ from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.crud.account import (
-    get_account_by_account_name,
+    get_account_by_unionid,
     get_account_by_phone,
     get_account_by_email,
     create_account,
@@ -35,19 +35,36 @@ router = APIRouter()
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """统一登录：使用 account 字段 + password。
+    """统一登录：支持手机号或微信（unionid）登录
 
     说明：
-    - account 可传登录名或手机号
-    - 验证顺序：先按登录名查询，未命中再按手机号查询
+    - identifier 可传手机号或unionid
+    - 验证顺序：先按unionid查询，再按手机号查询
+    - 微信登录（unionid）：密码可为空，无需密码验证
+    - 手机号登录：必须提供密码
     """
-    # 先按账号查找，未找到则按手机号查找
-    acc = await get_account_by_account_name(db, payload.account)
+    acc = None
+    # 先按unionid查找（微信登录）
+    acc = await get_account_by_unionid(db, payload.identifier)
     if not acc:
-        acc = await get_account_by_phone(db, payload.account)
+        # 再按手机号查找
+        acc = await get_account_by_phone(db, payload.identifier)
 
-    if not acc or not verify_password(payload.password, acc.password_hash):
+    if not acc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
+    
+    # 判断是微信登录还是手机号登录
+    is_wechat_login = acc.unionid and acc.unionid == payload.identifier
+    
+    if is_wechat_login:
+        # 微信登录：无需密码验证
+        pass
+    else:
+        # 手机号登录：必须提供密码
+        if not payload.password:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
+        if not acc.password or not verify_password(payload.password, acc.password):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     extra_claims = {
@@ -93,7 +110,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
                         "senderId": real_id,
                         "senderRole": role_str,
                         "title": "用户登录",
-                        "message": f"{acc.name or acc.account} 已登录",
+                        "message": f"{acc.nickname or acc.phone} 已登录",
                         "level": "normal"
                     }
                 )
@@ -110,7 +127,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.login,
-                description=f"用户登录系统（{acc.account}）",
+                description=f"用户登录系统（{acc.nickname or acc.phone}）",
             ),
             account_id=acc.id
         )
@@ -131,17 +148,32 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     """表单登录：兼容 Swagger Authorize（OAuth2 Password flow）
 
-    - username 支持传登录名或手机号
-    - password 为明文密码
+    - username 支持传手机号或unionid
+    - password 为明文密码（微信登录时可为空，手机号登录时必填）
     - 忽略 scope 和 client 相关字段
     """
-    # 先按账号查找，未找到则按手机号查找
-    acc = await get_account_by_account_name(db, form_data.username)
+    acc = None
+    # 先按unionid查找（微信登录）
+    acc = await get_account_by_unionid(db, form_data.username)
     if not acc:
+        # 再按手机号查找
         acc = await get_account_by_phone(db, form_data.username)
 
-    if not acc or not verify_password(form_data.password, acc.password_hash):
+    if not acc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
+    
+    # 判断是微信登录还是手机号登录
+    is_wechat_login = acc.unionid and acc.unionid == form_data.username
+    
+    if is_wechat_login:
+        # 微信登录：无需密码验证
+        pass
+    else:
+        # 手机号登录：必须提供密码
+        if not form_data.password:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
+        if not acc.password or not verify_password(form_data.password, acc.password):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     extra_claims = {
@@ -187,7 +219,7 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
                         "senderId": real_id,
                         "senderRole": role_str,
                         "title": "用户登录",
-                        "message": f"{acc.name or acc.account} 已登录",
+                        "message": f"{acc.nickname or acc.phone} 已登录",
                         "level": "normal"
                     }
                 )
@@ -204,7 +236,7 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.login,
-                description=f"用户登录系统（{acc.account}）",
+                description=f"用户登录系统（{acc.nickname or acc.phone}）",
             ),
             account_id=acc.id
         )
@@ -225,18 +257,13 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """注册主账号：固定创建 owner 账号并生成对应 user 记录
 
-    必填: account, password, phone
-    可选: name, gender, email, avatar
+    必填: phone
+    可选: password, nickname, gender, email, avatar, unionid
     """
     # 手机号格式校验
     phone_pattern = r"^1\d{10}$"
     if not re.match(phone_pattern, req.phone):
         raise HTTPException(status_code=400, detail="手机号格式不正确")
-    
-    # 唯一性校验
-    exists = await get_account_by_account_name(db, req.account)
-    if exists:
-        raise HTTPException(status_code=400, detail="账号已存在")
 
     # 手机号唯一性
     phone_exists = await get_account_by_phone(db, req.phone)
@@ -254,14 +281,21 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             email_exists = await get_account_by_email(db, norm_email)
             if email_exists:
                 raise HTTPException(status_code=400, detail="邮箱已被使用")
+    
+    # 校验unionid唯一性（如果提供）
+    if req.unionid:
+        from app.crud.account import get_account_by_unionid
+        unionid_exists = await get_account_by_unionid(db, req.unionid)
+        if unionid_exists:
+            raise HTTPException(status_code=400, detail="unionid已被使用")
 
     acc = await create_account(
         db,
         AccountCreate(
-            account=req.account,
             password=req.password,
             phone=req.phone,
-            name=req.name,
+            nickname=req.nickname,
+            unionid=req.unionid,
             gender=req.gender,  # type: ignore[arg-type]
             email=norm_email,
             avatar=req.avatar,
@@ -278,11 +312,12 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.register,
-                description=f"用户注册新账号（{acc.account}）",
+                description=f"用户注册新账号（{acc.nickname or acc.phone}）",
                 extra={
                     "registration_type": "owner",
                     "phone": acc.phone,
-                    "email": acc.email
+                    "email": acc.email,
+                    "unionid": acc.unionid
                 }
             ),
             account_id=acc.id
@@ -317,7 +352,7 @@ async def logout(
                     "senderId": user_id,
                     "senderRole": role,
                     "title": "用户登出",
-                    "message": f"{current_account.name} 已登出",
+                    "message": f"{current_account.nickname or current_account.phone} 已登出",
                     "level": "normal"
                 }
             )
@@ -331,7 +366,7 @@ async def logout(
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.logout,
-                description=f"用户登出系统（{current_account.account}）",
+                description=f"用户登出系统（{current_account.nickname or current_account.phone}）",
             ),
             account_id=current_account.id
         )

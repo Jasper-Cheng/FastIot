@@ -8,7 +8,7 @@ from app.crud.user import get_user
 from sqlalchemy import select
 from app.db.models.device import Device
 from app.db.models.member_device_permission import MemberDevicePermission
-from app.crud.account import create_account, get_account_by_account_name, get_account_by_phone, get_account_by_email, update_account, get_account, delete_account
+from app.crud.account import create_account, get_account_by_unionid, get_account_by_phone, get_account_by_email, update_account, get_account, delete_account
 from app.models.member import Member, MemberCreate, MemberInDB, MemberRegisterRequest, MemberUpdateRequest
 from app.models.account import AccountCreate, AccountRole, AccountGender, AccountUpdate
 from app.crud.user_operation_log import user_operation_log
@@ -54,11 +54,6 @@ async def create_member_for_user(
         if v in ("", "string", "null", "undefined"):
             norm_email = None
 
-    # 校验账号唯一
-    exists = await get_account_by_account_name(db, payload.account)
-    if exists:
-        raise HTTPException(status_code=400, detail="账号已存在")
-
     # 验证手机号格式并校验唯一
     import re
     if not re.match(r"^1\d{10}$", payload.phone):
@@ -73,15 +68,21 @@ async def create_member_for_user(
         email_exists = await get_account_by_email(db, norm_email)
         if email_exists:
             raise HTTPException(status_code=400, detail="邮箱已被使用")
+    
+    # 校验unionid唯一（如果提供）
+    if payload.unionid:
+        unionid_exists = await get_account_by_unionid(db, payload.unionid)
+        if unionid_exists:
+            raise HTTPException(status_code=400, detail="unionid已被使用")
 
     # 1) 先创建 account，role 强制为 member
     acc = await create_account(
         db,
         AccountCreate(
-            account=payload.account,
             password=payload.password,
             phone=payload.phone,
-            name=payload.name,
+            nickname=payload.nickname,
+            unionid=payload.unionid,
             gender=payload.gender,  # type: ignore[arg-type]
             email=norm_email,
             avatar=payload.avatar,
@@ -113,13 +114,13 @@ async def create_member_for_user(
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.member_add,
-                description=f"添加新成员：{acc.account}",
+                description=f"添加新成员：{acc.nickname or acc.phone}",
                 extra={
                     "member_id": m.id,
-                    "member_account": acc.account,
-                    "member_name": acc.name,
+                    "member_nickname": acc.nickname,
                     "member_phone": acc.phone,
                     "member_email": acc.email,
+                    "member_unionid": acc.unionid,
                     "user_id": user_id,
                     "account_id": acc.id
                 }
@@ -143,11 +144,11 @@ async def create_member_for_user(
                     "senderId": real_id,
                     "senderRole": role,
                     "title": "创建成员",
-                    "message": f"已创建成员：{acc.name or acc.account}",
+                    "message": f"已创建成员：{acc.nickname or acc.phone}",
                     "level": "normal",
                     "memberId": m.id,
-                    "memberName": acc.name,
-                    "memberAccount": acc.account
+                    "memberName": acc.nickname,
+                    "memberPhone": acc.phone
                 }
             )
     except Exception as e:
@@ -178,8 +179,7 @@ async def update_member_detail(
 
     # 至少提供一个可更新字段
     if not any([
-        payload.account is not None,
-        payload.name is not None,
+        payload.nickname is not None,
         payload.gender is not None,
         payload.phone is not None,
         payload.email is not None,
@@ -187,19 +187,6 @@ async def update_member_detail(
         payload.password is not None,
     ]):
         raise HTTPException(status_code=400, detail="至少提供一个可更新字段")
-
-    # 变更账号名时校验唯一且非空
-    if payload.account is not None:
-        new_acc = payload.account.strip()
-        if new_acc == "":
-            raise HTTPException(status_code=400, detail="account 不能为空")
-        # 加载当前账号（避免触发关系懒加载）
-        current_acc = await get_account(db, m.account_id)
-        current_login = current_acc.account if current_acc else None
-        if new_acc != current_login:
-            existed = await get_account_by_account_name(db, new_acc)
-            if existed and existed.id != m.account_id:
-                raise HTTPException(status_code=400, detail="账号已存在")
 
     # 变更手机号时验证格式并检重
     if payload.phone is not None:
@@ -228,10 +215,8 @@ async def update_member_detail(
 
     # 仅传递有值的字段
     updated: dict = {}
-    if payload.account is not None:
-        updated["account"] = payload.account.strip()
-    if payload.name is not None:
-        updated["name"] = payload.name
+    if payload.nickname is not None:
+        updated["nickname"] = payload.nickname
     if payload.gender is not None:
         updated["gender"] = payload.gender  # type: ignore[assignment]
     if payload.phone is not None:
@@ -262,7 +247,7 @@ async def update_member_detail(
             else:
                 updated_fields.append(f"{field}: {value}")
 
-        description = f"更新成员信息（{updated_account.account if updated_account else f'ID:{member_id}'}）: {', '.join(updated_fields)}"
+        description = f"更新成员信息（{updated_account.nickname or updated_account.phone if updated_account else f'ID:{member_id}'}）: {', '.join(updated_fields)}"
 
         await user_operation_log.create(
             db=db,
@@ -272,7 +257,7 @@ async def update_member_detail(
                 extra={
                     "member_id": member_id,
                     "member_account_id": m.account_id,
-                    "member_account_name": updated_account.account if updated_account else None,
+                    "member_account_nickname": updated_account.nickname if updated_account else None,
                     "updated_fields": list(updated.keys()),
                     "updated_values": {k: v for k, v in updated.items() if k != "password"},  # 不记录密码
                     "user_id": m.user_id
@@ -299,10 +284,10 @@ async def update_member_detail(
                     "senderId": real_id,
                     "senderRole": role,
                     "title": "更新成员",
-                    "message": f"已更新成员：{updated_account.name if updated_account and updated_account.name else updated_account.account if updated_account else f'ID:{member_id}'} 的信息",
+                    "message": f"已更新成员：{updated_account.nickname or updated_account.phone if updated_account else f'ID:{member_id}'} 的信息",
                     "level": "normal",
                     "memberId": member_id,
-                    "memberName": updated_account.name if updated_account else None,
+                    "memberName": updated_account.nickname if updated_account else None,
                     "updateData": {k: v for k, v in updated.items() if k != "password"}
                 }
             )
@@ -337,8 +322,8 @@ async def remove_member(
     try:
         # 在删除前获取成员账号信息（用于记录和发送消息）
         member_account = await get_account(db, m.account_id)
-        member_account_name = member_account.account if member_account else f"ID:{m.account_id}"
-        member_name = member_account.name if member_account else None
+        member_account_name = member_account.nickname or member_account.phone if member_account else f"ID:{m.account_id}"
+        member_name = member_account.nickname if member_account else None
         
         # 先删除 member（会级联删除权限等依赖）
         success = await delete_member(db, member_id)
@@ -375,10 +360,11 @@ async def remove_member(
                     extra={
                         "member_id": member_id,
                         "member_account_id": m.account_id,
-                        "member_account_name": member_account_name,
+                        "member_account_nickname": member_account.nickname if member_account else None,
                         "member_name": member_name,
                         "member_phone": member_account.phone if member_account else None,
                         "member_email": member_account.email if member_account else None,
+                        "member_unionid": member_account.unionid if member_account else None,
                         "user_id": m.user_id
                     }
                 ),

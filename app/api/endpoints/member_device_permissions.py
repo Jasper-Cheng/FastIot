@@ -102,8 +102,8 @@ async def batch_update_member_permissions_endpoint(
         
         # 获取成员账号信息和设备名称列表（用于记录操作和发送消息）
         member_account = await get_account(db, member.account_id)
-        member_account_name = member_account.account if member_account else f"成员ID:{member_id}"
-        member_name = member_account.name if member_account and member_account.name else f"成员ID:{member_id}"
+        member_account_name = member_account.nickname or member_account.phone if member_account else f"成员ID:{member_id}"
+        member_name = member_account.nickname if member_account and member_account.nickname else f"成员ID:{member_id}"
         
         # 获取设备名称列表
         device_names = []

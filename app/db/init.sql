@@ -6,15 +6,16 @@ USE `iot`;
 -- 账号表：所有能登录的用户（包含主账号和子账号）
 CREATE TABLE IF NOT EXISTS `account` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '账号ID',
-    `account` VARCHAR(64) NOT NULL UNIQUE COMMENT '登录名',
-    `password_hash` VARCHAR(128) NOT NULL COMMENT '密码哈希',
-    `name` VARCHAR(64) NULL COMMENT '昵称/显示名',
+    `password` VARCHAR(128) NULL COMMENT '密码',
+    `nickname` VARCHAR(64) NULL COMMENT '昵称/显示名',
+    `unionid` VARCHAR(128) UNIQUE NULL COMMENT '微信UnionID',
     `gender` ENUM('male','female','other') DEFAULT 'other' COMMENT '性别',
     `phone` VARCHAR(32) NOT NULL UNIQUE COMMENT '手机号',
     `email` VARCHAR(128) UNIQUE COMMENT '邮箱',
     `avatar` VARCHAR(255) NULL COMMENT '头像URL',
     `role` ENUM('owner','member','admin') NOT NULL DEFAULT 'member' COMMENT '角色: 主账号/子账号/管理员',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_unionid` (`unionid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账号表';
 
 -- 管理员表：与 account 一一对应
@@ -235,13 +236,13 @@ CREATE TABLE IF NOT EXISTS `feedback` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='意见反馈表';
 
 -- 插入默认账号和用户（密码: admin123）
-INSERT INTO `account` (`account`, `password_hash`, `name`, `email`, `role`) 
-VALUES ('admin', 'admin123', '管理员', 'admin@fastiot.com', 'admin')
-ON DUPLICATE KEY UPDATE `account` = `account`;
+INSERT INTO `account` (`password`, `nickname`, `email`, `role`, `phone`) 
+VALUES ('admin123', '管理员', 'admin@fastiot.com', 'admin', '13800000000')
+ON DUPLICATE KEY UPDATE `nickname` = VALUES(`nickname`);
 
 -- 为默认管理员创建对应的 admin 记录
 INSERT INTO `admin` (`account_id`)
-SELECT `id` FROM `account` WHERE `account` = 'admin' AND `role` = 'admin'
+SELECT `id` FROM `account` WHERE `email` = 'admin@fastiot.com' AND `role` = 'admin'
 ON DUPLICATE KEY UPDATE `account_id` = `account_id`;
 
 -- 管理员账号不自动创建 user 记录

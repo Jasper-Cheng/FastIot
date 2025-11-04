@@ -10,9 +10,9 @@ async def get_account(db: AsyncSession, account_id: int) -> Optional[Account]:
     result = await db.execute(select(Account).filter(Account.id == account_id))
     return result.scalar_one_or_none()
 
-async def get_account_by_account_name(db: AsyncSession, account_name: str) -> Optional[Account]:
-    """根据账号名获取账号"""
-    result = await db.execute(select(Account).filter(Account.account == account_name))
+async def get_account_by_unionid(db: AsyncSession, unionid: str) -> Optional[Account]:
+    """根据unionid获取账号"""
+    result = await db.execute(select(Account).filter(Account.unionid == unionid))
     return result.scalar_one_or_none()
 
 async def get_account_by_email(db: AsyncSession, email: str) -> Optional[Account]:
@@ -27,11 +27,14 @@ async def get_account_by_phone(db: AsyncSession, phone: str) -> Optional[Account
 
 async def create_account(db: AsyncSession, account: AccountCreate) -> Account:
     """创建新账号"""
-    hashed_password = get_password_hash(account.password)
+    password_hash = None
+    if account.password:
+        password_hash = get_password_hash(account.password)
+    
     db_account = Account(
-        account=account.account,
-        password_hash=hashed_password,
-        name=account.name,
+        password=password_hash,
+        nickname=account.nickname,
+        unionid=account.unionid,
         gender=account.gender,
         phone=account.phone,
         email=account.email,
@@ -50,8 +53,11 @@ async def update_account(db: AsyncSession, account_id: int, account: AccountUpda
         return None
     
     update_data = account.dict(exclude_unset=True)
-    if "password" in update_data:
-        update_data["password_hash"] = get_password_hash(update_data.pop("password"))
+    if "password" in update_data and update_data["password"]:
+        update_data["password"] = get_password_hash(update_data["password"])
+    elif "password" in update_data and update_data["password"] is None:
+        # 如果密码为None，则不更新密码字段
+        update_data.pop("password")
     
     for field, value in update_data.items():
         setattr(db_account, field, value)
