@@ -70,7 +70,7 @@ class WebSocketTool:
         try:
             websocket = self.active_connections[client_id]
             await websocket.send_text(json.dumps(message, ensure_ascii=False))
-            print(f"✅ [WebSocket] 消息已发送给客户端 {client_id}，type: {message.get('params', {}).get('type')}")
+            print(f"✅ [WebSocket] 消息已发送给客户端 {client_id}，{message.get('method', '')} {message.get('params', {}).get('type', '')}")
             return True
         except Exception as e:
             print(f"❌ [WebSocket] 发送消息给客户端 {client_id} 失败: {e}")
