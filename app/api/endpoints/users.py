@@ -4,7 +4,7 @@ from app.models.account import AccountUpdate
 
 from app.db.session import get_db
 from app.crud.user import get_user, delete_user
-from app.crud.account import get_account, update_account, get_account_by_unionid, get_account_by_phone, get_account_by_email
+from app.crud.account import get_account, update_account, get_account_by_phone, get_account_by_email
 from app.crud.user_operation_log import user_operation_log
 from app.models.user import User, UserUpdateRequest
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum

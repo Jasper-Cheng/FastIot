@@ -15,7 +15,6 @@ class AccountGender(str, Enum):
 
 class AccountBase(BaseModel):
     nickname: Optional[str] = None
-    unionid: Optional[str] = None
     gender: Optional[AccountGender] = AccountGender.other
     phone: str
     email: Optional[str] = None
@@ -28,7 +27,6 @@ class AccountCreate(AccountBase):
 class AccountUpdate(BaseModel):
     """账号更新请求
     
-    unionid 不在更新范围内，只能通过注册时设置
     """
     nickname: Optional[str] = None
     gender: Optional[AccountGender] = None
@@ -51,12 +49,11 @@ class Account(AccountInDB):
 class LoginRequest(BaseModel):
     """登录请求
     
-    支持手机号或微信（unionid）登录
+    支持手机号登录
     - 手机号登录：需要提供手机号和密码
-    - 微信登录：需要提供unionid，密码可为空
     """
-    identifier: str  # 手机号或unionid
-    password: Optional[str] = None  # 密码（微信登录时可为空，手机号登录时必填）
+    phone: str  # 手机号
+    password: str  # 密码（必填）
 
 
 class TokenResponse(BaseModel):
@@ -73,7 +70,7 @@ class RegisterRequest(BaseModel):
     """注册请求体（主账号）
 
     必填字段: phone(手机号)
-    可选字段: password(密码), nickname, gender, email, avatar, unionid
+    可选字段: password(密码), nickname, gender, email, avatar
     说明: 不需要填写 role，默认为 owner
     手机号格式: 11 位中国大陆手机号, 以 1 开头
     """
@@ -83,4 +80,3 @@ class RegisterRequest(BaseModel):
     gender: AccountGender | None = None
     email: str | None = None
     avatar: str | None = None
-    unionid: str | None = None

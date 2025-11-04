@@ -8,7 +8,7 @@ from app.crud.user import get_user
 from sqlalchemy import select
 from app.db.models.device import Device
 from app.db.models.member_device_permission import MemberDevicePermission
-from app.crud.account import create_account, get_account_by_unionid, get_account_by_phone, get_account_by_email, update_account, get_account, delete_account
+from app.crud.account import create_account, get_account_by_phone, get_account_by_email, update_account, get_account, delete_account
 from app.models.member import Member, MemberCreate, MemberInDB, MemberRegisterRequest, MemberUpdateRequest
 from app.models.account import AccountCreate, AccountRole, AccountGender, AccountUpdate
 from app.crud.user_operation_log import user_operation_log
@@ -69,12 +69,6 @@ async def create_member_for_user(
         if email_exists:
             raise HTTPException(status_code=400, detail="邮箱已被使用")
     
-    # 校验unionid唯一（如果提供）
-    if payload.unionid:
-        unionid_exists = await get_account_by_unionid(db, payload.unionid)
-        if unionid_exists:
-            raise HTTPException(status_code=400, detail="unionid已被使用")
-
     # 1) 先创建 account，role 强制为 member
     acc = await create_account(
         db,
@@ -82,7 +76,6 @@ async def create_member_for_user(
             password=payload.password,
             phone=payload.phone,
             nickname=payload.nickname,
-            unionid=payload.unionid,
             gender=payload.gender,  # type: ignore[arg-type]
             email=norm_email,
             avatar=payload.avatar,
@@ -120,7 +113,6 @@ async def create_member_for_user(
                     "member_nickname": acc.nickname,
                     "member_phone": acc.phone,
                     "member_email": acc.email,
-                    "member_unionid": acc.unionid,
                     "user_id": user_id,
                     "account_id": acc.id
                 }
@@ -364,7 +356,6 @@ async def remove_member(
                         "member_name": member_name,
                         "member_phone": member_account.phone if member_account else None,
                         "member_email": member_account.email if member_account else None,
-                        "member_unionid": member_account.unionid if member_account else None,
                         "user_id": m.user_id
                     }
                 ),

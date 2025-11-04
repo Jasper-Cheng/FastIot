@@ -28,13 +28,12 @@ class MemberRegisterRequest(BaseModel):
     """创建成员（子账号）请求
 
     必填: phone(手机号)
-    可选: password(密码), nickname, unionid, gender, email, avatar
+    可选: password(密码), nickname, gender, email, avatar
     说明: role 不可填写，强制为 member；user_id 从当前登录的 owner 的 token 中获取
     """
     phone: str
     password: str | None = None
     nickname: str | None = None
-    unionid: str | None = None
     gender: Optional[AccountGender] = None
     email: str | None = None
     avatar: str | None = None
@@ -45,7 +44,6 @@ class MemberUpdateRequest(BaseModel):
 
     可选字段：nickname, gender, phone, email, avatar, password
     注意：提供至少一个字段
-    unionid 不在更新范围内，只能通过创建时设置
     """
     nickname: str | None = None
     gender: Optional[AccountGender] = None

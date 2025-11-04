@@ -29,7 +29,6 @@ class UserUpdateRequest(BaseModel):
     所有字段都是可选的，至少需要提供一个字段进行更新
     """
     nickname: str | None = None
-    unionid: str | None = None
     gender: AccountGender | None = None
     phone: str | None = None
     email: str | None = None

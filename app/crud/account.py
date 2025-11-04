@@ -34,7 +34,6 @@ async def create_account(db: AsyncSession, account: AccountCreate) -> Account:
     db_account = Account(
         password=password_hash,
         nickname=account.nickname,
-        unionid=account.unionid,
         gender=account.gender,
         phone=account.phone,
         email=account.email,

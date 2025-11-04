@@ -9,7 +9,6 @@ from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.crud.account import (
-    get_account_by_unionid,
     get_account_by_phone,
     get_account_by_email,
     create_account,
@@ -35,36 +34,23 @@ router = APIRouter()
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """统一登录：支持手机号或微信（unionid）登录
+    """统一登录：支持手机号登录
 
     说明：
-    - identifier 可传手机号或unionid
-    - 验证顺序：先按unionid查询，再按手机号查询
-    - 微信登录（unionid）：密码可为空，无需密码验证
-    - 手机号登录：必须提供密码
+    - phone 为手机号
+    - 必须提供密码
     """
-    acc = None
-    # 先按unionid查找（微信登录）
-    acc = await get_account_by_unionid(db, payload.identifier)
-    if not acc:
-        # 再按手机号查找
-        acc = await get_account_by_phone(db, payload.identifier)
+    # 按手机号查找
+    acc = await get_account_by_phone(db, payload.phone)
 
     if not acc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
     
-    # 判断是微信登录还是手机号登录
-    is_wechat_login = acc.unionid and acc.unionid == payload.identifier
-    
-    if is_wechat_login:
-        # 微信登录：无需密码验证
-        pass
-    else:
-        # 手机号登录：必须提供密码
-        if not payload.password:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
-        if not acc.password or not verify_password(payload.password, acc.password):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
+    # 手机号登录：必须提供密码
+    if not payload.password:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
+    if not acc.password or not verify_password(payload.password, acc.password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     extra_claims = {
@@ -148,32 +134,21 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     """表单登录：兼容 Swagger Authorize（OAuth2 Password flow）
 
-    - username 支持传手机号或unionid
-    - password 为明文密码（微信登录时可为空，手机号登录时必填）
+    - username 为手机号
+    - password 为明文密码（必填）
     - 忽略 scope 和 client 相关字段
     """
-    acc = None
-    # 先按unionid查找（微信登录）
-    acc = await get_account_by_unionid(db, form_data.username)
-    if not acc:
-        # 再按手机号查找
-        acc = await get_account_by_phone(db, form_data.username)
+    # 按手机号查找
+    acc = await get_account_by_phone(db, form_data.username)
 
     if not acc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
     
-    # 判断是微信登录还是手机号登录
-    is_wechat_login = acc.unionid and acc.unionid == form_data.username
-    
-    if is_wechat_login:
-        # 微信登录：无需密码验证
-        pass
-    else:
-        # 手机号登录：必须提供密码
-        if not form_data.password:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
-        if not acc.password or not verify_password(form_data.password, acc.password):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
+    # 手机号登录：必须提供密码
+    if not form_data.password:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
+    if not acc.password or not verify_password(form_data.password, acc.password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     extra_claims = {
@@ -258,7 +233,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """注册主账号：固定创建 owner 账号并生成对应 user 记录
 
     必填: phone
-    可选: password, nickname, gender, email, avatar, unionid
+    可选: password, nickname, gender, email, avatar
     """
     # 手机号格式校验
     phone_pattern = r"^1\d{10}$"
@@ -282,20 +257,12 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             if email_exists:
                 raise HTTPException(status_code=400, detail="邮箱已被使用")
     
-    # 校验unionid唯一性（如果提供）
-    if req.unionid:
-        from app.crud.account import get_account_by_unionid
-        unionid_exists = await get_account_by_unionid(db, req.unionid)
-        if unionid_exists:
-            raise HTTPException(status_code=400, detail="unionid已被使用")
-
     acc = await create_account(
         db,
         AccountCreate(
             password=req.password,
             phone=req.phone,
             nickname=req.nickname,
-            unionid=req.unionid,
             gender=req.gender,  # type: ignore[arg-type]
             email=norm_email,
             avatar=req.avatar,
@@ -316,8 +283,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
                 extra={
                     "registration_type": "owner",
                     "phone": acc.phone,
-                    "email": acc.email,
-                    "unionid": acc.unionid
+                    "email": acc.email
                 }
             ),
             account_id=acc.id
