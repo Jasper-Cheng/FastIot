@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 import re
@@ -131,23 +130,27 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login/form", response_model=TokenResponse, include_in_schema=False)
-async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def login_form(
+    username: str = Form(...),  # OAuth2标准字段名，实际为手机号
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db)
+):
     """表单登录：兼容 Swagger Authorize（OAuth2 Password flow）
 
-    - username 为手机号
+    - username 为手机号（OAuth2标准字段名，实际输入手机号）
     - password 为明文密码（必填）
-    - 忽略 scope 和 client 相关字段
     """
-    # 按手机号查找
-    acc = await get_account_by_phone(db, form_data.username)
+    # 按手机号查找（username 实际为手机号）
+    phone = username
+    acc = await get_account_by_phone(db, phone)
 
     if not acc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
-
+    
     # 手机号登录：必须提供密码
-    if not form_data.password:
+    if not password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
-    if not acc.password or not verify_password(form_data.password, acc.password):
+    if not acc.password or not verify_password(password, acc.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

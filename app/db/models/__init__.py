@@ -2,6 +2,8 @@ from .account import Account
 from .user import User
 from .member import Member
 from .room import Room
+# 先导入 DeviceNetwork，再导入 Device（因为 Device 引用了 DeviceNetwork）
+from .device_network import DeviceNetwork
 from .device import Device
 from .device_model import DeviceModel
 from .device_thing_model import DeviceThingModel
@@ -19,6 +21,7 @@ __all__ = [
     "Member", 
     "Room",
     "Device",
+    "DeviceNetwork",
     "DeviceModel",
     "DeviceThingModel",
     "DeviceMessage",

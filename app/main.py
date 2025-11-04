@@ -11,6 +11,9 @@ from app.db.session import engine
 from app.services.redis_service import redis_service
 from app.services.websocket_tool import websocket_tool
 
+# 导入所有模型以确保 SQLAlchemy 关系映射正确配置
+from app.db.models import *  # noqa: F401, F403
+
 # 配置日志级别，关闭SQLAlchemy的SQL语句输出
 logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
