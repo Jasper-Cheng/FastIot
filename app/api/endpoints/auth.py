@@ -19,7 +19,8 @@ from app.crud.user_operation_log import user_operation_log
 from app.models.account import (
     AccountCreate, 
     Account, 
-    AccountRole, 
+    AccountRole,
+    AccountGender,
     LoginRequest,
     TokenResponse,
     RegisterRequest
@@ -27,6 +28,11 @@ from app.models.account import (
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_account, get_current_token
 from app.services.websocket_tool import websocket_tool
+from app.services.wechat_service import wechat_service, QRCodeStatus
+from fastapi import Query
+from typing import Dict
+import httpx
+import hashlib
 
 router = APIRouter()
 
@@ -344,6 +350,302 @@ async def logout(
         print(f"记录登出操作失败: {e}")
 
     return {"message": "登出成功"}
+
+
+@router.get("/login/wechat_verify")
+async def wechat_verify(
+    signature: str = Query(..., description="微信加密签名"),
+    timestamp: str = Query(..., description="时间戳"),
+    nonce: str = Query(..., description="随机数"),
+    echostr: str = Query(..., description="随机字符串"),
+):
+    """微信服务器URL验证接口
+    
+    微信首次配置回调地址时会调用此接口进行验证。
+    验证逻辑：
+    1. 将token、timestamp、nonce三个参数进行字典序排序
+    2. 将三个参数字符串拼接成一个字符串进行sha1加密
+    3. 开发者获得加密后的字符串可与signature对比
+    
+    参数：
+    - signature: 微信加密签名
+    - timestamp: 时间戳
+    - nonce: 随机数
+    - echostr: 随机字符串（验证成功后返回此值）
+    """
+    if not settings.WECHAT_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="微信Token未配置"
+        )
+    
+    # 将token、timestamp、nonce三个参数进行字典序排序
+    tmp_arr = [settings.WECHAT_TOKEN, timestamp, nonce]
+    tmp_arr.sort()
+    
+    # 将三个参数字符串拼接成一个字符串
+    tmp_str = ''.join(tmp_arr)
+    
+    # 进行sha1加密
+    hash_str = hashlib.sha1(tmp_str.encode('utf-8')).hexdigest()
+    
+    # 与signature对比，标识该请求来源于微信
+    if hash_str == signature:
+        # 验证成功，返回echostr
+        return echostr
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="签名验证失败"
+        )
+
+
+@router.get("/login/qrcode")
+async def get_wechat_qrcode(db: AsyncSession = Depends(get_db)):
+    """获取微信登录二维码
+    
+    返回二维码URL和scene_id，客户端需要：
+    1. 显示二维码图片
+    2. 使用scene_id轮询登录状态
+    """
+    try:
+        result = await wechat_service.create_qrcode()
+        return {
+            "qrcode_url": result["qrcode_url"],
+            "scene_id": result["scene_id"]
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"生成二维码失败: {str(e)}")
+
+
+@router.get("/login/wechat_callback")
+async def wechat_callback(
+    code: str = Query(..., description="微信授权码"),
+    state: str = Query(None, description="自定义参数，包含scene_id"),
+    db: AsyncSession = Depends(get_db)
+):
+    """处理微信授权回调
+    
+    微信扫码授权后，会调用此接口。
+    参数：
+    - code: 微信授权码（必填）
+    - state: 自定义参数，包含scene_id（可选，用于关联二维码）
+    """
+    try:
+        # 从state中提取scene_id
+        scene_id = state if state else None
+        
+        if not code:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="缺少授权码code")
+        
+        # 通过code获取access_token和openid
+        url = "https://api.weixin.qq.com/sns/oauth2/access_token"
+        params = {
+            "appid": settings.WECHAT_APP_ID,
+            "secret": settings.WECHAT_APP_SECRET,
+            "code": code,
+            "grant_type": "authorization_code"
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params, timeout=10.0)
+            data = response.json()
+            
+            # 检查错误
+            if "errcode" in data:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"微信授权失败: {data.get('errmsg', '未知错误')}"
+                )
+            
+            openid = data.get("openid")
+            if not openid:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无法获取openid")
+            
+            # 获取用户信息
+            access_token = data.get("access_token")
+            user_info = await wechat_service.get_user_info_by_openid(openid, access_token)
+            
+            # 如果有scene_id，更新二维码状态
+            if scene_id:
+                success = await wechat_service.handle_wechat_callback(scene_id, openid, user_info)
+                if not success:
+                    # 二维码可能已过期，但不影响登录流程，只记录警告
+                    print(f"警告: 无法更新二维码状态，scene_id可能已过期: {scene_id}")
+            
+            return {"success": True, "message": "回调处理成功", "openid": openid}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"处理回调失败: {str(e)}")
+
+
+@router.get("/login/check_status")
+async def check_wechat_login_status(
+    scene_id: str = Query(..., description="场景ID，从qrcode接口获取"),
+    db: AsyncSession = Depends(get_db)
+):
+    """轮询二维码登录状态
+    
+    客户端需要定期调用此接口检查登录状态。
+    当status为confirmed时，返回token信息。
+    """
+    try:
+        status_info = wechat_service.get_qrcode_status(scene_id)
+        status_value = status_info.get("status")
+        
+        if status_value == QRCodeStatus.EXPIRED:
+            return {
+                "status": QRCodeStatus.EXPIRED,
+                "message": "二维码已过期"
+            }
+        
+        if status_value == QRCodeStatus.CONFIRMED:
+            # 登录成功，需要根据openid查找或创建账户
+            openid = status_info.get("openid")
+            user_info = status_info.get("user_info", {})
+            
+            if not openid:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="缺少openid")
+            
+            # 尝试通过unionid查找账户（如果用户信息中有unionid）
+            acc = None
+            unionid = user_info.get("unionid")
+            
+            if unionid:
+                from app.crud.account import get_account_by_unionid
+                acc = await get_account_by_unionid(db, unionid)
+            
+            # 如果找不到账户，创建新账户
+            if not acc:
+                # 生成一个临时手机号（微信登录用户可能没有手机号）
+                # 使用openid作为唯一标识，或者使用unionid
+                unique_phone = f"wechat_{openid[:11]}"  # 使用openid前11位
+                
+                # 检查手机号是否已存在
+                existing = await get_account_by_phone(db, unique_phone)
+                if existing:
+                    acc = existing
+                else:
+                    # 创建新账户
+                    nickname = user_info.get("nickname") or "微信用户"
+                    avatar = user_info.get("headimgurl")
+                    gender_str = user_info.get("sex", 0)  # 1:男, 2:女, 0:未知
+                    gender = AccountGender.male if gender_str == 1 else (AccountGender.female if gender_str == 2 else AccountGender.other)
+                    
+                    acc = await create_account(
+                        db,
+                        AccountCreate(
+                            phone=unique_phone,
+                            nickname=nickname,
+                            avatar=avatar,
+                            gender=gender,
+                            role=AccountRole.owner,  # 微信登录默认创建owner
+                            password=None  # 微信登录不需要密码
+                        )
+                    )
+                    
+                    # 更新unionid（如果有）
+                    if unionid:
+                        acc.unionid = unionid
+                        await db.commit()
+                        await db.refresh(acc)
+                    
+                    # 创建对应的user记录
+                    await create_user(db, user=type("UserCreate", (), {"account_id": acc.id})())
+            
+            # 生成token（复用登录逻辑）
+            access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            extra_claims = {
+                "account_id": acc.id,
+                "role": acc.role,
+            }
+            
+            user_id = None
+            if acc.role == AccountRole.admin:
+                admin = await get_admin_by_account_id(db, acc.id)
+                if admin:
+                    extra_claims["id"] = admin.id
+            elif acc.role == AccountRole.member:
+                member = await get_member_by_account_id(db, acc.id)
+                if member:
+                    extra_claims["id"] = member.id
+                    user_id = member.user_id
+                    extra_claims["user_id"] = user_id
+            elif acc.role == AccountRole.owner:
+                user = await get_user_by_account_id(db, acc.id)
+                if user:
+                    extra_claims["id"] = user.id
+                    user_id = user.id
+                    extra_claims["user_id"] = user_id
+            
+            token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
+            
+            # 发送登录消息
+            if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
+                async def send_login_message():
+                    await asyncio.sleep(1)
+                    try:
+                        role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
+                        real_id = extra_claims["id"]
+                        client_id = f"{role_str}_{real_id}"
+                        
+                        await websocket_tool.send_family_message(
+                            client_id=client_id,
+                            message_type="login",
+                            data={
+                                "senderId": real_id,
+                                "senderRole": role_str,
+                                "title": "用户登录",
+                                "message": f"{acc.nickname or acc.phone} 已通过微信登录",
+                                "level": "normal"
+                            }
+                        )
+                    except Exception as e:
+                        print(f"发送登录消息失败: {e}")
+                
+                asyncio.create_task(send_login_message())
+            
+            # 记录登录操作
+            try:
+                await user_operation_log.create(
+                    db=db,
+                    obj_in=UserOperationLogCreate(
+                        operation_type=OperationTypeEnum.login,
+                        description=f"用户通过微信登录系统（{acc.nickname or acc.phone}）",
+                        extra={
+                            "login_type": "wechat",
+                            "openid": openid,
+                            "unionid": unionid
+                        }
+                    ),
+                    account_id=acc.id
+                )
+            except Exception as e:
+                print(f"记录登录操作失败: {e}")
+            
+            return {
+                "status": QRCodeStatus.CONFIRMED,
+                "token": TokenResponse(
+                    access_token=token,
+                    role=acc.role,
+                    account=Account.model_validate(acc),
+                    id=extra_claims.get("id"),
+                    user_id=extra_claims.get("user_id")
+                )
+            }
+        
+        # 其他状态（waiting, scanned）
+        return {
+            "status": status_value,
+            "message": "等待扫码" if status_value == QRCodeStatus.WAITING else "已扫码，等待确认"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"检查状态失败: {str(e)}")
 
 
 

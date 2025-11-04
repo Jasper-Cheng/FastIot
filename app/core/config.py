@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE: int = 10485760  # 10MB
     UPLOAD_DIR: str = "./uploads"
 
+    # 微信登录配置
+    WECHAT_APP_ID: Optional[str] = None
+    WECHAT_APP_SECRET: Optional[str] = None
+    WECHAT_REDIRECT_URI: Optional[str] = None  # 微信回调地址
+    WECHAT_TOKEN: Optional[str] = None  # 微信验证Token（用于URL验证）
+
     @validator("CORS_ORIGINS", pre=True)
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
