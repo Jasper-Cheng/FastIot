@@ -1542,6 +1542,9 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
             operation_type = random.choice(operation_types)
             description = operation_descriptions[operation_type]
             
+            # 初始化 extra 变量
+            extra = None
+            
             # 添加一些随机性到描述中
             if operation_type == 'device_bind':
                 device_names = ['温度传感器', '湿度传感器', '智能开关', '智能灯泡', '门锁']
@@ -1568,8 +1571,6 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
                     "affected_devices": random.sample(range(1, 10), random.randint(1, 5)),
                     "device_count": random.randint(1, 5)
                 }
-            else:
-                extra = None
 
 
             # 随机生成时间（最近30天内）

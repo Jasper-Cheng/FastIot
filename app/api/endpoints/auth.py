@@ -45,7 +45,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     if not acc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
-    
+
     # 手机号登录：必须提供密码
     if not payload.password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
@@ -143,7 +143,7 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
 
     if not acc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
-    
+
     # 手机号登录：必须提供密码
     if not form_data.password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
@@ -256,7 +256,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             email_exists = await get_account_by_email(db, norm_email)
             if email_exists:
                 raise HTTPException(status_code=400, detail="邮箱已被使用")
-    
+
     acc = await create_account(
         db,
         AccountCreate(
