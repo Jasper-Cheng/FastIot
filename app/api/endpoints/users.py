@@ -169,7 +169,7 @@ async def update_user_detail(
                     "message": f"已更新用户信息：{updated_account.nickname or updated_account.phone if updated_account else f'ID:{user_id}'}",
                     "level": "normal",
                     "userId": user_id,
-                    "userName": updated_account.nickname if updated_account else None,
+                    "nickname": updated_account.nickname if updated_account else None,
                     "updateData": update_data
                 }
             )
@@ -223,7 +223,7 @@ async def remove_user(
                     "deleted_user_id": user_id,
                     "deleted_account_id": user_to_delete.account_id,
                     "deleted_account_nickname": account_to_delete.nickname if account_to_delete else None,
-                    "deleted_user_name": account_to_delete.nickname if account_to_delete else None
+                    "deleted_nickname": account_to_delete.nickname if account_to_delete else None
                 }
             ),
             account_id=user_to_delete.account_id  # 记录在被删除用户的账号下
@@ -248,7 +248,7 @@ async def remove_user(
                     "message": f"已删除用户：{account_to_delete.nickname or account_to_delete.phone if account_to_delete else f'ID:{user_id}'}",
                     "level": "normal",
                     "userId": user_id,
-                    "userName": account_to_delete.nickname if account_to_delete else None
+                    "nickname": account_to_delete.nickname if account_to_delete else None
                 }
             )
     except Exception as e:
