@@ -261,9 +261,6 @@ class WeChatService:
             if scene_id in self.scene_to_openid:
                 del self.scene_to_openid[scene_id]
         
-        if deleted_count > 0:
-            print(f"🧹 [WeChat] 已清理 {deleted_count} 个过期二维码记录")
-        
         return deleted_count
 
 
