@@ -243,6 +243,17 @@ class WebSocketTool:
                 del self.pending_requests[request_id]
             
                 
+    def is_client_connected(self, client_id: str) -> bool:
+        """检查client_id是否已连接
+        
+        Args:
+            client_id: 客户端ID
+            
+        Returns:
+            bool: 如果client_id已存在连接，返回True；否则返回False
+        """
+        return client_id in self.active_connections
+    
     def get_connection_info(self, client_id: str) -> Optional[Dict[str, Any]]:
         """获取连接信息"""
         if client_id not in self.connection_metadata:

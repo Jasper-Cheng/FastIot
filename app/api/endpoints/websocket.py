@@ -1,6 +1,9 @@
 """
 WebSocket API端点
 """
+import uuid
+import asyncio
+from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.services.websocket_tool import websocket_tool
 from jose import JWTError, jwt
@@ -55,6 +58,32 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             
             # 使用token中的role和id构建client_id
             client_id = f"{role}_{real_id}"
+
+            # 检查是否已经连接，如果已连接则先发送family消息并断开旧连接
+            if websocket_tool.is_client_connected(client_id):
+                print(f"⚠️ [WebSocket] 客户端 {client_id} 已存在连接，正在发送强制退出family消息并断开旧连接")
+                
+                # 发送family消息给所有family成员（包括旧连接）
+                try:
+                    await websocket_tool.send_family_message(
+                        client_id=client_id,
+                        message_type="force.logout",
+                        data={
+                            "senderId": real_id,
+                            "senderRole": role,
+                            "title": "强制退出",
+                            "message": f"{account.nickname or account.phone} 的账号在其他web平台登录，当前将被强制退出",
+                            "level": "warning",
+                            "reason": "新设备登录，当前连接被强制退出"
+                        }
+                    )
+                    # 等待一小段时间确保消息发送完成
+                    await asyncio.sleep(0.1)
+                except Exception as e:
+                    print(f"⚠️ [WebSocket] 发送强制退出family消息失败: {e}")
+                
+                # 断开旧连接
+                await websocket_tool._force_disconnect(client_id)
             
             # 获取family相关的所有client_id
             family_clients = []
