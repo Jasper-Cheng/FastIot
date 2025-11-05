@@ -37,6 +37,114 @@ import hashlib
 router = APIRouter()
 
 
+async def _generate_login_token_and_notify(
+    acc: Account,
+    db: AsyncSession,
+    login_type: str = "normal",
+    extra_log_data: dict = None
+) -> TokenResponse:
+    """生成登录token并发送通知的共用函数
+    
+    Args:
+        acc: 账户对象
+        db: 数据库会话
+        login_type: 登录类型（normal, wechat等）
+        extra_log_data: 额外的日志数据
+    
+    Returns:
+        TokenResponse: 包含token和用户信息的响应
+    """
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    extra_claims = {
+        "account_id": acc.id,
+        "role": acc.role,
+    }
+    
+    # 根据账号角色获取真正的ID和user_id
+    user_id = None
+    if acc.role == AccountRole.admin:
+        admin = await get_admin_by_account_id(db, acc.id)
+        if admin:
+            extra_claims["id"] = admin.id
+    elif acc.role == AccountRole.member:
+        member = await get_member_by_account_id(db, acc.id)
+        if member:
+            extra_claims["id"] = member.id
+            user_id = member.user_id
+            extra_claims["user_id"] = user_id
+    elif acc.role == AccountRole.owner:
+        user = await get_user_by_account_id(db, acc.id)
+        if user:
+            extra_claims["id"] = user.id
+            user_id = user.id
+            extra_claims["user_id"] = user_id
+    
+    token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
+    
+    # 发送family消息通知登录（仅owner和member）
+    # 延迟一秒发送，防止客户端的websocket连接还没建立
+    if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
+        async def send_login_message():
+            await asyncio.sleep(1)  # 延迟一秒
+            try:
+                role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
+                real_id = extra_claims["id"]
+                client_id = f"{role_str}_{real_id}"
+                
+                # 根据登录类型设置不同的消息
+                if login_type == "wechat":
+                    message_text = f"{acc.nickname or acc.phone} 已通过微信登录"
+                else:
+                    message_text = f"{acc.nickname or acc.phone} 已登录"
+                
+                await websocket_tool.send_family_message(
+                    client_id=client_id,
+                    message_type="login",
+                    data={
+                        "senderId": real_id,
+                        "senderRole": role_str,
+                        "title": "用户登录",
+                        "message": message_text,
+                        "level": "normal"
+                    }
+                )
+            except Exception as e:
+                # 发送消息失败不影响登录流程
+                print(f"发送登录消息失败: {e}")
+        
+        # 在后台任务中发送消息，不阻塞登录响应
+        asyncio.create_task(send_login_message())
+    
+    # 记录登录操作
+    try:
+        log_description = f"用户登录系统（{acc.nickname or acc.phone}）"
+        if login_type == "wechat":
+            log_description = f"用户通过微信登录系统（{acc.nickname or acc.phone}）"
+        
+        log_extra = extra_log_data or {}
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.login,
+                description=log_description,
+                extra=log_extra if log_extra else None
+            ),
+            account_id=acc.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响登录流程
+        print(f"记录登录操作失败: {e}")
+    
+    return TokenResponse(
+        access_token=token,
+        role=acc.role,
+        account=Account.model_validate(acc),
+        id=extra_claims.get("id"),
+        user_id=extra_claims.get("user_id")
+    )
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     """统一登录：支持手机号登录
@@ -57,82 +165,8 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not acc.password or not verify_password(payload.password, acc.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    extra_claims = {
-        "account_id": acc.id,
-        "role": acc.role,
-    }
-    # 根据账号角色获取真正的ID和user_id
-    user_id = None
-    if acc.role == AccountRole.admin:
-        admin = await get_admin_by_account_id(db, acc.id)
-        if admin:
-            extra_claims["id"] = admin.id
-            # admin 没有 user_id
-    elif acc.role == AccountRole.member:
-        member = await get_member_by_account_id(db, acc.id)
-        if member:
-            extra_claims["id"] = member.id
-            user_id = member.user_id
-            extra_claims["user_id"] = user_id
-    elif acc.role == AccountRole.owner:
-        user = await get_user_by_account_id(db, acc.id)
-        if user:
-            extra_claims["id"] = user.id
-            user_id = user.id
-            extra_claims["user_id"] = user_id
-
-    token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
-
-    # 发送family消息通知登录（仅owner和member）
-    # 延迟一秒发送，防止客户端的websocket连接还没建立
-    if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
-        async def send_login_message():
-            await asyncio.sleep(1)  # 延迟一秒
-            try:
-                role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-                real_id = extra_claims["id"]
-                client_id = f"{role_str}_{real_id}"
-                
-                await websocket_tool.send_family_message(
-                    client_id=client_id,
-                    message_type="login",
-                    data={
-                        "senderId": real_id,
-                        "senderRole": role_str,
-                        "title": "用户登录",
-                        "message": f"{acc.nickname or acc.phone} 已登录",
-                        "level": "normal"
-                    }
-                )
-            except Exception as e:
-                # 发送消息失败不影响登录流程
-                print(f"发送登录消息失败: {e}")
-        
-        # 在后台任务中发送消息，不阻塞登录响应
-        asyncio.create_task(send_login_message())
-
-    # 记录登录操作
-    try:
-        await user_operation_log.create(
-            db=db,
-            obj_in=UserOperationLogCreate(
-                operation_type=OperationTypeEnum.login,
-                description=f"用户登录系统（{acc.nickname or acc.phone}）",
-            ),
-            account_id=acc.id
-        )
-    except Exception as e:
-        # 记录操作失败不影响登录流程
-        print(f"记录登录操作失败: {e}")
-
-    return TokenResponse(
-        access_token=token, 
-        role=acc.role, 
-        account=Account.model_validate(acc),
-        id=extra_claims.get("id"),
-        user_id=extra_claims.get("user_id")
-    )
+    # 使用共用函数生成token并发送通知
+    return await _generate_login_token_and_notify(acc, db, login_type="normal")
 
 
 @router.post("/login/form", response_model=TokenResponse, include_in_schema=False)
@@ -159,82 +193,8 @@ async def login_form(
     if not acc.password or not verify_password(password, acc.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    extra_claims = {
-        "account_id": acc.id,
-        "role": acc.role,
-    }
-    # 根据账号角色获取真正的ID和user_id
-    user_id = None
-    if acc.role == AccountRole.admin:
-        admin = await get_admin_by_account_id(db, acc.id)
-        if admin:
-            extra_claims["id"] = admin.id
-            # admin 没有 user_id
-    elif acc.role == AccountRole.member:
-        member = await get_member_by_account_id(db, acc.id)
-        if member:
-            extra_claims["id"] = member.id
-            user_id = member.user_id
-            extra_claims["user_id"] = user_id
-    elif acc.role == AccountRole.owner:
-        user = await get_user_by_account_id(db, acc.id)
-        if user:
-            extra_claims["id"] = user.id
-            user_id = user.id
-            extra_claims["user_id"] = user_id
-
-    token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
-
-    # 发送family消息通知登录（仅owner和member）
-    # 延迟一秒发送，防止客户端的websocket连接还没建立
-    if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
-        async def send_login_message():
-            await asyncio.sleep(1)  # 延迟一秒
-            try:
-                role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-                real_id = extra_claims["id"]
-                client_id = f"{role_str}_{real_id}"
-                
-                await websocket_tool.send_family_message(
-                    client_id=client_id,
-                    message_type="login",
-                    data={
-                        "senderId": real_id,
-                        "senderRole": role_str,
-                        "title": "用户登录",
-                        "message": f"{acc.nickname or acc.phone} 已登录",
-                        "level": "normal"
-                    }
-                )
-            except Exception as e:
-                # 发送消息失败不影响登录流程
-                print(f"发送登录消息失败: {e}")
-        
-        # 在后台任务中发送消息，不阻塞登录响应
-        asyncio.create_task(send_login_message())
-
-    # 记录登录操作
-    try:
-        await user_operation_log.create(
-            db=db,
-            obj_in=UserOperationLogCreate(
-                operation_type=OperationTypeEnum.login,
-                description=f"用户登录系统（{acc.nickname or acc.phone}）",
-            ),
-            account_id=acc.id
-        )
-    except Exception as e:
-        # 记录操作失败不影响登录流程
-        print(f"记录登录操作失败: {e}")
-
-    return TokenResponse(
-        access_token=token, 
-        role=acc.role, 
-        account=Account.model_validate(acc),
-        id=extra_claims.get("id"),
-        user_id=extra_claims.get("user_id")
-    )
+    # 使用共用函数生成token并发送通知
+    return await _generate_login_token_and_notify(acc, db, login_type="normal")
 
 
 @router.post("/register", response_model=Account)
@@ -450,9 +410,9 @@ async def wechat_callback(
             if not openid:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无法获取openid")
             
-            # 获取用户信息
+            # 获取用户信息（使用网页授权接口）
             access_token = data.get("access_token")
-            user_info = await wechat_service.get_user_info_by_openid(openid, access_token)
+            user_info = await wechat_service.get_user_info_by_openid(openid, access_token, use_sns=True)
             
             # 如果有scene_id，更新二维码状态
             if scene_id:
@@ -496,131 +456,67 @@ async def check_wechat_login_status(
             if not openid:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="缺少openid")
             
-            # 尝试通过unionid查找账户（如果用户信息中有unionid）
-            acc = None
-            unionid = user_info.get("unionid")
-            
-            if unionid:
-                from app.crud.account import get_account_by_unionid
-                acc = await get_account_by_unionid(db, unionid)
+            # 使用openid作为unionid查询账户（openid保存在unionid字段）
+            from app.crud.account import get_account_by_unionid
+            acc = await get_account_by_unionid(db, openid)
             
             # 如果找不到账户，创建新账户
             if not acc:
-                # 生成一个临时手机号（微信登录用户可能没有手机号）
-                # 使用openid作为唯一标识，或者使用unionid
-                unique_phone = f"wechat_{openid[:11]}"  # 使用openid前11位
+                # 创建新账户，使用openid作为phone（满足唯一性约束，但格式不是真实手机号）
+                nickname = user_info.get("nickname") or "微信用户"
+                avatar = user_info.get("headimgurl")
+                gender_str = user_info.get("sex", 0)  # 1:男, 2:女, 0:未知
+                gender = AccountGender.male if gender_str == 1 else (AccountGender.female if gender_str == 2 else AccountGender.other)
                 
-                # 检查手机号是否已存在
-                existing = await get_account_by_phone(db, unique_phone)
-                if existing:
-                    acc = existing
-                else:
-                    # 创建新账户
-                    nickname = user_info.get("nickname") or "微信用户"
-                    avatar = user_info.get("headimgurl")
-                    gender_str = user_info.get("sex", 0)  # 1:男, 2:女, 0:未知
-                    gender = AccountGender.male if gender_str == 1 else (AccountGender.female if gender_str == 2 else AccountGender.other)
-                    
-                    acc = await create_account(
-                        db,
-                        AccountCreate(
-                            phone=unique_phone,
-                            nickname=nickname,
-                            avatar=avatar,
-                            gender=gender,
-                            role=AccountRole.owner,  # 微信登录默认创建owner
-                            password=None  # 微信登录不需要密码
-                        )
+                acc = await create_account(
+                    db,
+                    AccountCreate(
+                        phone=openid,  # 使用openid作为phone，满足唯一性约束
+                        nickname=nickname,
+                        avatar=avatar,
+                        gender=gender,
+                        role=AccountRole.owner,  # 微信登录默认创建owner
+                        password=None  # 微信登录不需要密码
                     )
-                    
-                    # 更新unionid（如果有）
-                    if unionid:
-                        acc.unionid = unionid
-                        await db.commit()
-                        await db.refresh(acc)
-                    
-                    # 创建对应的user记录
-                    await create_user(db, user=type("UserCreate", (), {"account_id": acc.id})())
-            
-            # 生成token（复用登录逻辑）
-            access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-            extra_claims = {
-                "account_id": acc.id,
-                "role": acc.role,
-            }
-            
-            user_id = None
-            if acc.role == AccountRole.admin:
-                admin = await get_admin_by_account_id(db, acc.id)
-                if admin:
-                    extra_claims["id"] = admin.id
-            elif acc.role == AccountRole.member:
-                member = await get_member_by_account_id(db, acc.id)
-                if member:
-                    extra_claims["id"] = member.id
-                    user_id = member.user_id
-                    extra_claims["user_id"] = user_id
-            elif acc.role == AccountRole.owner:
-                user = await get_user_by_account_id(db, acc.id)
-                if user:
-                    extra_claims["id"] = user.id
-                    user_id = user.id
-                    extra_claims["user_id"] = user_id
-            
-            token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
-            
-            # 发送登录消息
-            if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
-                async def send_login_message():
-                    await asyncio.sleep(1)
-                    try:
-                        role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-                        real_id = extra_claims["id"]
-                        client_id = f"{role_str}_{real_id}"
-                        
-                        await websocket_tool.send_family_message(
-                            client_id=client_id,
-                            message_type="login",
-                            data={
-                                "senderId": real_id,
-                                "senderRole": role_str,
-                                "title": "用户登录",
-                                "message": f"{acc.nickname or acc.phone} 已通过微信登录",
-                                "level": "normal"
-                            }
-                        )
-                    except Exception as e:
-                        print(f"发送登录消息失败: {e}")
-                
-                asyncio.create_task(send_login_message())
-            
-            # 记录登录操作
-            try:
-                await user_operation_log.create(
-                    db=db,
-                    obj_in=UserOperationLogCreate(
-                        operation_type=OperationTypeEnum.login,
-                        description=f"用户通过微信登录系统（{acc.nickname or acc.phone}）",
-                        extra={
-                            "login_type": "wechat",
-                            "openid": openid,
-                            "unionid": unionid
-                        }
-                    ),
-                    account_id=acc.id
                 )
-            except Exception as e:
-                print(f"记录登录操作失败: {e}")
+                
+                # 将openid保存到unionid字段
+                acc.unionid = openid
+                await db.commit()
+                await db.refresh(acc)
+                
+                # 创建对应的user记录
+                await create_user(db, user=type("UserCreate", (), {"account_id": acc.id})())
+            
+            # 判断手机号是否为真实手机号（格式：1开头的11位数字）
+            phone_pattern = r"^1\d{10}$"
+            is_real_phone = bool(re.match(phone_pattern, acc.phone))
+            
+            # 如果没有真实手机号，返回需要绑定的响应
+            if not is_real_phone:
+                return {
+                    "status": QRCodeStatus.CONFIRMED,
+                    "need_bind_phone": True,
+                    "openid": openid,
+                    "account": Account.model_validate(acc),
+                    "message": "需要绑定手机号"
+                }
+            
+            # 使用共用函数生成token并发送通知
+            token_response = await _generate_login_token_and_notify(
+                acc, 
+                db, 
+                login_type="wechat",
+                extra_log_data={
+                    "login_type": "wechat",
+                    "openid": openid,
+                    "unionid": acc.unionid
+                }
+            )
             
             return {
                 "status": QRCodeStatus.CONFIRMED,
-                "token": TokenResponse(
-                    access_token=token,
-                    role=acc.role,
-                    account=Account.model_validate(acc),
-                    id=extra_claims.get("id"),
-                    user_id=extra_claims.get("user_id")
-                )
+                "token": token_response
             }
         
         # 其他状态（waiting, scanned）

@@ -171,19 +171,36 @@ class WeChatService:
         
         return True
     
-    async def get_user_info_by_openid(self, openid: str, access_token: Optional[str] = None) -> Optional[Dict]:
-        """根据openid获取用户信息"""
+    async def get_user_info_by_openid(self, openid: str, access_token: Optional[str] = None, use_sns: bool = False) -> Optional[Dict]:
+        """根据openid获取用户信息
+        
+        Args:
+            openid: 微信openid
+            access_token: access_token（如果为None则使用基础接口token）
+            use_sns: 是否使用网页授权接口（sns/userinfo），True表示使用网页授权token
+        """
         if not access_token:
             access_token = await self.get_access_token()
             if not access_token:
                 return None
         
-        url = f"https://api.weixin.qq.com/cgi-bin/user/info"
-        params = {
-            "access_token": access_token,
-            "openid": openid,
-            "lang": "zh_CN"
-        }
+        # 根据use_sns参数选择不同的接口
+        if use_sns:
+            # 使用网页授权接口
+            url = "https://api.weixin.qq.com/sns/userinfo"
+            params = {
+                "access_token": access_token,
+                "openid": openid,
+                "lang": "zh_CN"
+            }
+        else:
+            # 使用基础接口
+            url = "https://api.weixin.qq.com/cgi-bin/user/info"
+            params = {
+                "access_token": access_token,
+                "openid": openid,
+                "lang": "zh_CN"
+            }
         
         try:
             async with httpx.AsyncClient() as client:
