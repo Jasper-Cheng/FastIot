@@ -23,7 +23,8 @@ from app.models.account import (
     AccountGender,
     LoginRequest,
     TokenResponse,
-    RegisterRequest
+    RegisterRequest,
+    BindPhoneRequest
 )
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_account, get_current_token
@@ -538,6 +539,102 @@ async def check_wechat_login_status(
         raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"检查状态失败: {str(e)}")
+
+
+@router.post("/login/bind_phone", response_model=TokenResponse)
+async def bind_phone(
+    payload: BindPhoneRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """绑定手机号接口
+    
+    微信登录后，如果用户没有真实手机号，需要调用此接口绑定手机号。
+    参数：
+    - scene_id: 场景ID（从check_status接口获取）
+    - phone: 手机号（必填，格式：1开头的11位数字）
+    """
+    try:
+        # 验证手机号格式
+        phone_pattern = r"^1\d{10}$"
+        if not re.match(phone_pattern, payload.phone):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="手机号格式不正确")
+        
+        # 通过scene_id直接获取openid（不判断状态）
+        openid = None
+        if payload.scene_id in wechat_service.qrcode_storage:
+            qrcode_info = wechat_service.qrcode_storage[payload.scene_id]
+            openid = qrcode_info.get("openid")
+        
+        if not openid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="无法获取openid，请重新扫码"
+            )
+        
+        # 使用openid作为unionid查询账户
+        from app.crud.account import get_account_by_unionid
+        acc = await get_account_by_unionid(db, openid)
+        
+        if not acc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="账户不存在，请重新扫码登录"
+            )
+        
+        # 检查手机号是否已被使用
+        existing = await get_account_by_phone(db, payload.phone)
+        if existing and existing.id != acc.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="该手机号已被使用"
+            )
+        
+        # 检查账户是否已经有真实手机号
+        is_real_phone = bool(re.match(phone_pattern, acc.phone))
+        if is_real_phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="账户已绑定手机号，无需重复绑定"
+            )
+        
+        # 更新手机号
+        from app.crud.account import update_account
+        from app.models.account import AccountUpdate
+        
+        acc = await update_account(
+            db,
+            acc.id,
+            AccountUpdate(phone=payload.phone)
+        )
+        
+        if not acc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="更新手机号失败"
+            )
+        
+        # 使用共用函数生成token并发送通知
+        token_response = await _generate_login_token_and_notify(
+            acc,
+            db,
+            login_type="wechat",
+            extra_log_data={
+                "login_type": "wechat",
+                "openid": openid,
+                "unionid": acc.unionid,
+                "action": "bind_phone"
+            }
+        )
+        
+        return token_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"绑定手机号失败: {str(e)}"
+        )
 
 
 

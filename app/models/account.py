@@ -80,3 +80,12 @@ class RegisterRequest(BaseModel):
     gender: AccountGender | None = None
     email: str | None = None
     avatar: str | None = None
+
+
+class BindPhoneRequest(BaseModel):
+    """绑定手机号请求
+    
+    用于微信登录后绑定手机号
+    """
+    scene_id: str  # 场景ID，从check_status接口获取
+    phone: str  # 手机号
