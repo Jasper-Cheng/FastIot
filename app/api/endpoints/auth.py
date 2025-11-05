@@ -352,54 +352,6 @@ async def logout(
     return {"message": "登出成功"}
 
 
-@router.get("/login/wechat_verify")
-async def wechat_verify(
-    signature: str = Query(..., description="微信加密签名"),
-    timestamp: str = Query(..., description="时间戳"),
-    nonce: str = Query(..., description="随机数"),
-    echostr: str = Query(..., description="随机字符串"),
-):
-    """微信服务器URL验证接口
-    
-    微信首次配置回调地址时会调用此接口进行验证。
-    验证逻辑：
-    1. 将token、timestamp、nonce三个参数进行字典序排序
-    2. 将三个参数字符串拼接成一个字符串进行sha1加密
-    3. 开发者获得加密后的字符串可与signature对比
-    
-    参数：
-    - signature: 微信加密签名
-    - timestamp: 时间戳
-    - nonce: 随机数
-    - echostr: 随机字符串（验证成功后返回此值）
-    """
-    if not settings.WECHAT_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail="微信Token未配置"
-        )
-    
-    # 将token、timestamp、nonce三个参数进行字典序排序
-    tmp_arr = [settings.WECHAT_TOKEN, timestamp, nonce]
-    tmp_arr.sort()
-    
-    # 将三个参数字符串拼接成一个字符串
-    tmp_str = ''.join(tmp_arr)
-    
-    # 进行sha1加密
-    hash_str = hashlib.sha1(tmp_str.encode('utf-8')).hexdigest()
-    
-    # 与signature对比，标识该请求来源于微信
-    if hash_str == signature:
-        # 验证成功，返回echostr
-        return echostr
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="签名验证失败"
-        )
-
-
 @router.get("/login/qrcode")
 async def get_wechat_qrcode(db: AsyncSession = Depends(get_db)):
     """获取微信登录二维码
@@ -422,17 +374,51 @@ async def get_wechat_qrcode(db: AsyncSession = Depends(get_db)):
 
 @router.get("/login/wechat_callback")
 async def wechat_callback(
-    code: str = Query(..., description="微信授权码"),
-    state: str = Query(None, description="自定义参数，包含scene_id"),
+    code: str = Query(None, description="微信授权码（授权回调时必填）"),
+    state: str = Query(None, description="自定义参数，包含scene_id（授权回调时可选）"),
+    signature: str = Query(None, description="微信加密签名（验证请求时必填）"),
+    timestamp: str = Query(None, description="时间戳（验证请求时必填）"),
+    nonce: str = Query(None, description="随机数（验证请求时必填）"),
+    echostr: str = Query(None, description="随机字符串（验证请求时必填）"),
     db: AsyncSession = Depends(get_db)
 ):
-    """处理微信授权回调
+    """处理微信回调和验证
     
-    微信扫码授权后，会调用此接口。
-    参数：
-    - code: 微信授权码（必填）
-    - state: 自定义参数，包含scene_id（可选，用于关联二维码）
+    此接口同时处理两种请求：
+    1. URL验证请求：微信首次配置回调地址时调用（参数：signature, timestamp, nonce, echostr）
+    2. 授权回调请求：用户扫码授权后调用（参数：code, state）
     """
+    # 判断是否为验证请求
+    if signature and timestamp and nonce and echostr:
+        # 这是验证请求
+        if not settings.WECHAT_TOKEN:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="微信Token未配置"
+            )
+        
+        # 将token、timestamp、nonce三个参数进行字典序排序
+        tmp_arr = [settings.WECHAT_TOKEN, timestamp, nonce]
+        tmp_arr.sort()
+        
+        # 将三个参数字符串拼接成一个字符串
+        tmp_str = ''.join(tmp_arr)
+        
+        # 进行sha1加密
+        hash_str = hashlib.sha1(tmp_str.encode('utf-8')).hexdigest()
+        
+        # 与signature对比，标识该请求来源于微信
+        if hash_str == signature:
+            # 验证成功，返回echostr（必须是纯文本，不是JSON）
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse(content=echostr)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="签名验证失败"
+            )
+    
+    # 否则是授权回调请求
     try:
         # 从state中提取scene_id
         scene_id = state if state else None

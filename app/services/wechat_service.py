@@ -77,11 +77,11 @@ class WeChatService:
         import urllib.parse
         redirect_uri = urllib.parse.quote(settings.WECHAT_REDIRECT_URI, safe='')
         auth_url = (
-            f"https://open.weixin.qq.com/connect/qrconnect?"
+            f"https://open.weixin.qq.com/connect/oauth2/authorize?"
             f"appid={settings.WECHAT_APP_ID}&"
             f"redirect_uri={redirect_uri}&"
             f"response_type=code&"
-            f"scope=snsapi_login&"
+            f"scope=snsapi_userinfo&"
             f"state={scene_id}"
             f"#wechat_redirect"
         )
