@@ -508,8 +508,7 @@ async def check_wechat_login_status(
                 return {
                     "status": QRCodeStatus.CONFIRMED,
                     "need_bind_phone": True,
-                    "openid": openid,
-                    "account": Account.model_validate(acc),
+                    "scene_id": scene_id,
                     "message": "需要绑定手机号"
                 }
             
