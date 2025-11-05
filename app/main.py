@@ -10,6 +10,7 @@ from app.services.mqtt_handlers import register_mqtt_subscriptions
 from app.db.session import engine
 from app.services.redis_service import redis_service
 from app.services.websocket_tool import websocket_tool
+from app.services.wechat_service import wechat_service
 
 # 导入所有模型以确保 SQLAlchemy 关系映射正确配置
 from app.db.models import *  # noqa: F401, F403
@@ -31,6 +32,19 @@ async def heartbeat_checker():
         
         # 每30秒检查一次
         await asyncio.sleep(30)
+
+async def wechat_qrcode_cleaner():
+    """微信二维码清理任务"""
+    while True:
+        try:
+            deleted_count = wechat_service.cleanup_expired_qrcodes()
+            if deleted_count > 0:
+                print(f"🧹 [WeChat] 已清理 {deleted_count} 个过期二维码记录")
+        except Exception as e:
+            print(f"❌ [WeChat] 二维码清理异常: {e}")
+        
+        # 每5分钟清理一次
+        await asyncio.sleep(300)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -67,16 +81,26 @@ async def lifespan(app: FastAPI):
     heartbeat_task = asyncio.create_task(heartbeat_checker())
     print("✅ WebSocket心跳检查任务已启动")
     
+    # 启动微信二维码清理任务
+    qrcode_cleaner_task = asyncio.create_task(wechat_qrcode_cleaner())
+    print("✅ 微信二维码清理任务已启动")
+    
     yield
     
     # shutdown
     print("🔄 应用关闭中...")
     heartbeat_task.cancel()
+    qrcode_cleaner_task.cancel()
     try:
         await heartbeat_task
     except asyncio.CancelledError:
         pass
     print("💔 WebSocket心跳检查任务已停止")
+    try:
+        await qrcode_cleaner_task
+    except asyncio.CancelledError:
+        pass
+    print("💔 微信二维码清理任务已停止")
     
     # 关闭数据库引擎的连接池
     try:

@@ -24,6 +24,7 @@ class WeChatService:
         self.qrcode_storage: Dict[str, Dict] = {}  # 存储二维码状态：{scene_id: {status, openid, expires_at, ...}}
         self.scene_to_openid: Dict[str, str] = {}  # scene_id -> openid 映射
         self.qrcode_expire_seconds = 300  # 二维码5分钟过期
+        self.confirmed_retention_seconds = 3600  # 已确认的二维码保留1小时后清理
         
     async def get_access_token(self) -> Optional[str]:
         """获取微信access_token"""
@@ -96,6 +97,9 @@ class WeChatService:
             "openid": None,
             "user_info": None
         }
+        
+        # 创建二维码时触发一次清理（惰性清理）
+        self.cleanup_expired_qrcodes()
         
         return {
             "qrcode_url": auth_url,  # 返回授权URL，客户端需要将其转换为二维码图片
@@ -217,18 +221,50 @@ class WeChatService:
             return None
     
     def cleanup_expired_qrcodes(self):
-        """清理过期的二维码"""
-        now = datetime.now()
-        expired_scene_ids = [
-            scene_id for scene_id, info in self.qrcode_storage.items()
-            if now > info["expires_at"]
-        ]
+        """清理过期的二维码
         
-        for scene_id in expired_scene_ids:
-            if self.qrcode_storage[scene_id]["status"] != QRCodeStatus.CONFIRMED:
+        清理规则：
+        1. 已过期且未确认的二维码：立即删除
+        2. 已确认但超过保留时间的二维码：删除
+        3. 已过期但已确认的二维码：如果超过保留时间则删除
+        """
+        now = datetime.now()
+        to_delete = []
+        
+        for scene_id, info in self.qrcode_storage.items():
+            status = info.get("status")
+            expires_at = info.get("expires_at")
+            
+            # 情况1: 已过期且未确认的二维码，立即删除
+            if now > expires_at and status != QRCodeStatus.CONFIRMED:
+                to_delete.append(scene_id)
+                continue
+            
+            # 情况2: 已确认的二维码，检查是否超过保留时间
+            if status == QRCodeStatus.CONFIRMED:
+                confirmed_at = info.get("confirmed_at")
+                if confirmed_at:
+                    retention_time = confirmed_at + timedelta(seconds=self.confirmed_retention_seconds)
+                    if now > retention_time:
+                        to_delete.append(scene_id)
+                else:
+                    # 如果没有确认时间，但已过期，检查是否超过过期时间+保留时间
+                    if now > expires_at + timedelta(seconds=self.confirmed_retention_seconds):
+                        to_delete.append(scene_id)
+        
+        # 执行删除
+        deleted_count = 0
+        for scene_id in to_delete:
+            if scene_id in self.qrcode_storage:
                 del self.qrcode_storage[scene_id]
+                deleted_count += 1
             if scene_id in self.scene_to_openid:
                 del self.scene_to_openid[scene_id]
+        
+        if deleted_count > 0:
+            print(f"🧹 [WeChat] 已清理 {deleted_count} 个过期二维码记录")
+        
+        return deleted_count
 
 
 # 全局实例
