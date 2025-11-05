@@ -35,12 +35,33 @@ from app.models.user_operation_log import UserOperationLogCreate, OperationTypeE
 from app.api.dependencies import get_current_account, get_current_token
 from app.services.websocket_tool import websocket_tool
 from app.services.wechat_service import wechat_service, QRCodeStatus
+from app.core.rsa_crypto import rsa_crypto
 from fastapi import Query
 from typing import Dict
 import httpx
 import hashlib
 
 router = APIRouter()
+
+
+@router.get("/rsa_public_key")
+async def get_rsa_public_key():
+    """获取RSA公钥接口
+    
+    前端需要先调用此接口获取公钥，然后使用公钥加密密码。
+    返回公钥（PEM格式），前端可以使用此公钥加密密码。
+    """
+    try:
+        public_key = rsa_crypto.get_public_key()
+        return {
+            "public_key": public_key,
+            "format": "PEM"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取公钥失败: {str(e)}"
+        )
 
 
 async def _generate_login_token_and_notify(
@@ -173,7 +194,17 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     # 手机号登录：必须提供密码
     if not payload.password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
-    if not acc.password or not verify_password(payload.password, acc.password):
+    
+    # 解密密码
+    try:
+        plain_password = rsa_crypto.decrypt(payload.password)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"密码解密失败: {str(e)}"
+        )
+    
+    if not acc.password or not verify_password(plain_password, acc.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     # 使用共用函数生成token并发送通知
@@ -207,7 +238,17 @@ async def login_form(
     # 手机号登录：必须提供密码
     if not password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
-    if not acc.password or not verify_password(password, acc.password):
+    
+    # 解密密码
+    try:
+        plain_password = rsa_crypto.decrypt(password)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"密码解密失败: {str(e)}"
+        )
+    
+    if not acc.password or not verify_password(plain_password, acc.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     # 使用共用函数生成token并发送通知
@@ -243,10 +284,21 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             if email_exists:
                 raise HTTPException(status_code=400, detail="邮箱已被使用")
 
+    # 如果有密码，先解密
+    decrypted_password = None
+    if req.password:
+        try:
+            decrypted_password = rsa_crypto.decrypt(req.password)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"密码解密失败: {str(e)}"
+            )
+    
     acc = await create_account(
         db,
         AccountCreate(
-            password=req.password,
+            password=decrypted_password,
             phone=req.phone,
             nickname=req.nickname,
             gender=req.gender,  # type: ignore[arg-type]
@@ -650,39 +702,47 @@ async def set_password(
     参数：
     - password: 新密码（必填）
     """
+    # 解密密码
     try:
-        # 验证密码长度（可根据需求调整）
-        if len(payload.password) < 6:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="密码长度至少6位"
-            )
-        
-        account_id = token_info["account_id"]
-        
-        # 获取账户信息（用于日志记录）
-        acc = await get_account(db, account_id)
-        if not acc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="账户不存在"
-            )
-        
-        # 更新密码
-        updated_account = await update_account(
-            db,
-            account_id,
-            AccountUpdate(password=payload.password)
+        plain_password = rsa_crypto.decrypt(payload.password)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"密码解密失败: {str(e)}"
         )
-        
-        if not updated_account:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                detail="设置密码失败"
-            )
-        
-        # 记录操作日志
-        try:
+    
+    # 验证密码长度（可根据需求调整）
+    if len(plain_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="密码长度至少6位"
+        )
+    
+    account_id = token_info["account_id"]
+    
+    # 获取账户信息（用于日志记录）
+    acc = await get_account(db, account_id)
+    if not acc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="账户不存在"
+        )
+    
+    # 更新密码（使用解密后的明文密码）
+    updated_account = await update_account(
+        db,
+        account_id,
+        AccountUpdate(password=plain_password)
+    )
+    
+    if not updated_account:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="设置密码失败"
+        )
+    
+    # 记录操作日志
+    try:
             await user_operation_log.create(
                 db=db,
                 obj_in=UserOperationLogCreate(
@@ -694,18 +754,10 @@ async def set_password(
                 ),
                 account_id=account_id
             )
-        except Exception as e:
-            print(f"记录操作失败: {e}")
-        
-        return {"message": "密码设置成功"}
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"设置密码失败: {str(e)}"
-        )
+        print(f"记录操作失败: {e}")
+    
+    return {"message": "密码设置成功"}
 
 
 

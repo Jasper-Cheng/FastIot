@@ -11,6 +11,8 @@ from app.models.user_operation_log import UserOperationLogCreate, OperationTypeE
 from app.api.dependencies import get_current_token
 from app.models.account import AccountRole
 from app.services.websocket_tool import websocket_tool
+from app.core.rsa_crypto import rsa_crypto
+from fastapi import status
 router = APIRouter()
 
 
@@ -80,6 +82,17 @@ async def update_user_detail(
             if existed_email and existed_email.id != u.account_id:
                 raise HTTPException(status_code=400, detail="邮箱已被使用")
 
+    # 解密密码（如果提供）
+    decrypted_password = None
+    if payload.password is not None:
+        try:
+            decrypted_password = rsa_crypto.decrypt(payload.password)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"密码解密失败: {str(e)}"
+            )
+
     # 仅传递有值的字段
     updated: dict = {}
     if payload.nickname is not None:
@@ -92,8 +105,8 @@ async def update_user_detail(
         updated["email"] = norm_email
     if payload.avatar is not None:
         updated["avatar"] = payload.avatar
-    if payload.password is not None:
-        updated["password"] = payload.password
+    if decrypted_password is not None:
+        updated["password"] = decrypted_password
 
     # 更新账号信息并获取更新后的账号
     updated_account = await update_account(

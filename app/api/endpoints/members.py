@@ -15,6 +15,8 @@ from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
 from app.services.websocket_tool import websocket_tool
+from app.core.rsa_crypto import rsa_crypto
+from fastapi import status
 router = APIRouter()
 
 
@@ -69,11 +71,22 @@ async def create_member_for_user(
         if email_exists:
             raise HTTPException(status_code=400, detail="邮箱已被使用")
     
+    # 解密密码（如果提供）
+    decrypted_password = None
+    if payload.password:
+        try:
+            decrypted_password = rsa_crypto.decrypt(payload.password)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"密码解密失败: {str(e)}"
+            )
+    
     # 1) 先创建 account，role 强制为 member
     acc = await create_account(
         db,
         AccountCreate(
-            password=payload.password,
+            password=decrypted_password,
             phone=payload.phone,
             nickname=payload.nickname,
             gender=payload.gender,  # type: ignore[arg-type]
@@ -205,6 +218,17 @@ async def update_member_detail(
             if existed_email and existed_email.id != m.account_id:
                 raise HTTPException(status_code=400, detail="邮箱已被使用")
 
+    # 解密密码（如果提供）
+    decrypted_password = None
+    if payload.password is not None:
+        try:
+            decrypted_password = rsa_crypto.decrypt(payload.password)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"密码解密失败: {str(e)}"
+            )
+
     # 仅传递有值的字段
     updated: dict = {}
     if payload.nickname is not None:
@@ -217,8 +241,8 @@ async def update_member_detail(
         updated["email"] = norm_email
     if payload.avatar is not None:
         updated["avatar"] = payload.avatar
-    if payload.password is not None:
-        updated["password"] = payload.password
+    if decrypted_password is not None:
+        updated["password"] = decrypted_password
 
     await update_account(
         db,
