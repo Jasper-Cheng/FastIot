@@ -89,3 +89,8 @@ class BindPhoneRequest(BaseModel):
     """
     scene_id: str  # 场景ID，从check_status接口获取
     phone: str  # 手机号
+
+
+class SetPasswordRequest(BaseModel):
+    """设置密码请求"""
+    password: str  # 新密码

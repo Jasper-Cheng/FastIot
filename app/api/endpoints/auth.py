@@ -8,23 +8,28 @@ from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.crud.account import (
+    get_account,
     get_account_by_phone,
     get_account_by_email,
+    get_account_by_unionid,
     create_account,
+    update_account,
 )
 from app.crud.user import create_user, get_user_by_account_id
 from app.crud.member import create_member, get_member_by_account_id
 from app.crud.admin import get_admin_by_account_id
 from app.crud.user_operation_log import user_operation_log
 from app.models.account import (
-    AccountCreate, 
+    AccountCreate,
+    AccountUpdate,
     Account, 
     AccountRole,
     AccountGender,
     LoginRequest,
     TokenResponse,
     RegisterRequest,
-    BindPhoneRequest
+    BindPhoneRequest,
+    SetPasswordRequest
 )
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_account, get_current_token
@@ -433,7 +438,7 @@ async def wechat_callback(
                     # 二维码可能已过期，但不影响登录流程，只记录警告
                     print(f"警告: 无法更新二维码状态，scene_id可能已过期: {scene_id}")
             
-            return {"success": True, "message": "回调处理成功", "openid": openid}
+            return {"success": True, "message": "very good!"}
     except HTTPException:
         raise
     except Exception as e:
@@ -469,7 +474,6 @@ async def check_wechat_login_status(
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="缺少openid")
             
             # 使用openid作为unionid查询账户（openid保存在unionid字段）
-            from app.crud.account import get_account_by_unionid
             acc = await get_account_by_unionid(db, openid)
             
             # 如果找不到账户，创建新账户
@@ -572,7 +576,6 @@ async def bind_phone(
             )
         
         # 使用openid作为unionid查询账户
-        from app.crud.account import get_account_by_unionid
         acc = await get_account_by_unionid(db, openid)
         
         if not acc:
@@ -598,8 +601,6 @@ async def bind_phone(
             )
         
         # 更新手机号
-        from app.crud.account import update_account
-        from app.models.account import AccountUpdate
         
         acc = await update_account(
             db,
@@ -634,6 +635,76 @@ async def bind_phone(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"绑定手机号失败: {str(e)}"
+        )
+
+
+@router.post("/set_password")
+async def set_password(
+    payload: SetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token)
+):
+    """设置密码接口
+    
+    为当前登录用户设置密码。
+    参数：
+    - password: 新密码（必填）
+    """
+    try:
+        # 验证密码长度（可根据需求调整）
+        if len(payload.password) < 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="密码长度至少6位"
+            )
+        
+        account_id = token_info["account_id"]
+        
+        # 获取账户信息（用于日志记录）
+        acc = await get_account(db, account_id)
+        if not acc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="账户不存在"
+            )
+        
+        # 更新密码
+        updated_account = await update_account(
+            db,
+            account_id,
+            AccountUpdate(password=payload.password)
+        )
+        
+        if not updated_account:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="设置密码失败"
+            )
+        
+        # 记录操作日志
+        try:
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.user_update,
+                    description=f"用户设置密码（{acc.nickname or acc.phone}）",
+                    extra={
+                        "action": "set_password"
+                    }
+                ),
+                account_id=account_id
+            )
+        except Exception as e:
+            print(f"记录操作失败: {e}")
+        
+        return {"message": "密码设置成功"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"设置密码失败: {str(e)}"
         )
 
 
