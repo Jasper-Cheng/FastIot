@@ -153,6 +153,11 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     - phone 为手机号
     - 必须提供密码
     """
+    # 验证手机号格式（防止使用openid等非手机号格式登录）
+    phone_pattern = r"^1\d{10}$"
+    if not re.match(phone_pattern, payload.phone):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="手机号格式不正确")
+    
     # 按手机号查找
     acc = await get_account_by_phone(db, payload.phone)
 
@@ -182,6 +187,12 @@ async def login_form(
     """
     # 按手机号查找（username 实际为手机号）
     phone = username
+    
+    # 验证手机号格式（防止使用openid等非手机号格式登录）
+    phone_pattern = r"^1\d{10}$"
+    if not re.match(phone_pattern, phone):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="手机号格式不正确")
+    
     acc = await get_account_by_phone(db, phone)
 
     if not acc:
