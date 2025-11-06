@@ -26,7 +26,6 @@ async def get_current_token(
         id: int | None = payload.get("id")  # 使用统一的id字段
         role: str | None = payload.get("role")  # 直接使用token中的role字段
         user_id: int | None = payload.get("user_id")  # user_id（owner和member有，admin可能没有）
-        platform: str | None = payload.get("platform")  # 平台标识（web/app等）
         
         if not account_id or not id or not role or not user_id:
             raise credentials_exception
@@ -35,8 +34,7 @@ async def get_current_token(
             "account_id": account_id,
             "id": id,
             "role": role,
-            "user_id": user_id,
-            "platform": platform or "web"  # 如果没有platform，默认使用web
+            "user_id": user_id
         }
     except JWTError:
         raise credentials_exception
