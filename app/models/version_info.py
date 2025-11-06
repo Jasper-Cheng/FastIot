@@ -5,17 +5,14 @@ from enum import Enum
 
 
 class PlatformEnum(str, Enum):
-    android = "android"
-    ios = "ios"
     web = "web"
-    server = "server"
-    all = "all"
+    app = "app"
 
 
 class VersionInfoBase(BaseModel):
     version_code: str = Field(..., description="版本号")
     version_name: str = Field(..., description="版本名称")
-    platform: PlatformEnum = Field(default=PlatformEnum.all, description="目标平台")
+    platform: PlatformEnum = Field(default=PlatformEnum.web, description="目标平台：web或app")
     title: str = Field(..., description="版本标题")
     description: str = Field(..., description="版本描述")
     download_url: Optional[str] = Field(None, description="下载链接")

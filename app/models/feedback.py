@@ -29,12 +29,8 @@ class StatusEnum(str, Enum):
 
 
 class SourceEnum(str, Enum):
-    app = "app"
     web = "web"
-    email = "email"
-    phone = "phone"
-    wechat = "wechat"
-    other = "other"
+    app = "app"
 
 
 class FeedbackBase(BaseModel):

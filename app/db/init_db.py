@@ -1140,56 +1140,56 @@ async def create_system_messages(session: AsyncSession):
             "content": "欢迎使用FastIoT智能物联网平台！我们为您提供完整的设备管理和监控解决方案。",
             "type": SystemMessageType.ANNOUNCEMENT,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": ["android", "ios", "web"]
+            "platforms": ["web", "app"]
         },
         {
             "title": "系统维护通知",
             "content": "系统将于本周日凌晨2:00-4:00进行例行维护，期间服务可能短暂中断，请提前做好准备。",
             "type": SystemMessageType.MAINTENANCE,
             "priority": SystemMessagePriority.HIGH,
-            "platforms": ["android", "ios", "web", "desktop"]
+            "platforms": ["web", "app"]
         },
         {
             "title": "新功能上线",
             "content": "我们新增了设备分组功能，现在您可以更方便地管理多个设备了！",
             "type": SystemMessageType.UPDATE,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": ["android", "ios", "web"]
+            "platforms": ["web", "app"]
         },
         {
             "title": "安全提醒",
             "content": "请定期更新您的设备密码，确保账户安全。建议使用强密码并启用双重验证。",
             "type": SystemMessageType.ALERT,
             "priority": SystemMessagePriority.URGENT,
-            "platforms": ["android", "ios", "web"]
+            "platforms": ["web", "app"]
         },
         {
             "title": "移动端优化",
             "content": "我们优化了移动端应用的用户界面，现在操作更加流畅便捷！",
             "type": SystemMessageType.UPDATE,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": ["android", "ios"]
+            "platforms": ["app"]
         },
         {
             "title": "API接口更新",
             "content": "我们更新了部分API接口，请开发者查看最新的API文档。",
             "type": SystemMessageType.UPDATE,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": ["web", "desktop"]
+            "platforms": ["web"]
         },
         {
             "title": "节日祝福",
             "content": "感谢您对FastIoT的支持！祝您节日快乐，工作顺利！",
             "type": SystemMessageType.NOTIFICATION,
             "priority": SystemMessagePriority.LOW,
-            "platforms": ["android", "ios", "web"]
+            "platforms": ["web", "app"]
         },
         {
             "title": "数据备份提醒",
             "content": "建议您定期备份重要数据，我们提供自动备份功能，可在设置中开启。",
             "type": SystemMessageType.NOTIFICATION,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": ["android", "ios", "web", "desktop"]
+            "platforms": ["web", "app"]
         }
     ]
     
@@ -1215,7 +1215,7 @@ async def create_version_infos(session: AsyncSession):
         {
             "version_code": "1.0.0",
             "version_name": "FastIoT v1.0.0",
-            "platform": "all",
+            "platform": "web",
             "title": "FastIoT 正式版发布",
             "description": "FastIoT智能物联网平台正式版发布，提供完整的设备管理和监控功能。",
             "download_url": "https://download.fastiot.com/v1.0.0/fastiot-v1.0.0.apk",
@@ -1226,7 +1226,7 @@ async def create_version_infos(session: AsyncSession):
         {
             "version_code": "1.1.0",
             "version_name": "FastIoT v1.1.0",
-            "platform": "android",
+            "platform": "app",
             "title": "Android版本更新",
             "description": "优化Android端用户体验，修复已知问题，新增设备分组功能。",
             "download_url": "https://download.fastiot.com/v1.1.0/fastiot-v1.1.0-android.apk",
@@ -1237,7 +1237,7 @@ async def create_version_infos(session: AsyncSession):
         {
             "version_code": "1.1.0",
             "version_name": "FastIoT v1.1.0",
-            "platform": "ios",
+            "platform": "app",
             "title": "iOS版本更新",
             "description": "优化iOS端用户体验，修复已知问题，新增设备分组功能。",
             "download_url": "https://apps.apple.com/app/fastiot/id123456789",
@@ -1358,7 +1358,7 @@ async def create_version_infos(session: AsyncSession):
         {
             "version_code": "1.0.1",
             "version_name": "FastIoT v1.0.1",
-            "platform": "all",
+            "platform": "web",
             "title": "紧急修复版本",
             "description": "修复登录异常和设备连接问题，建议立即更新。",
             "download_url": "https://download.fastiot.com/v1.0.1/fastiot-v1.0.1-hotfix.apk",
@@ -1406,7 +1406,7 @@ async def create_feedbacks(session: AsyncSession, accounts):
     
     feedback_types = ['bug', 'feature', 'improvement', 'complaint', 'praise', 'other']
     feedback_statuses = ['pending', 'processing', 'resolved', 'rejected', 'closed']
-    feedback_sources = ['app', 'web', 'email', 'phone', 'wechat', 'other']
+    feedback_sources = ['web', 'app']
     
     feedback_contents = [
         "应用启动速度慢，希望能优化一下启动时间",
@@ -1459,14 +1459,10 @@ async def create_feedbacks(session: AsyncSession, accounts):
         for i in range(num_feedbacks):
             feedback_type = random.choice(feedback_types)
             status = random.choice(feedback_statuses)
-            # 增加Web来源的权重
+            # Web和App来源的权重
             source_weights = {
-                'web': 0.4,  # 40%概率选择Web
-                'app': 0.3,  # 30%概率选择App
-                'email': 0.1,  # 10%概率选择Email
-                'phone': 0.1,  # 10%概率选择Phone
-                'wechat': 0.05,  # 5%概率选择WeChat
-                'other': 0.05  # 5%概率选择Other
+                'web': 0.5,  # 50%概率选择Web
+                'app': 0.5  # 50%概率选择App
             }
             source = random.choices(list(source_weights.keys()), weights=list(source_weights.values()))[0]
             content = random.choice(feedback_contents)

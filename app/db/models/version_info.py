@@ -10,8 +10,8 @@ class VersionInfo(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="版本ID")
     version_code = Column(String(20), nullable=False, comment="版本号（如：1.0.0）")
     version_name = Column(String(50), nullable=False, comment="版本名称（如：FastIoT v1.0.0）")
-    platform = Column(Enum('android', 'ios', 'web', 'server', 'all', name='platform_enum'),
-                     nullable=False, default='all', comment="目标平台：android/ios/web/server/all")
+    platform = Column(Enum('web', 'app', name='platform_enum'),
+                     nullable=False, default='web', comment="目标平台：web或app")
     title = Column(String(255), nullable=False, comment="版本标题")
     description = Column(Text, nullable=False, comment="版本描述")
     download_url = Column(String(500), nullable=True, comment="下载链接")

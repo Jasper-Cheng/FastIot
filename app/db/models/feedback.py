@@ -16,8 +16,8 @@ class Feedback(Base):
     content = Column(Text, nullable=False, comment="反馈内容")
     status = Column(Enum('pending', 'processing', 'resolved', 'rejected', 'closed', name='status_enum'),
                    nullable=False, default='pending', comment="处理状态：待处理/处理中/已解决/已拒绝/已关闭")
-    source = Column(Enum('app', 'web', 'email', 'phone', 'wechat', 'other', name='source_enum'),
-                   nullable=False, default='app', comment="来源：app/web/email/phone/wechat/other")
+    source = Column(Enum('web', 'app', name='source_enum'),
+                   nullable=False, default='web', comment="来源：web或app")
     contact_info = Column(String(255), nullable=True, comment="联系方式")
     replay = Column(Text, nullable=True, comment="回复内容")
     processed_at = Column(DateTime, nullable=True, comment="处理时间")
