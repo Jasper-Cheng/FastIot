@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.db.models.member import Member
-from app.models.member import MemberCreate, MemberUpdate
+from app.models.member import MemberCreate
 from typing import Optional, List
 
 async def get_member(db: AsyncSession, member_id: int) -> Optional[Member]:
@@ -20,16 +20,6 @@ async def get_member_by_account_id(db: AsyncSession, account_id: int) -> Optiona
         select(Member)
         .options(selectinload(Member.account))
         .filter(Member.account_id == account_id)
-    )
-    return result.scalar_one_or_none()
-
-async def get_user_account_id_by_member_account_id(db: AsyncSession, member_account_id: int) -> Optional[int]:
-    """根据成员账号ID获取所属用户的账号ID"""
-    from app.db.models.user import User
-    result = await db.execute(
-        select(User.account_id)
-        .join(Member, User.id == Member.user_id)
-        .where(Member.account_id == member_account_id)
     )
     return result.scalar_one_or_none()
 
@@ -54,11 +44,6 @@ async def create_member(db: AsyncSession, member: MemberCreate) -> Member:
     await db.commit()
     await db.refresh(db_member)
     return db_member
-
-async def update_member(db: AsyncSession, member_id: int, member: MemberUpdate) -> Optional[Member]:
-    """更新成员信息（成员信息通过 account 表管理）"""
-    # 成员表本身没有需要更新的字段，所有信息都在 account 表中
-    return await get_member(db, member_id)
 
 async def delete_member(db: AsyncSession, member_id: int) -> bool:
     """删除成员"""

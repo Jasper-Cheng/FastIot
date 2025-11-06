@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.models.room import Room
-from app.models.room import RoomCreate, RoomUpdate
+from app.models.room import RoomCreate
 from typing import Optional, List
 
 async def get_room(db: AsyncSession, room_id: int) -> Optional[Room]:
@@ -23,20 +23,6 @@ async def create_room(db: AsyncSession, room: RoomCreate, user_id: int) -> Room:
         name=room.name
     )
     db.add(db_room)
-    await db.commit()
-    await db.refresh(db_room)
-    return db_room
-
-async def update_room(db: AsyncSession, room_id: int, room: RoomUpdate) -> Optional[Room]:
-    """更新房间信息"""
-    db_room = await get_room(db, room_id)
-    if not db_room:
-        return None
-    
-    update_data = room.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_room, field, value)
-    
     await db.commit()
     await db.refresh(db_room)
     return db_room
