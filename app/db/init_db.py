@@ -1132,7 +1132,7 @@ async def create_system_messages(session: AsyncSession):
     """创建系统消息"""
     print("创建系统消息...")
     
-    from app.models.system_message import Platform, SystemMessageType, SystemMessagePriority
+    from app.models.system_message import SystemMessageType, SystemMessagePriority
     
     system_messages_data = [
         {
@@ -1140,56 +1140,56 @@ async def create_system_messages(session: AsyncSession):
             "content": "欢迎使用FastIoT智能物联网平台！我们为您提供完整的设备管理和监控解决方案。",
             "type": SystemMessageType.ANNOUNCEMENT,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB]
+            "platforms": ["android", "ios", "web"]
         },
         {
             "title": "系统维护通知",
             "content": "系统将于本周日凌晨2:00-4:00进行例行维护，期间服务可能短暂中断，请提前做好准备。",
             "type": SystemMessageType.MAINTENANCE,
             "priority": SystemMessagePriority.HIGH,
-            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB, Platform.DESKTOP]
+            "platforms": ["android", "ios", "web", "desktop"]
         },
         {
             "title": "新功能上线",
             "content": "我们新增了设备分组功能，现在您可以更方便地管理多个设备了！",
             "type": SystemMessageType.UPDATE,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB]
+            "platforms": ["android", "ios", "web"]
         },
         {
             "title": "安全提醒",
             "content": "请定期更新您的设备密码，确保账户安全。建议使用强密码并启用双重验证。",
             "type": SystemMessageType.ALERT,
             "priority": SystemMessagePriority.URGENT,
-            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB]
+            "platforms": ["android", "ios", "web"]
         },
         {
             "title": "移动端优化",
             "content": "我们优化了移动端应用的用户界面，现在操作更加流畅便捷！",
             "type": SystemMessageType.UPDATE,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": [Platform.ANDROID, Platform.IOS]
+            "platforms": ["android", "ios"]
         },
         {
             "title": "API接口更新",
             "content": "我们更新了部分API接口，请开发者查看最新的API文档。",
             "type": SystemMessageType.UPDATE,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": [Platform.WEB, Platform.DESKTOP]
+            "platforms": ["web", "desktop"]
         },
         {
             "title": "节日祝福",
             "content": "感谢您对FastIoT的支持！祝您节日快乐，工作顺利！",
             "type": SystemMessageType.NOTIFICATION,
             "priority": SystemMessagePriority.LOW,
-            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB]
+            "platforms": ["android", "ios", "web"]
         },
         {
             "title": "数据备份提醒",
             "content": "建议您定期备份重要数据，我们提供自动备份功能，可在设置中开启。",
             "type": SystemMessageType.NOTIFICATION,
             "priority": SystemMessagePriority.NORMAL,
-            "platforms": [Platform.ANDROID, Platform.IOS, Platform.WEB, Platform.DESKTOP]
+            "platforms": ["android", "ios", "web", "desktop"]
         }
     ]
     

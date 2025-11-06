@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from app.db.models.system_message import SystemMessage as SystemMessageModel
-from app.models.system_message import SystemMessageCreate, SystemMessageUpdate, Platform
+from app.models.system_message import SystemMessageCreate, SystemMessageUpdate
 
 
 async def create_system_message(db: AsyncSession, message_in: SystemMessageCreate) -> SystemMessageModel:
@@ -30,7 +30,7 @@ async def get_system_messages(
     limit: int = 100,
     type: Optional[str] = None,
     priority: Optional[str] = None,
-    platform: Optional[Platform] = None
+    platform: Optional[str] = None
 ) -> List[SystemMessageModel]:
     """获取系统消息列表"""
     query = select(SystemMessageModel)
@@ -49,7 +49,7 @@ async def get_system_messages(
         conditions.append(
             func.json_contains(
                 SystemMessageModel.platforms, 
-                f'"{platform.value}"'
+                f'"{platform}"'
             )
         )
     
@@ -71,7 +71,7 @@ async def get_system_messages_count(
     *,
     type: Optional[str] = None,
     priority: Optional[str] = None,
-    platform: Optional[Platform] = None
+    platform: Optional[str] = None
 ) -> int:
     """获取系统消息总数"""
     query = select(func.count(SystemMessageModel.id))
@@ -90,7 +90,7 @@ async def get_system_messages_count(
         conditions.append(
             func.json_contains(
                 SystemMessageModel.platforms, 
-                f'"{platform.value}"'
+                f'"{platform}"'
             )
         )
     
@@ -104,7 +104,7 @@ async def get_system_messages_count(
 async def get_system_messages_by_platform(
     db: AsyncSession,
     *,
-    platform: Platform,
+    platform: str,
     skip: int = 0,
     limit: int = 100
 ) -> List[SystemMessageModel]:
@@ -120,7 +120,7 @@ async def get_system_messages_by_platform(
 async def get_latest_system_messages(
     db: AsyncSession,
     *,
-    platform: Optional[Platform] = None,
+    platform: Optional[str] = None,
     limit: int = 10
 ) -> List[SystemMessageModel]:
     """获取最新消息"""

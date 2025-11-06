@@ -9,7 +9,7 @@ from app.api.dependencies import get_current_token
 from app.crud.system_message import (
     get_system_messages as crud_get_system_messages,
 )
-from app.models.system_message import SystemMessage, Platform, SystemMessageType, SystemMessagePriority
+from app.models.system_message import SystemMessage, SystemMessageType, SystemMessagePriority
 
 router = APIRouter()
 
@@ -54,17 +54,6 @@ async def get_system_messages(
     # 从token中获取平台信息
     platform_str = token_info.get("platform", "web")
     
-    # 将token中的platform字符串转换为Platform枚举
-    try:
-        platform_enum = Platform(platform_str)
-    except ValueError:
-        # 如果token中的platform不是有效的Platform枚举值，抛出异常
-        valid_platforms = [p.value for p in Platform]
-        raise HTTPException(
-            status_code=400,
-            detail=f"Token中的平台标识 '{platform_str}' 无效。有效值: {', '.join(valid_platforms)}"
-        )
-    
     # 获取消息（所有过滤都在数据库层面完成）
     messages = await crud_get_system_messages(
         db=db,
@@ -72,7 +61,7 @@ async def get_system_messages(
         limit=limit,
         type=type,
         priority=priority,
-        platform=platform_enum
+        platform=platform_str
     )
     
     return messages

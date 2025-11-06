@@ -24,21 +24,13 @@ class SystemMessagePriority(str, Enum):
     URGENT = "urgent"
 
 
-class Platform(str, Enum):
-    """平台枚举"""
-    ANDROID = "android"
-    IOS = "ios"
-    WEB = "web"
-    DESKTOP = "desktop"
-
-
 class SystemMessageBase(BaseModel):
     """系统消息基础模型"""
     title: str = Field(..., description="消息标题", max_length=255)
     content: str = Field(..., description="消息内容")
     type: SystemMessageType = Field(default=SystemMessageType.NOTIFICATION, description="消息类型")
     priority: SystemMessagePriority = Field(default=SystemMessagePriority.NORMAL, description="优先级")
-    platforms: List[Platform] = Field(..., description="目标平台：android/ios/web等，可多选")
+    platforms: List[str] = Field(..., description="目标平台：android/ios/web等，可多选")
     extra: Optional[Dict[str, Any]] = Field(None, description="扩展信息")
 
 
@@ -53,7 +45,7 @@ class SystemMessageUpdate(BaseModel):
     content: Optional[str] = Field(None, description="消息内容")
     type: Optional[SystemMessageType] = Field(None, description="消息类型")
     priority: Optional[SystemMessagePriority] = Field(None, description="优先级")
-    platforms: Optional[List[Platform]] = Field(None, description="目标平台：android/ios/web等，可多选")
+    platforms: Optional[List[str]] = Field(None, description="目标平台：android/ios/web等，可多选")
     extra: Optional[Dict[str, Any]] = Field(None, description="扩展信息")
 
 
