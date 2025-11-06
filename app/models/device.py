@@ -17,10 +17,6 @@ class DeviceBase(BaseModel):
     sn: str
     status: DeviceStatus = DeviceStatus.unconfigured
 
-class DeviceCreate(DeviceBase):
-    user_id: Optional[int] = None
-    model_id: int
-
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
     sn: Optional[str] = None

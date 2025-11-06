@@ -10,9 +10,6 @@ class MemberBase(BaseModel):
 class MemberCreate(MemberBase):
     pass
 
-class MemberUpdate(BaseModel):
-    pass  # 成员信息通过 account 表管理
-
 class MemberInDB(MemberBase):
     id: int
     created_at: datetime

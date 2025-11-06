@@ -8,9 +8,6 @@ class RoomBase(BaseModel):
 class RoomCreate(RoomBase):
     pass
 
-class RoomUpdate(BaseModel):
-    name: Optional[str] = None
-
 class RoomInDB(RoomBase):
     id: int
     user_id: int
@@ -21,6 +18,3 @@ class RoomInDB(RoomBase):
 
 class Room(RoomInDB):
     pass
-
-class RoomWithDevices(Room):
-    devices: List[dict] = []

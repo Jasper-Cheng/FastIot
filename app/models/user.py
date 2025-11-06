@@ -9,9 +9,6 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     pass
 
-class UserUpdate(BaseModel):
-    pass  # 用户信息通过 account 表管理
-
 class UserInDB(UserBase):
     id: int
     created_at: datetime

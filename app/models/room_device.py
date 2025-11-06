@@ -8,14 +8,6 @@ class RoomDeviceBase(BaseModel):
     sort_order: Optional[int] = 0
 
 
-class RoomDeviceCreate(RoomDeviceBase):
-    pass
-
-
-class RoomDeviceUpdate(BaseModel):
-    sort_order: Optional[int] = None
-
-
 class RoomDeviceInDB(RoomDeviceBase):
     id: int
 
