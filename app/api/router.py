@@ -7,20 +7,20 @@ api_router = APIRouter()
 web_router = APIRouter(tags=["web"])
 
 # 注册端点路由
-from app.api.endpoints import auth as auth_endpoints
-from app.api.endpoints import users as users_endpoints
-from app.api.endpoints import members as members_endpoints
-from app.api.endpoints import rooms as rooms_endpoints
-from app.api.endpoints import devices as devices_endpoints
-from app.api.endpoints import room_devices as room_devices_endpoints
-from app.api.endpoints import device_messages as device_messages_endpoints
-from app.api.endpoints import member_device_permissions as member_device_permissions_endpoints
-from app.api.endpoints import check_in as check_in_endpoints
-from app.api.endpoints import points as points_endpoints
-from app.api.endpoints import system_message as system_message_endpoints
-from app.api.endpoints import version_info as version_info_endpoints
-from app.api.endpoints import feedback as feedback_endpoints
-from app.api.endpoints import websocket as websocket_endpoints
+from app.api.web import auth as auth_endpoints
+from app.api.web import users as users_endpoints
+from app.api.web import members as members_endpoints
+from app.api.web import rooms as rooms_endpoints
+from app.api.web import devices as devices_endpoints
+from app.api.web import room_devices as room_devices_endpoints
+from app.api.web import device_messages as device_messages_endpoints
+from app.api.web import member_device_permissions as member_device_permissions_endpoints
+from app.api.web import check_in as check_in_endpoints
+from app.api.web import points as points_endpoints
+from app.api.web import system_message as system_message_endpoints
+from app.api.web import version_info as version_info_endpoints
+from app.api.web import feedback as feedback_endpoints
+from app.api.web import websocket as websocket_endpoints
 
 # 将所有路由添加到 web_router
 web_router.include_router(auth_endpoints.router, prefix="/auth")
