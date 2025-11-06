@@ -68,7 +68,8 @@ async def _generate_login_token_and_notify(
     acc: Account,
     db: AsyncSession,
     login_type: str = "normal",
-    extra_log_data: dict = None
+    extra_log_data: dict = None,
+    platform: str = "web"
 ) -> TokenResponse:
     """生成登录token并发送通知的共用函数
     
@@ -77,6 +78,7 @@ async def _generate_login_token_and_notify(
         db: 数据库会话
         login_type: 登录类型（normal, wechat等）
         extra_log_data: 额外的日志数据
+        platform: 平台标识，默认为"web"
     
     Returns:
         TokenResponse: 包含token和用户信息的响应
@@ -85,6 +87,7 @@ async def _generate_login_token_and_notify(
     extra_claims = {
         "account_id": acc.id,
         "role": acc.role,
+        "platform": platform,  # 添加平台信息到token
     }
     
     # 根据账号角色获取真正的ID和user_id
@@ -207,8 +210,8 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not acc.password or not verify_password(plain_password, acc.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
-    # 使用共用函数生成token并发送通知
-    return await _generate_login_token_and_notify(acc, db, login_type="normal")
+    # 使用共用函数生成token并发送通知（web平台）
+    return await _generate_login_token_and_notify(acc, db, login_type="normal", platform="web")
 
 
 @router.post("/login/form", response_model=TokenResponse, include_in_schema=False)
@@ -251,8 +254,8 @@ async def login_form(
     if not acc.password or not verify_password(plain_password, acc.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
-    # 使用共用函数生成token并发送通知
-    return await _generate_login_token_and_notify(acc, db, login_type="normal")
+    # 使用共用函数生成token并发送通知（web平台）
+    return await _generate_login_token_and_notify(acc, db, login_type="normal", platform="web")
 
 
 @router.post("/register", response_model=Account)
@@ -569,11 +572,12 @@ async def check_wechat_login_status(
                     "message": "需要绑定手机号"
                 }
             
-            # 使用共用函数生成token并发送通知
+            # 使用共用函数生成token并发送通知（web平台）
             token_response = await _generate_login_token_and_notify(
                 acc, 
                 db, 
                 login_type="wechat",
+                platform="web",
                 extra_log_data={
                     "login_type": "wechat",
                     "openid": openid,
@@ -666,11 +670,12 @@ async def bind_phone(
                 detail="更新手机号失败"
             )
         
-        # 使用共用函数生成token并发送通知
+        # 使用共用函数生成token并发送通知（web平台）
         token_response = await _generate_login_token_and_notify(
             acc,
             db,
             login_type="wechat",
+            platform="web",
             extra_log_data={
                 "login_type": "wechat",
                 "openid": openid,

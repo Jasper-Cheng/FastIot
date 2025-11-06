@@ -30,6 +30,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             real_id: int | None = payload.get("id")
             role: str | None = payload.get("role")
             user_id: int | None = payload.get("user_id")
+            platform: str | None = payload.get("platform", "web")  # 从token中获取平台信息，默认为"web"
 
             if not account_id or not real_id or not role:
                 await websocket.close(code=4001, reason="身份验证失败")
@@ -63,6 +64,20 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             if websocket_tool.is_client_connected(client_id):
                 print(f"⚠️ [WebSocket] 客户端 {client_id} 已存在连接，正在发送强制退出family消息并断开旧连接")
                 
+                # 获取旧连接的平台信息
+                old_connection_info = websocket_tool.get_connection_info(client_id)
+                old_platform = None
+                if old_connection_info and "metadata" in old_connection_info:
+                    old_platform = old_connection_info["metadata"].get("platform")
+                
+                # 构建平台描述
+                platform_text = platform or "web"
+                old_platform_text = old_platform or "web"
+                if platform_text == old_platform_text:
+                    platform_desc = f"{platform_text}平台"
+                else:
+                    platform_desc = f"{platform_text}平台（旧连接：{old_platform_text}平台）"
+                
                 # 发送family消息给所有family成员（包括旧连接）
                 try:
                     await websocket_tool.send_family_message(
@@ -72,9 +87,10 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                             "senderId": real_id,
                             "senderRole": role,
                             "title": "强制退出",
-                            "message": f"{account.nickname or account.phone} 的账号在其他web平台登录，当前将被强制退出",
+                            "message": f"{account.nickname or account.phone} 的账号在其他{platform_desc}登录，当前将被强制退出",
                             "level": "warning",
-                            "reason": "新设备登录，当前连接被强制退出"
+                            "reason": "新设备登录，当前连接被强制退出",
+                            "platform": platform
                         }
                     )
                     # 等待一小段时间确保消息发送完成
@@ -105,6 +121,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                 "client_id": client_id,
                 "role": role,
                 "real_id": real_id,
+                "platform": platform,  # 保存平台信息
                 "family_clients": family_clients
             }
             
