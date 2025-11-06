@@ -5,6 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
+from app.api.dependencies import get_current_token
 from app.crud.system_message import (
     get_system_messages as crud_get_system_messages,
 )
@@ -17,15 +18,16 @@ router = APIRouter()
 async def get_system_messages(
     *,
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     skip: int = Query(0, ge=0, description="跳过数量"),
     limit: int = Query(100, ge=1, le=500, description="限制数量"),
     type: Optional[str] = Query(None, description="消息类型 (notification, announcement, alert, maintenance, update)"),
-    priority: Optional[str] = Query(None, description="优先级 (low, normal, high, urgent)"),
-    platform: Optional[str] = Query(None, description="平台 (android, ios, web, desktop)")
+    priority: Optional[str] = Query(None, description="优先级 (low, normal, high, urgent)")
 ):
     """获取系统消息列表
     
-    支持按类型、优先级、平台筛选
+    支持按类型、优先级筛选
+    平台信息从token中自动获取
     """
     # 验证 type 参数
     if type is not None:
@@ -49,17 +51,14 @@ async def get_system_messages(
                 detail=f"无效的优先级 '{priority}'。有效值: {', '.join(valid_priorities)}"
             )
     
-    # 验证 platform 参数
-    platform_enum = None
-    if platform is not None:
-        try:
-            platform_enum = Platform(platform)
-        except ValueError:
-            valid_platforms = [p.value for p in Platform]
-            raise HTTPException(
-                status_code=400, 
-                detail=f"无效的平台 '{platform}'。有效值: {', '.join(valid_platforms)}"
-            )
+    # 从token中获取platform
+    platform = token_info.get("platform", "web")  # 默认为web，如果token中没有则使用web
+    try:
+        platform_enum = Platform(platform)
+    except ValueError:
+        # 如果token中的platform值无效，使用web作为默认值
+        platform_enum = Platform.web
+        print(f"⚠️ [SystemMessage] Token中的platform值 '{platform}' 无效，使用默认值 'web'")
     
     # 获取消息（所有过滤都在数据库层面完成）
     messages = await crud_get_system_messages(
