@@ -67,7 +67,16 @@ class CRUDFeedback:
         )
         return result.scalars().all()
 
-    async def get_by_user_and_members(self, db: AsyncSession, *, user_account_id: int, skip: int = 0, limit: int = 100) -> List[Feedback]:
+    async def get_by_user_and_members(
+        self, 
+        db: AsyncSession, 
+        *, 
+        user_account_id: int, 
+        skip: int = 0, 
+        limit: int = 100,
+        type: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> List[Feedback]:
         """获取用户及其所有成员的反馈列表"""
         from app.db.models.user import User
         from app.db.models.member import Member
@@ -83,10 +92,18 @@ class CRUDFeedback:
         # 包含用户自己的账号ID
         all_account_ids = [user_account_id] + member_account_ids
         
+        # 构建查询
+        query = select(Feedback).where(Feedback.account_id.in_(all_account_ids))
+        
+        # 添加过滤条件
+        if type:
+            query = query.where(Feedback.type == type)
+        if status:
+            query = query.where(Feedback.status == status)
+        
         # 获取所有相关账号的反馈
         result = await db.execute(
-            select(Feedback)
-            .where(Feedback.account_id.in_(all_account_ids))
+            query
             .order_by(desc(Feedback.created_at))
             .offset(skip)
             .limit(limit)

@@ -108,7 +108,9 @@ async def get_feedbacks(
             db=db,
             user_account_id=token_info["account_id"],
             skip=skip,
-            limit=limit
+            limit=limit,
+            type=type,
+            status=status
         )
     elif token_info["role"] == AccountRole.member:
         # 成员可以看到自己和所属user的所有反馈
@@ -122,7 +124,9 @@ async def get_feedbacks(
                 db=db,
                 user_account_id=user.account_id,
                 skip=skip,
-                limit=limit
+                limit=limit,
+                type=type,
+                status=status
             )
     return []
 
