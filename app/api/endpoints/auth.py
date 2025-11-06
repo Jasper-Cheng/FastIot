@@ -213,7 +213,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     # 使用共用函数生成token并发送通知（web平台）
     return await _generate_login_token_and_notify(acc, db, login_type="normal", platform="web")
 
-
+#最后记得移除这个方法
 @router.post("/login/form", response_model=TokenResponse, include_in_schema=False)
 async def login_form(
     username: str = Form(...),  # OAuth2标准字段名，实际为手机号
@@ -223,7 +223,7 @@ async def login_form(
     """表单登录：兼容 Swagger Authorize（OAuth2 Password flow）
 
     - username 为手机号（OAuth2标准字段名，实际输入手机号）
-    - password 为明文密码（必填）
+    - password 为明文密码（必填，不进行解密，直接用于验证）
     """
     # 按手机号查找（username 实际为手机号）
     phone = username
@@ -242,16 +242,8 @@ async def login_form(
     if not password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="手机号登录需要密码")
     
-    # 解密密码
-    try:
-        plain_password = rsa_crypto.decrypt(password)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"密码解密失败: {str(e)}"
-        )
-    
-    if not acc.password or not verify_password(plain_password, acc.password):
+    # login_form 中使用明文密码，不进行解密（用于Swagger测试）
+    if not acc.password or not verify_password(password, acc.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     # 使用共用函数生成token并发送通知（web平台）
