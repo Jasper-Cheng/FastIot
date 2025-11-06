@@ -119,7 +119,7 @@ async def _generate_login_token_and_notify(
             try:
                 role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
                 real_id = extra_claims["id"]
-                client_id = f"{role_str}_{real_id}"
+                client_id = f"{role_str}_{real_id}_{platform}"
                 
                 # 根据登录类型设置不同的消息
                 if login_type == "wechat":
@@ -339,8 +339,9 @@ async def logout(
     # 构建 client_id
     user_id = token_info["id"] if "id" in token_info else None
     role = token_info["role"] if "role" in token_info else None
+    platform = token_info.get("platform", "web")
     if user_id and role:
-        client_id = f"{role}_{user_id}"
+        client_id = f"{role}_{user_id}_{platform}"
         
         # 发送family消息通知登出
         try:

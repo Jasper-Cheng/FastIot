@@ -87,8 +87,9 @@ async def batch_update_sort(
         try:
             role = token_info.get("role")
             real_id = token_info.get("id")
+            platform = token_info.get("platform", "web")
             if role and real_id is not None:
-                client_id = f"{role}_{real_id}"
+                client_id = f"{role}_{real_id}_{platform}"
                 
                 # 将 updated_room_devices 转换为字典列表
                 room_devices_data = []

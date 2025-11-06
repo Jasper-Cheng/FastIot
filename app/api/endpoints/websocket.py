@@ -35,6 +35,13 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             if not account_id or not real_id or not role:
                 await websocket.close(code=4001, reason="身份验证失败")
                 return
+            
+            #目前只支持web和app平台
+            support_platforms = ['web','app']
+
+            if platform not in support_platforms:
+                await websocket.close(code=4001, reason="无效的平台")
+                return
 
             # 验证role是否为有效值
             if role not in ["owner", "member", "admin"]:
@@ -57,26 +64,12 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                 await websocket.close(code=4001, reason="角色不匹配")
                 return
             
-            # 使用token中的role和id构建client_id
-            client_id = f"{role}_{real_id}"
+            # 使用token中的role、id和platform构建client_id
+            client_id = f"{role}_{real_id}_{platform}"
 
             # 检查是否已经连接，如果已连接则先发送family消息并断开旧连接
             if websocket_tool.is_client_connected(client_id):
                 print(f"⚠️ [WebSocket] 客户端 {client_id} 已存在连接，正在发送强制退出family消息并断开旧连接")
-                
-                # 获取旧连接的平台信息
-                old_connection_info = websocket_tool.get_connection_info(client_id)
-                old_platform = None
-                if old_connection_info and "metadata" in old_connection_info:
-                    old_platform = old_connection_info["metadata"].get("platform")
-                
-                # 构建平台描述
-                platform_text = platform or "web"
-                old_platform_text = old_platform or "web"
-                if platform_text == old_platform_text:
-                    platform_desc = f"{platform_text}平台"
-                else:
-                    platform_desc = f"{platform_text}平台（旧连接：{old_platform_text}平台）"
                 
                 # 发送family消息给所有family成员（包括旧连接）
                 try:
@@ -87,7 +80,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                             "senderId": real_id,
                             "senderRole": role,
                             "title": "强制退出",
-                            "message": f"{account.nickname or account.phone} 的账号在其他{platform_desc}登录，当前将被强制退出",
+                            "message": f"{account.nickname or account.phone} 的账号在{platform}平台登录，当前将被强制退出",
                             "level": "warning",
                             "reason": "新设备登录，当前连接被强制退出",
                             "platform": platform
@@ -103,18 +96,26 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             
             # 获取family相关的所有client_id
             family_clients = []
+            # 活跃的family_clients_ids
+            active_family_clients_ids = []
             
-            # 获取owner的client_id (user的role固定为"owner")
+            # 获取owner的client_id和活跃的family_clients_ids
             owner = await get_user(db, user_id)
             if owner:
-                owner_client_id = f"owner_{owner.id}"
-                family_clients.append(owner_client_id)
-            
-            # 获取所有member的client_id (member的role固定为"member")
+                for platform in support_platforms:
+                    client_id = f"owner_{owner.id}_{platform}"
+                    family_clients.append(client_id)
+                    if client_id in websocket_tool.active_connections:
+                        active_family_clients_ids.append(owner.id)
+
+            # 获取所有member的client_id和活跃的family_clients_ids
             members = await get_members_by_user(db, user_id)
             for member in members:
-                member_client_id = f"member_{member.id}"
-                family_clients.append(member_client_id)
+                for platform in support_platforms:
+                    client_id = f"member_{member.id}_{platform}"
+                    family_clients.append(client_id)
+                    if client_id in websocket_tool.active_connections:
+                        active_family_clients_ids.append(member.id)
             
             # 连接成功，设置客户端ID和元数据
             metadata = {
@@ -127,23 +128,8 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             
             await websocket_tool.connect(websocket, client_id, metadata)
             
-            # 更新当前连接的family_clients活跃状态
-            websocket_tool.update_family_clients_for_client(client_id)
-            
             # 发送用户连接消息给所有family_clients
             try:
-                # 获取所有在线的用户ID（从family_clients中筛选出在线的，包括当前用户）
-                connect_user_ids = []
-                for family_client_id in family_clients:
-                    if family_client_id in websocket_tool.active_connections:
-                        # 从连接元数据中获取real_id
-                        if family_client_id in websocket_tool.connection_metadata:
-                            metadata_info = websocket_tool.connection_metadata[family_client_id]
-                            if "metadata" in metadata_info:
-                                family_real_id = metadata_info["metadata"].get("real_id")
-                                if family_real_id is not None:
-                                    connect_user_ids.append(family_real_id)
-                
                 await websocket_tool.send_family_message(
                     client_id=client_id,
                     message_type="connect",
@@ -153,7 +139,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                         "title": "用户连接",
                         "message": f"{account.nickname or account.phone} 已连接",
                         "level": "normal",
-                        "connectUserIds": connect_user_ids
+                        "connectUserIds": active_family_clients_ids
                     }
                 )
             except Exception as e:

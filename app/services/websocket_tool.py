@@ -270,27 +270,6 @@ class WebSocketTool:
             for client_id in self.connection_metadata.keys()
         }
     
-    def update_family_clients_for_client(self, client_id: str):
-        """更新所有family_clients中每个客户端的family_clients列表"""
-        if client_id not in self.connection_metadata:
-            return
-            
-        metadata = self.connection_metadata[client_id]
-        if "metadata" in metadata and "family_clients" in metadata["metadata"]:
-            family_clients = metadata["metadata"]["family_clients"]
-            
-            # 更新所有family_clients中每个客户端的family_clients列表
-            for family_client_id in family_clients:
-                if family_client_id in self.connection_metadata:
-                    family_metadata = self.connection_metadata[family_client_id]
-                    if "metadata" in family_metadata and "family_clients" in family_metadata["metadata"]:
-                        # 将当前客户端的family_clients同步到所有family客户端
-                        if "metadata" not in family_metadata:
-                            family_metadata["metadata"] = {}
-                        family_metadata["metadata"]["family_clients"] = family_clients
-            
-            print(f"✅ [WebSocket] 已更新所有 {family_clients} 客户端的 metadata 中 family_clients 为 {family_clients} ")
-        
     async def check_heartbeat_timeouts(self):
         """检查心跳超时并断开连接"""
         current_time = get_local_time()

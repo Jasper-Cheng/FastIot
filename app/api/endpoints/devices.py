@@ -63,8 +63,9 @@ async def update_device_name(
     try:
         role = token_info.get("role")
         real_id = token_info.get("id")
+        platform = token_info.get("platform", "web")
         if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+            client_id = f"{role}_{real_id}_{platform}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.name.update",
@@ -148,8 +149,9 @@ async def bind_device_by_sn(
     try:
         role = token_info.get("role")
         real_id = token_info.get("id")
+        platform = token_info.get("platform", "web")
         if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+            client_id = f"{role}_{real_id}_{platform}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.bind",
@@ -236,8 +238,9 @@ async def unbind_device_by_sn(
     try:
         role = token_info.get("role")
         real_id = token_info.get("id")
+        platform = token_info.get("platform", "web")
         if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+            client_id = f"{role}_{real_id}_{platform}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.unbind",
