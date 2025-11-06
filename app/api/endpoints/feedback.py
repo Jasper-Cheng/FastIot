@@ -68,7 +68,7 @@ async def create_feedback(
                     "senderId": real_id,
                     "senderRole": role,
                     "title": "意见反馈",
-                    "message": f"已创建意见反馈：{feedback_in.content[:50] if len(feedback_in.content) > 50 else feedback_in.content}",
+                    "message": f"用户 {feedback_in.name} 创建了意见反馈",
                     "level": "normal",
                     "feedbackId": created_feedback.id,
                     "feedbackType": feedback_in.type if hasattr(feedback_in, 'type') else None,

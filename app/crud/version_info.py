@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, desc, asc, select
 from typing import List, Optional, Dict, Any
 from app.db.models.version_info import VersionInfo
-from app.models.version_info import VersionInfoCreate, VersionInfoUpdate
+from app.models.version_info import VersionInfoCreate, VersionInfoUpdate, PlatformEnum
 
 
 class CRUDVersionInfo:
@@ -19,11 +19,11 @@ class CRUDVersionInfo:
         result = await db.execute(select(VersionInfo).where(VersionInfo.id == id))
         return result.scalar_one_or_none()
 
-    async def get_by_version_code(self, db: AsyncSession, *, version_code: str, platform: str = None) -> Optional[VersionInfo]:
+    async def get_by_version_code(self, db: AsyncSession, *, version_code: str, platform: Optional[PlatformEnum] = None) -> Optional[VersionInfo]:
         """根据版本号和平台获取版本信息"""
         query = select(VersionInfo).where(VersionInfo.version_code == version_code)
         if platform:
-            query = query.where(VersionInfo.platform == platform)
+            query = query.where(VersionInfo.platform == platform.value)
         result = await db.execute(query)
         return result.scalar_one_or_none()
 
@@ -33,7 +33,7 @@ class CRUDVersionInfo:
         *, 
         skip: int = 0, 
         limit: int = 100,
-        platform: Optional[str] = None,
+        platform: Optional[PlatformEnum] = None,
         order_by: str = "created_at",
         order_desc: bool = True
     ) -> List[VersionInfo]:
@@ -42,7 +42,7 @@ class CRUDVersionInfo:
         
         # 过滤条件
         if platform:
-            query = query.where(VersionInfo.platform == platform)
+            query = query.where(VersionInfo.platform == platform.value)
         
         # 排序
         order_column = getattr(VersionInfo, order_by, VersionInfo.created_at)
@@ -55,11 +55,11 @@ class CRUDVersionInfo:
         result = await db.execute(query)
         return result.scalars().all()
 
-    async def get_latest_by_platform(self, db: AsyncSession, *, platform: str) -> Optional[VersionInfo]:
+    async def get_latest_by_platform(self, db: AsyncSession, *, platform: PlatformEnum) -> Optional[VersionInfo]:
         """获取指定平台的最新版本"""
         result = await db.execute(
             select(VersionInfo)
-            .where(VersionInfo.platform == platform)
+            .where(VersionInfo.platform == platform.value)
             .order_by(desc(VersionInfo.created_at))
             .limit(1)
         )

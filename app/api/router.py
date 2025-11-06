@@ -34,8 +34,8 @@ web_router.include_router(member_device_permissions_endpoints.router, prefix="/m
 web_router.include_router(check_in_endpoints.router, prefix="/check-in", dependencies=[Depends(get_current_token)])
 web_router.include_router(points_endpoints.router, prefix="/points", dependencies=[Depends(get_current_token)])
 web_router.include_router(system_message_endpoints.router, prefix="/system-messages", dependencies=[Depends(get_current_token)])
-web_router.include_router(version_info_endpoints.router, prefix="/version-info")
-web_router.include_router(feedback_endpoints.router, prefix="/feedback")
+web_router.include_router(version_info_endpoints.router, prefix="/version-info", dependencies=[Depends(get_current_token)])
+web_router.include_router(feedback_endpoints.router, prefix="/feedback", dependencies=[Depends(get_current_token)])
 web_router.include_router(websocket_endpoints.router, prefix="/ws")
 
 # 将 web_router 添加到 api_router，添加 /web 前缀
