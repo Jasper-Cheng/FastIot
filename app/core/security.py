@@ -14,6 +14,7 @@ def create_access_token(
     - extra_claims: 额外载荷，包含以下字段：
       - account_id: 账户ID（必填）
       - role: 账户角色（必填，如 owner/member/admin）
+      - platform: 登录平台（必填，如 web/app等）
       - id: 角色对应的实体ID（可选，如 user.id/member.id/admin.id）
       - user_id: 用户ID（可选，仅member和owner有）
     """

@@ -85,6 +85,7 @@ async def _generate_login_token_and_notify(
     extra_claims = {
         "account_id": acc.id,
         "role": acc.role,
+        "platform": "web",  # 平台标识，当前登录都为web
     }
     
     # 根据账号角色获取真正的ID和user_id
