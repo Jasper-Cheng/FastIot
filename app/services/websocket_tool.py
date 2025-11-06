@@ -74,7 +74,7 @@ class WebSocketTool:
             return True
         except Exception as e:
             print(f"❌ [WebSocket] 发送消息给客户端 {client_id} 失败: {e}")
-            self.disconnect(client_id)
+            await self.disconnect(client_id)
             return False
             
     async def broadcast_message(self, message: Dict[str, Any], exclude_clients: Optional[Set[str]] = None):
@@ -90,7 +90,7 @@ class WebSocketTool:
                     
         # 清理断开的连接
         for client_id in disconnected_clients:
-            self.disconnect(client_id)
+            await self.disconnect(client_id)
             
         
     def register_method_handler(self, method: str, handler: Callable):
@@ -301,7 +301,7 @@ class WebSocketTool:
             except Exception as e:
                 print(f"❌ [WebSocket] 强制断开连接失败: {e}")
             finally:
-                self.disconnect(client_id)
+                await self.disconnect(client_id)
                 
     def set_heartbeat_timeout(self, timeout_seconds: int):
         """设置心跳超时时间"""

@@ -96,26 +96,18 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             
             # 获取family相关的所有client_id
             family_clients = []
-            # 活跃的family_clients_ids
-            active_family_clients_ids = []
             
             # 获取owner的client_id和活跃的family_clients_ids
             owner = await get_user(db, user_id)
             if owner:
                 for platform in support_platforms:
-                    client_id = f"owner_{owner.id}_{platform}"
-                    family_clients.append(client_id)
-                    if client_id in websocket_tool.active_connections:
-                        active_family_clients_ids.append(owner.id)
+                    family_clients.append(f"owner_{owner.id}_{platform}")
 
             # 获取所有member的client_id和活跃的family_clients_ids
             members = await get_members_by_user(db, user_id)
             for member in members:
                 for platform in support_platforms:
-                    client_id = f"member_{member.id}_{platform}"
-                    family_clients.append(client_id)
-                    if client_id in websocket_tool.active_connections:
-                        active_family_clients_ids.append(member.id)
+                    family_clients.append(f"member_{member.id}_{platform}")
             
             # 连接成功，设置客户端ID和元数据
             metadata = {
@@ -127,7 +119,13 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             }
             
             await websocket_tool.connect(websocket, client_id, metadata)
-            
+
+            # 活跃的family_clients_ids
+            active_family_clients_ids = []
+            for family_client_id in family_clients:
+                if family_client_id in websocket_tool.active_connections:
+                    active_family_clients_ids.append(family_client_id.split("_")[1])
+
             # 发送用户连接消息给所有family_clients
             try:
                 await websocket_tool.send_family_message(
