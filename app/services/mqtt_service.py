@@ -23,7 +23,7 @@ class MQTTService:
         self.password = settings.MQTT_PASSWORD
 
         # 分层化 topic
-        self.topic_control_template = "device/{sn}"         # 后台 -> 设备
+        self.topic_control_template = "device/{sn}/control" # 后台 -> 设备
         self.topic_data_template = "device/{sn}/data"       # 设备 -> 后台
         self.topic_status_template = "device/{sn}/status"   # 设备 -> 后台
         self.topic_system_notice = "system/notice"          # 系统通知
