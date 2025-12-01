@@ -1,263 +1,77 @@
-"""
-MQTT服务工具类
-支持传感器数据接收、传感器查询、传感器控制（预留）等功能
-基于设备SN（序列号）的主题结构
-
-支持的MQTT操作（仅传感器）：
-- 传感器数据发布：jasper/{SENSOR_SN}/data - 自动推送传感器数据（CO2、HCHO、TVOC、PM2.5、PM10、温度、湿度）
-- 传感器查询：jasper/{SENSOR_SN}/query - 向该主题发送任意消息，设备会立即返回传感器数据
-- 传感器控制（预留）：jasper/{SENSOR_SN}/control - 当前仅记录日志，预留用于未来扩展
-- 设备状态：jasper/status - 设备在线状态
-
-MQTT主题结构：
-- jasper/{SENSOR_SN}/data - 传感器数据（自动推送）
-- jasper/{SENSOR_SN}/query - 查询传感器数据
-- jasper/{SENSOR_SN}/control - 传感器控制（预留）
-- jasper/status - 设备在线状态
-"""
-import json
-import threading
-import time
-from typing import Callable, Dict, Any, Optional
-import paho.mqtt.client as mqtt
+import asyncio
+from asyncio_mqtt import Client, MqttError
 from app.core.config import settings
 
 
-# 设备SN定义
-class DeviceSN:
-    """设备序列号常量"""
-    SENSOR_SN = "M701001"
-
-
-class MqttService:
-    """MQTT服务类"""
-    
+class MQTTService:
     def __init__(self):
-        self._client: Optional[mqtt.Client] = None
-        self._connected: bool = False
-        self._lock = threading.Lock()
-        
-        # MQTT Broker配置
-        self._host = settings.MQTT_HOST
-        self._port = settings.MQTT_PORT
-        self._username = settings.MQTT_USERNAME
-        self._password = settings.MQTT_PASSWORD
-        self._client_id = settings.MQTT_CLIENT_ID  # 格式：jasper_{sn}
-        self._keepalive = settings.MQTT_KEEPALIVE
-        self._prefix = settings.MQTT_PREFIX
-        
-        # 消息处理器
-        self._message_handlers: Dict[str, Callable[[str, Dict[str, Any]], None]] = {}
-        
-    def connect(self) -> None:
-        """连接到MQTT Broker"""
-        with self._lock:
-            if self._connected:
-                return
-                
-            client = mqtt.Client(client_id=self._client_id, clean_session=True)
-            
-            # 设置认证
-            if self._username:
-                client.username_pw_set(self._username, self._password or None)
-            
-            # 设置回调函数
-            def on_connect(cli: mqtt.Client, userdata, flags, rc):
-                if rc == 0:
-                    self._connected = True
-                    print(f"✅ [MQTT] 连接成功: {self._host}:{self._port}")
-                    # 订阅所有需要的主题
-                    self._subscribe_all_topics(cli)
-                else:
-                    print(f"❌ [MQTT] 连接失败，返回码: {rc}")
-                    self._connected = False
-            
-            def on_disconnect(cli: mqtt.Client, userdata, rc):
-                self._connected = False
-                print(f"⚠️ [MQTT] 连接断开，返回码: {rc}")
-            
-            def on_message(cli: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
-                try:
-                    topic = msg.topic
-                    payload = msg.payload.decode("utf-8")
-                    data = json.loads(payload) if payload else {}
-                    
-                    # 调用对应的消息处理器
-                    if topic in self._message_handlers:
-                        self._message_handlers[topic](topic, data)
-                    else:
-                        # 尝试匹配通配符主题
-                        for pattern, handler in self._message_handlers.items():
-                            if self._topic_matches(pattern, topic):
-                                handler(topic, data)
-                                break
-                except json.JSONDecodeError:
-                    # 如果不是JSON格式，尝试作为字符串处理
-                    data = {"raw": msg.payload.decode("utf-8", errors="ignore")}
-                    if topic in self._message_handlers:
-                        self._message_handlers[topic](topic, data)
-                except Exception as e:
-                    print(f"❌ [MQTT] 处理消息失败: {e}")
-            
-            client.on_connect = on_connect
-            client.on_disconnect = on_disconnect
-            client.on_message = on_message
-            
-            # 连接到Broker
-            try:
-                client.connect(self._host, self._port, keepalive=self._keepalive)
-                client.loop_start()
-                
-                # 等待连接建立
-                for _ in range(20):
-                    if self._connected:
-                        break
-                    time.sleep(0.05)
-                
-                self._client = client
-            except Exception as e:
-                print(f"❌ [MQTT] 连接异常: {e}")
-                self._connected = False
-    
-    def _subscribe_all_topics(self, client: mqtt.Client):
-        """订阅所有需要的主题"""
-        # 订阅设备状态主题
-        status_topic = f"{self._prefix}/status"
-        client.subscribe(status_topic, qos=0)
-        print(f"📡 [MQTT] 订阅主题: {status_topic}")
-        
-        # 订阅传感器数据主题
-        sensor_data_topic = f"{self._prefix}/{DeviceSN.SENSOR_SN}/data"
-        client.subscribe(sensor_data_topic, qos=0)
-        print(f"📡 [MQTT] 订阅主题: {sensor_data_topic}")
-    
-    def _topic_matches(self, pattern: str, topic: str) -> bool:
-        """检查主题是否匹配模式（支持+和#通配符）"""
-        pattern_parts = pattern.split("/")
-        topic_parts = topic.split("/")
-        
-        if len(pattern_parts) != len(topic_parts):
-            # 检查是否有#通配符
-            if "#" in pattern:
-                pattern_idx = pattern_parts.index("#")
-                return pattern_parts[:pattern_idx] == topic_parts[:pattern_idx]
-            return False
-        
-        for p, t in zip(pattern_parts, topic_parts):
-            if p == "+" or p == "#":
-                continue
-            if p != t:
-                return False
-        return True
-    
-    def disconnect(self) -> None:
-        """断开MQTT连接"""
-        with self._lock:
-            if not self._client:
-                return
-            try:
-                self._client.loop_stop()
-                self._client.disconnect()
-                print("🔌 [MQTT] 连接已断开")
-            except Exception as e:
-                print(f"❌ [MQTT] 断开连接异常: {e}")
-            finally:
-                self._client = None
-                self._connected = False
-    
-    def ensure_connected(self) -> None:
-        """确保已连接"""
-        if not self._connected or not self._client:
-            self.connect()
-    
-    def publish_json(self, topic: str, payload: Dict[str, Any], qos: int = 0, retain: bool = False) -> bool:
-        """发布JSON消息到指定主题"""
-        self.ensure_connected()
-        if not self._client:
-            return False
-        
+        self.host = settings.MQTT_HOST
+        self.port = settings.MQTT_PORT
+        self.username = settings.MQTT_USERNAME
+        self.password = settings.MQTT_PASSWORD
+
+        # 三个固定的 topic
+        self.topic_control = "jasper/control"   # 后台 -> 设备
+        self.topic_data = "jasper/data"         # 设备 -> 后台
+        self.topic_status = "jasper/status"     # 设备 -> 后台
+
+        self.client = None
+        self.running = False
+
+    async def connect(self):
+        """后台作为客户端，连接到 MQTT Broker"""
+        self.client = Client(
+            self.host,
+            port=self.port,
+            username=self.username,
+            password=self.password,
+            client_id="jasper_backend"
+        )
+
+        await self.client.connect()
+        print("[MQTT] 后台已连接到 Broker")
+        self.running = True
+
+    async def subscribe_topics(self):
+        """订阅固定的三个 topic"""
+        await self.client.subscribe(self.topic_data)
+        await self.client.subscribe(self.topic_status)
+        print("[MQTT] 后台已订阅: data / status")
+
+    async def listen(self, on_data, on_status):
+        """
+        持续监听消息并回调处理
+        on_data(sn, payload)
+        on_status(sn, payload)
+        """
+        async with self.client.unfiltered_messages() as messages:
+            await self.subscribe_topics()
+
+            async for msg in messages:
+                topic = msg.topic
+                payload = msg.payload.decode()
+
+                if topic == self.topic_data:
+                    data = self.parse_payload(payload)
+                    sn = data.get("sn")
+                    on_data(sn, data)
+
+                elif topic == self.topic_status:
+                    data = self.parse_payload(payload)
+                    sn = data.get("sn")
+                    on_status(sn, data)
+
+    async def publish_control(self, sn: str, payload: dict):
+        """后台 -> 设备，给某个 SN 发布控制指令"""
+        message = {**payload, "sn": sn}
+        await self.client.publish(self.topic_control, str(message))
+        print(f"[MQTT] 已发送控制命令给 {sn} -> {message}")
+
+    @staticmethod
+    def parse_payload(payload: str):
+        """简单转 dict；你可以改为 JSON"""
         try:
-            message = json.dumps(payload, ensure_ascii=False)
-            result = self._client.publish(topic, message, qos=qos, retain=retain)
-            if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                print(f"✅ [MQTT] 发布消息到 {topic}: {payload}")
-                return True
-            else:
-                print(f"❌ [MQTT] 发布消息失败，返回码: {result.rc}")
-                return False
-        except Exception as e:
-            print(f"❌ [MQTT] 发布消息异常: {e}")
-            return False
-    
-    def subscribe(self, topic: str, handler: Callable[[str, Dict[str, Any]], None], qos: int = 0) -> None:
-        """订阅主题并设置消息处理器"""
-        self.ensure_connected()
-        if not self._client:
-            return
-        
-        # 注册消息处理器
-        self._message_handlers[topic] = handler
-        
-        # 订阅主题
-        try:
-            self._client.subscribe(topic, qos=qos)
-            print(f"📡 [MQTT] 订阅主题: {topic}")
-        except Exception as e:
-            print(f"❌ [MQTT] 订阅主题失败: {e}")
-    
-    # ==================== 主题构建方法 ====================
-    
-    def get_status_topic(self) -> str:
-        """获取设备状态主题"""
-        return f"{self._prefix}/status"
-    
-    def get_sensor_data_topic(self, sensor_sn: str = DeviceSN.SENSOR_SN) -> str:
-        """获取传感器数据主题"""
-        return f"{self._prefix}/{sensor_sn}/data"
-    
-    def get_sensor_query_topic(self, sensor_sn: str = DeviceSN.SENSOR_SN) -> str:
-        """获取传感器查询主题"""
-        return f"{self._prefix}/{sensor_sn}/query"
-    
-    def get_sensor_control_topic(self, sensor_sn: str = DeviceSN.SENSOR_SN) -> str:
-        """获取传感器控制主题"""
-        return f"{self._prefix}/{sensor_sn}/control"
-    
-    # ==================== 便捷发布方法 ====================
-    
-    def publish_sensor_query(self, sensor_sn: str, query: Dict[str, Any], qos: int = 0) -> bool:
-        """发布传感器查询命令"""
-        topic = self.get_sensor_query_topic(sensor_sn)
-        return self.publish_json(topic, query, qos=qos)
-    
-    def publish_sensor_control(self, sensor_sn: str, command: Dict[str, Any], qos: int = 0) -> bool:
-        """发布传感器控制命令"""
-        topic = self.get_sensor_control_topic(sensor_sn)
-        return self.publish_json(topic, command, qos=qos)
-    
-    # ==================== 便捷订阅方法 ====================
-    
-    def subscribe_status(self, handler: Callable[[str, Dict[str, Any]], None]) -> None:
-        """订阅设备状态主题"""
-        topic = self.get_status_topic()
-        self.subscribe(topic, handler)
-    
-    def subscribe_sensor_data(self, sensor_sn: str, handler: Callable[[str, Dict[str, Any]], None]) -> None:
-        """订阅传感器数据主题"""
-        topic = self.get_sensor_data_topic(sensor_sn)
-        self.subscribe(topic, handler)
-    
-    @property
-    def is_connected(self) -> bool:
-        """检查是否已连接"""
-        return self._connected
-    
-    @property
-    def prefix(self) -> str:
-        """获取MQTT主题前缀"""
-        return self._prefix
-
-
-# 全局MQTT服务实例
-mqtt_service = MqttService()
-
+            import json
+            return json.loads(payload)
+        except:
+            return {"raw": payload}

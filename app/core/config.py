@@ -81,13 +81,10 @@ class Settings(BaseSettings):
     WECHAT_TOKEN: Optional[str] = None  # 微信验证Token（用于URL验证）
 
     # MQTT 配置
-    MQTT_HOST: str = "localhost"
+    MQTT_HOST: str = "127.0.0.1"
     MQTT_PORT: int = 1883
     MQTT_USERNAME: Optional[str] = None
     MQTT_PASSWORD: Optional[str] = None
-    MQTT_CLIENT_ID: str  # 必传，格式：jasper_{sn}
-    MQTT_KEEPALIVE: int = 60
-    MQTT_PREFIX: str = "jasper"  # MQTT主题前缀
 
     @validator("CORS_ORIGINS", pre=True)
     def parse_cors_origins(cls, v):
