@@ -9,6 +9,7 @@ from app.db.session import engine
 from app.services.redis_service import redis_service
 from app.services.websocket_tool import websocket_tool
 from app.services.wechat_service import wechat_service
+from app.services.mqtt_service import mqtt_service
 
 # 导入所有模型以确保 SQLAlchemy 关系映射正确配置
 from app.db.models import *  # noqa: F401, F403
@@ -77,6 +78,16 @@ async def lifespan(app: FastAPI):
     qrcode_cleaner_task = asyncio.create_task(wechat_qrcode_cleaner())
     print("✅ 微信二维码清理任务已启动")
     
+    # MQTT服务初始化
+    mqtt_listen_task = None
+    try:
+        await mqtt_service.connect()
+        # 启动MQTT监听任务（消息处理在mqtt_service内部实现）
+        mqtt_listen_task = asyncio.create_task(mqtt_service.listen())
+        print("✅ MQTT监听任务已启动")
+    except Exception as e:
+        print(f"❌ MQTT服务初始化失败: {e}")
+    
     yield
     
     # shutdown
@@ -93,6 +104,18 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     print("💔 微信二维码清理任务已停止")
+    
+    # 停止MQTT监听任务
+    try:
+        if mqtt_listen_task is not None:
+            mqtt_listen_task.cancel()
+            try:
+                await mqtt_listen_task
+            except asyncio.CancelledError:
+                pass
+            print("💔 MQTT监听任务已停止")
+    except Exception as e:
+        print(f"⚠️ 停止MQTT监听任务时出现异常（可忽略）: {e}")
     
     # 关闭数据库引擎的连接池
     try:
