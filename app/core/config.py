@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     MQTT_PORT: int = 1883
     MQTT_USERNAME: Optional[str] = None
     MQTT_PASSWORD: Optional[str] = None
-    MQTT_CLIENT_ID: str  # 必传，用于区分不同设备
+    MQTT_CLIENT_ID: str  # 必传，格式：jasper_{sn}
     MQTT_KEEPALIVE: int = 60
     MQTT_PREFIX: str = "jasper"  # MQTT主题前缀
 

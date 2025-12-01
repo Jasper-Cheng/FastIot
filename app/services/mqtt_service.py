@@ -1,7 +1,19 @@
 """
 MQTT服务工具类
-支持设备状态监控、传感器数据接收、设备控制等功能
+支持传感器数据接收、传感器查询、传感器控制（预留）等功能
 基于设备SN（序列号）的主题结构
+
+支持的MQTT操作（仅传感器）：
+- 传感器数据发布：jasper/{SENSOR_SN}/data - 自动推送传感器数据（CO2、HCHO、TVOC、PM2.5、PM10、温度、湿度）
+- 传感器查询：jasper/{SENSOR_SN}/query - 向该主题发送任意消息，设备会立即返回传感器数据
+- 传感器控制（预留）：jasper/{SENSOR_SN}/control - 当前仅记录日志，预留用于未来扩展
+- 设备状态：jasper/status - 设备在线状态
+
+MQTT主题结构：
+- jasper/{SENSOR_SN}/data - 传感器数据（自动推送）
+- jasper/{SENSOR_SN}/query - 查询传感器数据
+- jasper/{SENSOR_SN}/control - 传感器控制（预留）
+- jasper/status - 设备在线状态
 """
 import json
 import threading
@@ -14,7 +26,6 @@ from app.core.config import settings
 # 设备SN定义
 class DeviceSN:
     """设备序列号常量"""
-    LED_SN = "LED001"
     SENSOR_SN = "M701001"
 
 
@@ -31,7 +42,7 @@ class MqttService:
         self._port = settings.MQTT_PORT
         self._username = settings.MQTT_USERNAME
         self._password = settings.MQTT_PASSWORD
-        self._client_id = settings.MQTT_CLIENT_ID  # 必传，用于区分不同设备
+        self._client_id = settings.MQTT_CLIENT_ID  # 格式：jasper_{sn}
         self._keepalive = settings.MQTT_KEEPALIVE
         self._prefix = settings.MQTT_PREFIX
         
@@ -204,10 +215,6 @@ class MqttService:
         """获取传感器数据主题"""
         return f"{self._prefix}/{sensor_sn}/data"
     
-    def get_led_control_topic(self, led_sn: str = DeviceSN.LED_SN) -> str:
-        """获取LED控制主题"""
-        return f"{self._prefix}/{led_sn}/control"
-    
     def get_sensor_query_topic(self, sensor_sn: str = DeviceSN.SENSOR_SN) -> str:
         """获取传感器查询主题"""
         return f"{self._prefix}/{sensor_sn}/query"
@@ -217,11 +224,6 @@ class MqttService:
         return f"{self._prefix}/{sensor_sn}/control"
     
     # ==================== 便捷发布方法 ====================
-    
-    def publish_led_control(self, led_sn: str, command: Dict[str, Any], qos: int = 0) -> bool:
-        """发布LED控制命令"""
-        topic = self.get_led_control_topic(led_sn)
-        return self.publish_json(topic, command, qos=qos)
     
     def publish_sensor_query(self, sensor_sn: str, query: Dict[str, Any], qos: int = 0) -> bool:
         """发布传感器查询命令"""
