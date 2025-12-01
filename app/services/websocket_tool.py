@@ -24,7 +24,7 @@ class WebSocketTool:
         # 方法处理器
         self.method_handlers: Dict[str, Callable] = {}  # method_name -> handler_function
         # 事件订阅管理
-        self.event_subscriptions: Dict[str, Dict[str, Set[str]]] = {}  # device_id -> event_type -> set of client_ids
+        self.event_subscriptions: Dict[str, Dict[str, Set[str]]] = {}  # device_sn -> event_type -> set of client_ids
         # 待处理请求
         self.pending_requests: Dict[str, Dict[str, Any]] = {}  # request_id -> request_info
         # 心跳超时时间（秒）
@@ -51,13 +51,13 @@ class WebSocketTool:
             del self.connection_metadata[client_id]
             
         # 清理事件订阅
-        for device_id in list(self.event_subscriptions.keys()):
-            for event_type in list(self.event_subscriptions[device_id].keys()):
-                self.event_subscriptions[device_id][event_type].discard(client_id)
-                if not self.event_subscriptions[device_id][event_type]:
-                    del self.event_subscriptions[device_id][event_type]
-            if not self.event_subscriptions[device_id]:
-                del self.event_subscriptions[device_id]
+        for device_sn in list(self.event_subscriptions.keys()):
+            for event_type in list(self.event_subscriptions[device_sn].keys()):
+                self.event_subscriptions[device_sn][event_type].discard(client_id)
+                if not self.event_subscriptions[device_sn][event_type]:
+                    del self.event_subscriptions[device_sn][event_type]
+            if not self.event_subscriptions[device_sn]:
+                del self.event_subscriptions[device_sn]
             
         print(f"❌ [WebSocket] 客户端 {client_id} 已断开")
         
@@ -115,9 +115,9 @@ class WebSocketTool:
             
         await self.send_message(client_id, response)
         
-    async def send_event_notification(self, device_id: str, event_type: str, data: Dict[str, Any]):
+    async def send_event_notification(self, device_sn: str, event_type: str, data: Dict[str, Any]):
         """发送事件通知给订阅的客户端"""
-        if device_id not in self.event_subscriptions:
+        if device_sn not in self.event_subscriptions:
             return
             
         event_id = f"evt_{uuid.uuid4().hex[:8]}"
@@ -125,7 +125,7 @@ class WebSocketTool:
             "id": event_id,
             "method": "event.notify",
             "params": {
-                "deviceId": device_id,
+                "deviceSn": device_sn,
                 "eventType": event_type,
                 "data": data,
                 "occurredAt": int(get_local_time().timestamp() * 1000)
@@ -134,31 +134,31 @@ class WebSocketTool:
         }
         
         # 发送给所有订阅该设备eventNotification事件的客户端
-        if "eventNotification" in self.event_subscriptions[device_id]:
-            for client_id in self.event_subscriptions[device_id]["eventNotification"]:
+        if "eventNotification" in self.event_subscriptions[device_sn]:
+            for client_id in self.event_subscriptions[device_sn]["eventNotification"]:
                 await self.send_message(client_id, event_message)
             
-    def subscribe_to_device_events(self, client_id: str, device_id: str, event_types: List[str]):
+    def subscribe_to_device_events(self, client_id: str, device_sn: str, event_types: List[str]):
         """订阅设备事件"""
-        if device_id not in self.event_subscriptions:
-            self.event_subscriptions[device_id] = {}
+        if device_sn not in self.event_subscriptions:
+            self.event_subscriptions[device_sn] = {}
         for event_type in event_types:
-            if event_type not in self.event_subscriptions[device_id]:
-                self.event_subscriptions[device_id][event_type] = set()
-            self.event_subscriptions[device_id][event_type].add(client_id)
-        print(f"✅ [WebSocket] 客户端 {client_id} 订阅设备 {device_id} 事件: {event_types}")
+            if event_type not in self.event_subscriptions[device_sn]:
+                self.event_subscriptions[device_sn][event_type] = set()
+            self.event_subscriptions[device_sn][event_type].add(client_id)
+        print(f"✅ [WebSocket] 客户端 {client_id} 订阅设备 {device_sn} 事件: {event_types}")
         
-    def unsubscribe_from_device_events(self, client_id: str, device_id: str, event_types: List[str]):
+    def unsubscribe_from_device_events(self, client_id: str, device_sn: str, event_types: List[str]):
         """取消订阅设备事件"""
-        if device_id in self.event_subscriptions:
+        if device_sn in self.event_subscriptions:
             for event_type in event_types:
-                if event_type in self.event_subscriptions[device_id]:
-                    self.event_subscriptions[device_id][event_type].discard(client_id)
-                    if not self.event_subscriptions[device_id][event_type]:
-                        del self.event_subscriptions[device_id][event_type]
-            if not self.event_subscriptions[device_id]:
-                del self.event_subscriptions[device_id]
-        print(f"❌ [WebSocket] 客户端 {client_id} 取消订阅设备 {device_id} 事件: {event_types}")
+                if event_type in self.event_subscriptions[device_sn]:
+                    self.event_subscriptions[device_sn][event_type].discard(client_id)
+                    if not self.event_subscriptions[device_sn][event_type]:
+                        del self.event_subscriptions[device_sn][event_type]
+            if not self.event_subscriptions[device_sn]:
+                del self.event_subscriptions[device_sn]
+        print(f"❌ [WebSocket] 客户端 {client_id} 取消订阅设备 {device_sn} 事件: {event_types}")
         
     async def handle_message(self, client_id: str, message: str):
         """处理接收到的消息"""
@@ -404,10 +404,10 @@ websocket_tool = WebSocketTool()
 # 默认方法处理器
 async def property_get_handler(client_id: str, request_id: str, params: Dict[str, Any]):
     """处理 property.get 请求"""
-    device_id = params.get("deviceId")
+    device_sn = params.get("deviceSn")
     property_names = params.get("propertyNames", [])
     
-    print(f"🔍 [WebSocket] 客户端 {client_id} 查询设备 {device_id} 属性: {property_names}")
+    print(f"🔍 [WebSocket] 客户端 {client_id} 查询设备 {device_sn} 属性: {property_names}")
     
     # 使用原有逻辑
     properties = {}
@@ -422,7 +422,7 @@ async def property_get_handler(client_id: str, request_id: str, params: Dict[str
             properties[prop_name] = "unknown"
     
     response_params = {
-        "deviceId": device_id,
+        "deviceSn": device_sn,
         "properties": properties
     }
     
@@ -431,11 +431,11 @@ async def property_get_handler(client_id: str, request_id: str, params: Dict[str
 
 async def service_invoke_handler(client_id: str, request_id: str, params: Dict[str, Any]):
     """处理 service.invoke 请求"""
-    device_id = params.get("deviceId")
+    device_sn = params.get("deviceSn")
     service_name = params.get("serviceName")
     arguments = params.get("arguments", {})
     
-    print(f"🔧 [WebSocket] 客户端 {client_id} 调用设备 {device_id} 服务: {service_name}")
+    print(f"🔧 [WebSocket] 客户端 {client_id} 调用设备 {device_sn} 服务: {service_name}")
     
     # 使用原有逻辑
     result = {
@@ -451,7 +451,7 @@ async def service_invoke_handler(client_id: str, request_id: str, params: Dict[s
         result["message"] = f"Temperature set to {temperature}°C"
     
     response_params = {
-        "deviceId": device_id,
+        "deviceSn": device_sn,
         "serviceName": service_name,
         "result": result
     }
@@ -461,16 +461,16 @@ async def service_invoke_handler(client_id: str, request_id: str, params: Dict[s
 
 async def event_subscribe_handler(client_id: str, request_id: str, params: Dict[str, Any]):
     """处理 event.subscribe 请求"""
-    device_id = params.get("deviceId")
+    device_sn = params.get("deviceSn")
     event_types = params.get("eventTypes", [])
     
-    # print(f"📡 [WebSocket] 客户端 {client_id} 订阅设备 {device_id} 事件: {event_types}")
+    # print(f"📡 [WebSocket] 客户端 {client_id} 订阅设备 {device_sn} 事件: {event_types}")
     
     # 订阅设备事件
-    websocket_tool.subscribe_to_device_events(client_id, device_id, event_types)
+    websocket_tool.subscribe_to_device_events(client_id, device_sn, event_types)
     
     response_params = {
-        "deviceId": device_id,
+        "deviceSn": device_sn,
         "eventTypes": event_types,
         "subscribed": True
     }
@@ -480,16 +480,16 @@ async def event_subscribe_handler(client_id: str, request_id: str, params: Dict[
 
 async def event_unsubscribe_handler(client_id: str, request_id: str, params: Dict[str, Any]):
     """处理 event.unsubscribe 请求"""
-    device_id = params.get("deviceId")
+    device_sn = params.get("deviceSn")
     event_types = params.get("eventTypes", [])
     
-    # print(f"📡 [WebSocket] 客户端 {client_id} 取消订阅设备 {device_id} 事件: {event_types}")
+    # print(f"📡 [WebSocket] 客户端 {client_id} 取消订阅设备 {device_sn} 事件: {event_types}")
     
     # 取消订阅设备事件
-    websocket_tool.unsubscribe_from_device_events(client_id, device_id, event_types)
+    websocket_tool.unsubscribe_from_device_events(client_id, device_sn, event_types)
     
     response_params = {
-        "deviceId": device_id,
+        "deviceSn": device_sn,
         "eventTypes": event_types,
         "unsubscribed": True
     }

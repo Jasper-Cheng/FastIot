@@ -5,8 +5,6 @@ import asyncio
 import logging
 from sqlalchemy import text
 from app.core.config import settings
-from app.services.mqtt_client import mqtt_service
-from app.services.mqtt_handlers import register_mqtt_subscriptions
 from app.db.session import engine
 from app.services.redis_service import redis_service
 from app.services.websocket_tool import websocket_tool
@@ -50,13 +48,7 @@ async def wechat_qrcode_cleaner():
 async def lifespan(app: FastAPI):
     # startup
     print("🔄 应用启动中...")
-    try:
-        mqtt_service.connect()
-        register_mqtt_subscriptions()
-        print("✅ MQTT连接成功并已注册订阅")
-    except Exception as e:
-        print(f"❌ MQTT连接失败: {e}")
-
+    
     # 数据库就绪检查
     try:
         async with engine.begin() as conn:
@@ -108,9 +100,6 @@ async def lifespan(app: FastAPI):
         print("✅ 数据库连接池已关闭")
     except Exception as e:
         print(f"⚠️ 关闭数据库连接池时出现异常（可忽略）: {e}")
-    
-    mqtt_service.disconnect()
-    print("🔌 MQTT连接已断开")
 
 
 app = FastAPI(
