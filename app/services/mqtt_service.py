@@ -362,11 +362,8 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
         # 发送设备状态变更事件通知
         await websocket_tool.send_event_notification(
             device_sn=sn,
-            event_type="device.status.changed",
             data={
-                "status": status,
-                "deviceSn": sn,
-                "timestamp": int(time.time() * 1000)
+                "status": status
             }
         )
         print(f"✅ [M701001] 已通过 WebSocket 通知前端设备 {sn} 状态变更: {status}")

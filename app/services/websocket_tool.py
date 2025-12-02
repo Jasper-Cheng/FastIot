@@ -112,10 +112,13 @@ class WebSocketTool:
             
         await self.send_message(client_id, response)
         
-    async def send_event_notification(self, device_sn: str, event_type: str, data: Dict[str, Any]):
+    async def send_event_notification(self, device_sn: str, data: Dict[str, Any]):
         """发送事件通知给订阅的客户端"""
         if device_sn not in self.event_subscriptions:
             return
+        
+        # 从 data 中移除 deviceSn 和 timestamp（如果存在）
+        cleaned_data = {k: v for k, v in data.items() if k not in ["deviceSn", "timestamp"]}
             
         event_id = f"evt_{uuid.uuid4().hex[:8]}"
         event_message = {
@@ -123,9 +126,7 @@ class WebSocketTool:
             "method": "event.notify",
             "params": {
                 "deviceSn": device_sn,
-                "eventType": event_type,
-                "data": data,
-                "occurredAt": int(get_local_time().timestamp() * 1000)
+                "data": cleaned_data
             },
             "timestamp": int(get_local_time().timestamp() * 1000)
         }
