@@ -160,8 +160,6 @@ class MQTTService:
             print(f"⚠️ [MQTT] 收到数据消息但缺少SN: {payload}")
             return
         
-        print(f"📊 [MQTT] 收到设备 {sn} 的数据: {payload}")
-        
         # 查找匹配的处理器
         handler = self._get_handler_for_sn(sn, self.data_handlers)
         if handler:
@@ -186,8 +184,6 @@ class MQTTService:
         if not sn:
             print(f"⚠️ [MQTT] 收到状态消息但缺少SN: {payload}")
             return
-        
-        print(f"📡 [MQTT] 收到设备 {sn} 的状态: {payload}")
         
         # 查找匹配的处理器
         handler = self._get_handler_for_sn(sn, self.status_handlers)
@@ -270,15 +266,16 @@ class MQTTService:
 mqtt_service = MQTTService()
 
 
-# ==================== M70 室内空气质量监测器处理器 ====================
+# ==================== M701001 室内空气质量监测器处理器 ====================
 
-async def handle_m70_data(sn: str, payload: Dict[str, Any]):
-    """处理 M70 室内空气质量监测器数据
+async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
+    """处理 M701001 室内空气质量监测器数据
     
     数据格式示例:
-    {'sn': 'M701001', 'co2': 485, 'hcho': 17, 'tvoc': 27, 'pm25': 21, 'pm10': 26, 'temp': 26.1, 'humi': 41.0}
+    {'sn': 'M701001-220403-000001', 'co2': 485, 'hcho': 17, 'tvoc': 27, 'pm25': 21, 'pm10': 26, 'temp': 26.1, 'humi': 41.0}
+    SN 格式: M701001-{生产日期}-{流水号}
     """
-    print(f"🌡️ [M70] 处理设备 {sn} 的空气质量数据")
+    print(f"🌡️ [M701001] 处理设备 {sn} 的空气质量数据")
     
     # 提取数据
     co2 = payload.get("co2")      # 二氧化碳 (ppm)
@@ -315,27 +312,70 @@ async def handle_m70_data(sn: str, payload: Dict[str, Any]):
         alerts.append(f"PM10 超标: {pm10} μg/m³ (阈值: 150 μg/m³)")
     
     if alerts:
-        print(f"⚠️ [M70] 设备 {sn} 告警:")
+        print(f"⚠️ [M701001] 设备 {sn} 告警:")
         for alert in alerts:
             print(f"   - {alert}")
         # TODO: 发送告警通知
         # await send_device_alert(sn, alerts)
 
 
-async def handle_m70_status(sn: str, payload: Dict[str, Any]):
-    """处理 M70 室内空气质量监测器状态"""
-    print(f"📡 [M70] 处理设备 {sn} 的状态: {payload}")
+async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
+    """处理 M701001 室内空气质量监测器状态"""
+    print(f"📡 [M701001] 处理设备 {sn} 的状态: {payload}")
     
     status = payload.get("status", "").lower()
-    if status == "online":
-        print(f"🟢 [M70] 设备 {sn} 上线")
-    elif status == "offline":
-        print(f"🔴 [M70] 设备 {sn} 离线")
+    if status not in ["online", "offline"]:
+        print(f"⚠️ [M701001] 设备 {sn} 状态值无效: {status}")
+        return
     
-    # TODO: 更新数据库设备状态
-    # TODO: 通过 WebSocket 通知前端
+    # 更新数据库设备状态
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.crud.device import get_device_by_sn, update_device
+        from app.models.device import DeviceUpdate, DeviceStatus
+        
+        async with AsyncSessionLocal() as db:
+            # 查找设备
+            device = await get_device_by_sn(db, sn)
+            if not device:
+                print(f"⚠️ [M701001] 设备 {sn} 不存在于数据库中")
+                return
+            
+            # 更新设备状态
+            device_status = DeviceStatus.online if status == "online" else DeviceStatus.offline
+            device_update = DeviceUpdate(status=device_status)
+            updated_device = await update_device(db, device.id, device_update)
+            
+            if updated_device:
+                print(f"✅ [M701001] 设备 {sn} 状态已更新为: {device_status.value}")
+            else:
+                print(f"❌ [M701001] 设备 {sn} 状态更新失败")
+    except Exception as e:
+        print(f"❌ [M701001] 更新设备状态失败 ({sn}): {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 通过 WebSocket 通知前端
+    try:
+        from app.services.websocket_tool import websocket_tool
+        
+        # 发送设备状态变更事件通知
+        await websocket_tool.send_event_notification(
+            device_sn=sn,
+            event_type="device.status.changed",
+            data={
+                "status": status,
+                "deviceSn": sn,
+                "timestamp": int(time.time() * 1000)
+            }
+        )
+        print(f"✅ [M701001] 已通过 WebSocket 通知前端设备 {sn} 状态变更: {status}")
+    except Exception as e:
+        print(f"❌ [M701001] WebSocket 通知失败 ({sn}): {e}")
+        import traceback
+        traceback.print_exc()
 
 
-# 注册 M70 处理器
-mqtt_service.register_data_handler("M70", handle_m70_data)
-mqtt_service.register_status_handler("M70", handle_m70_status)
+# 注册 M701001 处理器
+mqtt_service.register_data_handler("M701001", handle_m701001_data)
+mqtt_service.register_status_handler("M701001", handle_m701001_status)
