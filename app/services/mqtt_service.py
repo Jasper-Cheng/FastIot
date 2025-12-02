@@ -294,29 +294,160 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
     # from app.crud.device_data import save_device_data
     # await save_device_data(sn, payload)
     
-    # TODO: 通过 WebSocket 推送给前端
-    # from app.services.websocket_tool import websocket_tool
-    # await websocket_tool.broadcast_device_data(sn, payload)
+    # 通过 WebSocket 推送给前端
+    try:
+        from app.services.websocket_tool import websocket_tool
+        
+        # 构建数据对象（移除 sn 字段，因为 deviceSn 会在 params 中）
+        device_data = {
+            "co2": co2,
+            "hcho": hcho,
+            "tvoc": tvoc,
+            "pm25": pm25,
+            "pm10": pm10,
+            "temp": temp,
+            "humi": humi
+        }
+        
+        # 发送设备数据事件通知
+        await websocket_tool.send_event_notification(
+            device_sn=sn,
+            data=device_data
+        )
+    except Exception as e:
+        print(f"❌ [M701001] WebSocket 推送数据失败 ({sn}): {e}")
+        import traceback
+        traceback.print_exc()
     
     # 阈值告警检查
     alerts = []
+    alert_details = []
+    
     if co2 and co2 > 1000:
-        alerts.append(f"CO2 超标: {co2} ppm (阈值: 1000 ppm)")
+        alert_msg = f"CO2 超标: {co2} ppm (阈值: 1000 ppm)"
+        alerts.append(alert_msg)
+        alert_details.append({"type": "co2", "value": co2, "threshold": 1000, "unit": "ppm"})
+    
     if hcho and hcho > 100:
-        alerts.append(f"甲醛超标: {hcho} μg/m³ (阈值: 100 μg/m³)")
+        alert_msg = f"甲醛超标: {hcho} μg/m³ (阈值: 100 μg/m³)"
+        alerts.append(alert_msg)
+        alert_details.append({"type": "hcho", "value": hcho, "threshold": 100, "unit": "μg/m³"})
+    
     if tvoc and tvoc > 600:
-        alerts.append(f"TVOC 超标: {tvoc} μg/m³ (阈值: 600 μg/m³)")
+        alert_msg = f"TVOC 超标: {tvoc} μg/m³ (阈值: 600 μg/m³)"
+        alerts.append(alert_msg)
+        alert_details.append({"type": "tvoc", "value": tvoc, "threshold": 600, "unit": "μg/m³"})
+    
     if pm25 and pm25 > 75:
-        alerts.append(f"PM2.5 超标: {pm25} μg/m³ (阈值: 75 μg/m³)")
+        alert_msg = f"PM2.5 超标: {pm25} μg/m³ (阈值: 75 μg/m³)"
+        alerts.append(alert_msg)
+        alert_details.append({"type": "pm25", "value": pm25, "threshold": 75, "unit": "μg/m³"})
+    
     if pm10 and pm10 > 150:
-        alerts.append(f"PM10 超标: {pm10} μg/m³ (阈值: 150 μg/m³)")
+        alert_msg = f"PM10 超标: {pm10} μg/m³ (阈值: 150 μg/m³)"
+        alerts.append(alert_msg)
+        alert_details.append({"type": "pm10", "value": pm10, "threshold": 150, "unit": "μg/m³"})
     
     if alerts:
         print(f"⚠️ [M701001] 设备 {sn} 告警:")
         for alert in alerts:
             print(f"   - {alert}")
-        # TODO: 发送告警通知
-        # await send_device_alert(sn, alerts)
+        
+        # 插入数据库并发送 family message
+        try:
+            from app.db.session import AsyncSessionLocal
+            from app.crud.device import get_device_by_sn
+            from app.crud.device_message import create_device_message
+            from app.models.device_message import DeviceMessageCreate, DeviceMessageLevel
+            from app.services.websocket_tool import websocket_tool
+            
+            async with AsyncSessionLocal() as db:
+                # 查找设备
+                device = await get_device_by_sn(db, sn)
+                if not device:
+                    print(f"⚠️ [M701001] 设备 {sn} 不存在于数据库中，无法插入告警消息")
+                    return
+                
+                # 构建告警消息
+                alert_message = "；".join(alerts)  # 用分号连接多个告警
+                
+                # 创建设备消息记录
+                device_message = DeviceMessageCreate(
+                    device_id=device.id,
+                    level=DeviceMessageLevel.error,  # 告警使用 error 级别
+                    message=alert_message,
+                    detail={
+                        "alerts": alert_details,
+                        "deviceSn": sn,
+                        "currentData": {
+                            "co2": co2,
+                            "hcho": hcho,
+                            "tvoc": tvoc,
+                            "pm25": pm25,
+                            "pm10": pm10,
+                            "temp": temp,
+                            "humi": humi
+                        }
+                    }
+                )
+                
+                created_message = await create_device_message(db, device_message)
+                print(f"✅ [M701001] 告警消息已插入数据库，消息ID: {created_message.id}")
+                
+                # 发送 family message（遍历 owner 和所有 members，找到第一个在线的发送）
+                if device.user_id:
+                    from app.crud.member import get_members_by_user
+                    
+                    # 获取所有 members
+                    members = await get_members_by_user(db, device.user_id)
+                    
+                    # 构建所有 family 成员的 client_id 列表（owner 在前）
+                    family_client_ids = [f"owner_{device.user_id}"]
+                    for member in members:
+                        family_client_ids.append(f"member_{member.id}")
+                    
+                    # 循环查找第一个在线的客户端并发送消息
+                    sent = False
+                    for client_id in family_client_ids:
+                        if websocket_tool.is_client_connected(client_id):
+                            # 确定发送者信息
+                            if client_id.startswith("owner_"):
+                                sender_id = device.user_id
+                                sender_role = "owner"
+                            else:
+                                member_id = int(client_id.split("_")[1])
+                                sender_id = member_id
+                                sender_role = "member"
+                            
+                            await websocket_tool.send_family_message(
+                                client_id=client_id,
+                                message_type="device.alert",
+                                data={
+                                    "senderId": sender_id,
+                                    "senderRole": sender_role,
+                                    "title": "设备告警",
+                                    "message": f"设备 {sn} 发生告警：{alert_message}",
+                                    "level": "error",
+                                    "deviceId": device.id,
+                                    "deviceSn": sn,
+                                    "deviceName": device.name,
+                                    "messageId": created_message.id,
+                                    "alerts": alert_details
+                                }
+                            )
+                            print(f"✅ [M701001] 告警 family message 已通过 {client_id} 发送")
+                            sent = True
+                            break  # 找到第一个在线的就退出循环
+                    
+                    if not sent:
+                        print(f"⚠️ [M701001] 所有 family 成员均未在线，无法发送 family message")
+                else:
+                    print(f"⚠️ [M701001] 设备 {sn} 未绑定用户，无法发送 family message")
+                    
+        except Exception as e:
+            print(f"❌ [M701001] 处理告警失败 ({sn}): {e}")
+            import traceback
+            traceback.print_exc()
 
 
 async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
