@@ -26,10 +26,32 @@ from app.db.models.version_info import VersionInfo
 from app.db.models.feedback import Feedback
 from app.db.models.user_operation_log import UserOperationLog
 from app.core.security import get_password_hash
+from app.core.config import settings
+from sqlalchemy.ext.asyncio import create_async_engine
 
 async def init_db(reset=False) -> None:
     """初始化数据库"""
     try:
+        from app.core.config import settings
+        
+        # 先连接到 MySQL 服务器（不指定数据库）来创建数据库
+        print("正在检查数据库是否存在...")
+        # 从 DATABASE_URL 中提取连接信息，但不包含数据库名
+        db_url_without_db = str(settings.DATABASE_URL).rsplit('/', 1)[0]  # 移除数据库名
+        temp_engine = create_async_engine(
+            db_url_without_db,
+            echo=False,
+            pool_pre_ping=True,
+        )
+        
+        try:
+            async with temp_engine.begin() as conn:
+                # 创建数据库（如果不存在）
+                await conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{settings.MYSQL_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
+                print(f"✓ 数据库 '{settings.MYSQL_DB}' 已准备就绪")
+        finally:
+            await temp_engine.dispose()
+        
         if reset:
             print("开始重置数据库...")
             # 删除所有表
@@ -383,7 +405,19 @@ async def create_thing_models(session: AsyncSession):
           "filter_life": {"type": "int", "unit": "%", "min": 0, "max": 100, "default": 80},
           "auto_mode": {"type": "boolean", "unit": "on/off", "default": True}},
          ["set_fan_speed", "enable_auto_mode", "reset_filter", "set_timer", "power_on", "power_off"],
-         ["air_quality_changed", "filter_replacement_needed", "sensor_fault", "purifier_fault"])
+         ["air_quality_changed", "filter_replacement_needed", "sensor_fault", "purifier_fault"]),
+
+        # 室内空气质量监测器物模型
+        ("室内空气质量监测器物模型", "室内空气质量综合监测设备功能定义",
+         {"co2": {"type": "float", "unit": "ppm", "min": 0, "max": 5000},
+          "hcho": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000},
+          "tvoc": {"type": "float", "unit": "μg/m³", "min": 0, "max": 10000},
+          "pm25": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000},
+          "pm10": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000},
+          "temp": {"type": "float", "unit": "°C", "min": -40, "max": 85},
+          "humi": {"type": "float", "unit": "%", "min": 0, "max": 100}},
+         ["read_all", "calibrate", "reset", "set_alarm_threshold", "export_data"],
+         ["air_quality_alert", "sensor_fault", "data_anomaly", "calibration_complete", "low_battery", "data_exported"])
     ]
 
     for name, description, properties, services, events in thing_models_data:
@@ -429,7 +463,9 @@ async def create_device_models(session: AsyncSession, thing_models):
             "SPEAKER": (["power_on", "power_off", "set_volume", "play_music", "stop_music", "set_voice_assistant", "mute", "unmute"], 
                         ["music_playing", "voice_command", "wifi_disconnected", "low_battery", "speaker_fault", "volume_changed"]),
             "AIR": (["power_on", "power_off", "set_fan_speed", "set_auto_mode", "set_timer", "reset_filter", "set_pm25_threshold"], 
-                    ["air_quality_changed", "filter_replacement_needed", "sensor_fault", "purifier_fault", "pm25_high", "filter_changed"])
+                    ["air_quality_changed", "filter_replacement_needed", "sensor_fault", "purifier_fault", "pm25_high", "filter_changed"]),
+            "M70": (["read_all", "calibrate", "reset", "set_alarm_threshold", "export_data", "set_sampling_rate"], 
+                    ["air_quality_alert", "sensor_fault", "data_anomaly", "calibration_complete", "low_battery", "data_exported", "threshold_exceeded"])
         }
         
         device_prefix = model_code[:3] if len(model_code) >= 3 else model_code
@@ -699,6 +735,17 @@ async def create_device_models(session: AsyncSession, thing_models):
             "air_quality": {"type": "string", "unit": "level", "enum": ["优", "良", "轻度污染", "中度污染", "重度污染"], "default": "良"},
             "filter_life": {"type": "int", "unit": "%", "min": 0, "max": 100, "default": 80},
             "auto_mode": {"type": "boolean", "unit": "on/off", "default": True}
+        }),
+
+        # 室内空气质量监测器设备型号
+        ("M701001", "室内空气质量监测器", "Smart Devices", 11, {
+            "co2": {"type": "float", "unit": "ppm", "min": 0, "max": 5000, "precision": 0, "readable": True, "writable": False},
+            "hcho": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000, "precision": 1, "readable": True, "writable": False},
+            "tvoc": {"type": "float", "unit": "μg/m³", "min": 0, "max": 10000, "precision": 1, "readable": True, "writable": False},
+            "pm25": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000, "precision": 1, "readable": True, "writable": False},
+            "pm10": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000, "precision": 1, "readable": True, "writable": False},
+            "temp": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1, "readable": True, "writable": False},
+            "humi": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1, "readable": True, "writable": False}
         })
     ]
 

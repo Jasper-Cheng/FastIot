@@ -261,7 +261,11 @@ VALUES
 ('环境监测器物模型', '多功能环境监测设备功能定义',
  '{"temperature": {"type": "float", "unit": "°C"}, "humidity": {"type": "float", "unit": "%"}, "pressure": {"type": "float", "unit": "hPa"}}',
  '["read_all", "calibrate", "reset"]',
- '["environment_alert", "sensor_fault", "data_anomaly"]')
+ '["environment_alert", "sensor_fault", "data_anomaly"]'),
+('室内空气质量监测器物模型', '室内空气质量综合监测设备功能定义',
+ '{"co2": {"type": "float", "unit": "ppm", "min": 0, "max": 5000}, "hcho": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000}, "tvoc": {"type": "float", "unit": "μg/m³", "min": 0, "max": 10000}, "pm25": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000}, "pm10": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000}, "temp": {"type": "float", "unit": "°C", "min": -40, "max": 85}, "humi": {"type": "float", "unit": "%", "min": 0, "max": 100}}',
+ '["read_all", "calibrate", "reset", "set_alarm_threshold", "export_data"]',
+ '["air_quality_alert", "sensor_fault", "data_anomaly", "calibration_complete", "low_battery", "data_exported"]')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- 插入示例设备型号
@@ -278,7 +282,11 @@ VALUES
 ('ENV001', '环境监测器', 'Smart Devices', 3, 
  '{"temperature": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1, "readable": true, "writable": false}, "humidity": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1, "readable": true, "writable": false}, "pressure": {"type": "float", "unit": "hPa", "min": 800, "max": 1200, "precision": 1, "readable": true, "writable": false}}',
  '["read_all", "calibrate", "reset", "set_sampling_rate", "export_data"]',
- '["environment_alert", "sensor_fault", "data_anomaly", "calibration_complete", "low_battery", "data_exported"]')
+ '["environment_alert", "sensor_fault", "data_anomaly", "calibration_complete", "low_battery", "data_exported"]'),
+('M701001', '室内空气质量监测器', 'Smart Devices', 4, 
+ '{"co2": {"type": "float", "unit": "ppm", "min": 0, "max": 5000, "precision": 0, "readable": true, "writable": false}, "hcho": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000, "precision": 1, "readable": true, "writable": false}, "tvoc": {"type": "float", "unit": "μg/m³", "min": 0, "max": 10000, "precision": 1, "readable": true, "writable": false}, "pm25": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000, "precision": 1, "readable": true, "writable": false}, "pm10": {"type": "float", "unit": "μg/m³", "min": 0, "max": 1000, "precision": 1, "readable": true, "writable": false}, "temp": {"type": "float", "unit": "°C", "min": -40, "max": 85, "precision": 1, "readable": true, "writable": false}, "humi": {"type": "float", "unit": "%", "min": 0, "max": 100, "precision": 1, "readable": true, "writable": false}}',
+ '["read_all", "calibrate", "reset", "set_alarm_threshold", "export_data", "set_sampling_rate"]',
+ '["air_quality_alert", "sensor_fault", "data_anomaly", "calibration_complete", "low_battery", "data_exported", "threshold_exceeded"]')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- 插入示例设备
@@ -286,7 +294,8 @@ INSERT INTO `device` (`user_id`, `model_id`, `name`, `sn`, `status`)
 VALUES 
 (1, 1, '温度传感器-01', 'TEMP001', 'bound'),
 (1, 2, '湿度传感器-01', 'HUM001', 'bound'),
-(1, 3, '环境监测器-01', 'ENV001', 'bound')
+(1, 3, '环境监测器-01', 'ENV001', 'bound'),
+(1, 4, '室内空气质量监测器-01', 'M701001', 'bound')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- 用户操作记录表：记录用户的重要操作行为
