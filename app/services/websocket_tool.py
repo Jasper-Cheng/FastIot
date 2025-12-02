@@ -67,7 +67,7 @@ class WebSocketTool:
         try:
             websocket = self.active_connections[client_id]
             await websocket.send_text(json.dumps(message, ensure_ascii=False))
-            print(f"✅ [WebSocket] 消息已发送给客户端 {client_id}，{message.get('method', '')} {message.get('params', {}).get('type', '')}")
+            print(f"✅ [WebSocket] 消息已发送给客户端 {client_id}，{message}")
             return True
         except Exception as e:
             print(f"❌ [WebSocket] 发送消息给客户端 {client_id} 失败: {e}")
@@ -337,7 +337,7 @@ class WebSocketTool:
         }
         
         # 发送给family中的所有客户端
-        print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送消息给客户端 {family_clients}，消息数据: {family_message}")
+        # print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送消息给客户端 {family_clients}，消息数据: {family_message}")
         for family_client_id in family_clients:
             if family_client_id in self.active_connections:
                 try:

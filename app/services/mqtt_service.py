@@ -366,7 +366,7 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
                 "status": status
             }
         )
-        print(f"✅ [M701001] 已通过 WebSocket 通知前端设备 {sn} 状态变更: {status}")
+        # print(f"✅ [M701001] 已通过 WebSocket 通知前端设备 {sn} 状态变更: {status}")
     except Exception as e:
         print(f"❌ [M701001] WebSocket 通知失败 ({sn}): {e}")
         import traceback
