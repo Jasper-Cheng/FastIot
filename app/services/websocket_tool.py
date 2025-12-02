@@ -1,8 +1,8 @@
 """
 WebSocket工具类
 支持收发信息、心跳机制、连接管理
-支持标准请求-响应模式：property.get, service.invoke, event.subscribe
-支持后端直接发送：family.message, system.message
+支持标准请求-响应模式：service.invoke, event.subscribe, event.unsubscribe
+支持后端直接发送：family.message, system.message, event.notify
 """
 import json
 import asyncio
@@ -391,33 +391,6 @@ websocket_tool = WebSocketTool()
 
 
 # 默认方法处理器
-async def property_get_handler(client_id: str, request_id: str, params: Dict[str, Any]):
-    """处理 property.get 请求"""
-    device_sn = params.get("deviceSn")
-    property_names = params.get("propertyNames", [])
-    
-    print(f"🔍 [WebSocket] 客户端 {client_id} 查询设备 {device_sn} 属性: {property_names}")
-    
-    # 使用原有逻辑
-    properties = {}
-    for prop_name in property_names:
-        if prop_name == "temperature":
-            properties[prop_name] = 25.5
-        elif prop_name == "humidity":
-            properties[prop_name] = 60
-        elif prop_name == "status":
-            properties[prop_name] = "online"
-        else:
-            properties[prop_name] = "unknown"
-    
-    response_params = {
-        "deviceSn": device_sn,
-        "properties": properties
-    }
-    
-    await websocket_tool.send_response(client_id, request_id, "property.get", response_params)
-
-
 async def service_invoke_handler(client_id: str, request_id: str, params: Dict[str, Any]):
     """处理 service.invoke 请求"""
     device_sn = params.get("deviceSn")
@@ -479,7 +452,6 @@ async def event_unsubscribe_handler(client_id: str, request_id: str, params: Dic
 
 
 # 注册默认方法处理器
-websocket_tool.register_method_handler("property.get", property_get_handler)
 websocket_tool.register_method_handler("service.invoke", service_invoke_handler)
 websocket_tool.register_method_handler("event.subscribe", event_subscribe_handler)
 websocket_tool.register_method_handler("event.unsubscribe", event_unsubscribe_handler)
