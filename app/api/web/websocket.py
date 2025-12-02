@@ -35,13 +35,6 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             if not account_id or not real_id or not role:
                 await websocket.close(code=4001, reason="身份验证失败")
                 return
-            
-            #目前只支持web和app平台
-            support_platforms = ['web','app']
-
-            if platform not in support_platforms:
-                await websocket.close(code=4001, reason="无效的平台")
-                return
 
             # 验证role是否为有效值
             if role not in ["owner", "member", "admin"]:
@@ -64,8 +57,8 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                 await websocket.close(code=4001, reason="角色不匹配")
                 return
             
-            # 使用token中的role、id和platform构建client_id
-            client_id = f"{role}_{real_id}_{platform}"
+            # 使用token中的role和id构建client_id
+            client_id = f"{role}_{real_id}"
 
             # 检查是否已经连接，如果已连接则先发送family消息并断开旧连接
             if websocket_tool.is_client_connected(client_id):
@@ -80,10 +73,9 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                             "senderId": real_id,
                             "senderRole": role,
                             "title": "强制退出",
-                            "message": f"{account.nickname or account.phone} 的账号在{platform}平台登录，当前将被强制退出",
+                            "message": f"{account.nickname or account.phone} 的账号登录，当前将被强制退出",
                             "level": "warning",
-                            "reason": "新设备登录，当前连接被强制退出",
-                            "platform": platform
+                            "reason": "新设备登录，当前连接被强制退出"
                         }
                     )
                     # 等待一小段时间确保消息发送完成
@@ -97,24 +89,21 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             # 获取family相关的所有client_id
             family_clients = []
             
-            # 获取owner的client_id和活跃的family_clients_ids
+            # 获取owner的client_id
             owner = await get_user(db, user_id)
             if owner:
-                for platform in support_platforms:
-                    family_clients.append(f"owner_{owner.id}_{platform}")
+                family_clients.append(f"owner_{owner.id}")
 
-            # 获取所有member的client_id和活跃的family_clients_ids
+            # 获取所有member的client_id
             members = await get_members_by_user(db, user_id)
             for member in members:
-                for platform in support_platforms:
-                    family_clients.append(f"member_{member.id}_{platform}")
+                family_clients.append(f"member_{member.id}")
             
             # 连接成功，设置客户端ID和元数据
             metadata = {
                 "client_id": client_id,
                 "role": role,
                 "real_id": real_id,
-                "platform": platform,  # 保存平台信息
                 "family_clients": family_clients
             }
             

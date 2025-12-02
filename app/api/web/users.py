@@ -156,9 +156,8 @@ async def update_user_detail(
     try:
         role = token_info.get("role")
         real_id = token_info.get("id")
-        platform = token_info.get("platform", "web")
         if role and real_id is not None:
-            client_id = f"{role}_{real_id}_{platform}"
+            client_id = f"{role}_{real_id}"
             
             await websocket_tool.send_family_message(
                 client_id=client_id,
@@ -237,9 +236,8 @@ async def remove_user(
     try:
         role = token_info.get("role")
         real_id = token_info.get("id")
-        platform = token_info.get("platform", "web")
         if role and real_id is not None:
-            client_id = f"{role}_{real_id}_{platform}"
+            client_id = f"{role}_{real_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="user.delete",

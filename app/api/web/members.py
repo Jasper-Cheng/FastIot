@@ -140,9 +140,8 @@ async def create_member_for_user(
     try:
         role = token_info.get("role")
         real_id = token_info.get("id")
-        platform = token_info.get("platform", "web")
         if role and real_id is not None:
-            client_id = f"{role}_{real_id}_{platform}"
+            client_id = f"{role}_{real_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="member.create",
@@ -290,9 +289,8 @@ async def update_member_detail(
     try:
         role = token_info.get("role")
         real_id = token_info.get("id")
-        platform = token_info.get("platform", "web")
         if role and real_id is not None:
-            client_id = f"{role}_{real_id}_{platform}"
+            client_id = f"{role}_{real_id}"
             # 获取更新后的账号信息
             updated_account = await get_account(db, m.account_id)
             await websocket_tool.send_family_message(
@@ -395,9 +393,8 @@ async def remove_member(
         try:
             role = token_info.get("role")
             real_id = token_info.get("id")
-            platform = token_info.get("platform", "web")
             if role and real_id is not None:
-                client_id = f"{role}_{real_id}_{platform}"
+                client_id = f"{role}_{real_id}"
                 await websocket_tool.send_family_message(
                     client_id=client_id,
                     message_type="member.delete",
