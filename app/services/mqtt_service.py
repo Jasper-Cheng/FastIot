@@ -4,13 +4,18 @@ MQTT服务工具类（服务端）- 设备在线状态监控
 1. LWT (Last Will) 机制：设备异常断开时通过 status 主题自动发送离线消息
 2. 心跳超时检测：定期检查设备最后上报时间
 3. 状态消息检测：订阅设备 status 主题，处理在线/离线状态
+4. 基于 SN 前缀的处理器分发：根据设备型号前缀分发到不同处理器
 """
 import asyncio
 import json
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable, Awaitable
 from gmqtt import Client as MQTTClient
 from app.core.config import settings
+
+# 定义处理器类型
+DataHandler = Callable[[str, Dict[str, Any]], Awaitable[None]]
+StatusHandler = Callable[[str, Dict[str, Any]], Awaitable[None]]
 
 
 class MQTTService:
@@ -35,6 +40,14 @@ class MQTTService:
         self.device_last_seen: Dict[str, float] = {}  # {sn: timestamp}
         self.device_online_status: Dict[str, bool] = {}  # {sn: True/False}
         self.heartbeat_timeout = 60  # 心跳超时时间（秒），根据设备上报频率调整
+        
+        # 设备处理器注册表（按 SN 前缀）
+        self.data_handlers: Dict[str, DataHandler] = {}
+        self.status_handlers: Dict[str, StatusHandler] = {}
+        
+        # 默认处理器
+        self.default_data_handler: Optional[DataHandler] = None
+        self.default_status_handler: Optional[StatusHandler] = None
 
     def on_connect(self, client, flags, rc, properties):
         """连接成功回调"""
@@ -145,13 +158,73 @@ class MQTTService:
         # from app.services.websocket_tool import websocket_tool
         # await websocket_tool.broadcast_device_status(sn, online=False)
 
+    def register_data_handler(self, sn_prefix: str, handler: DataHandler):
+        """注册数据处理器（按 SN 前缀）
+        
+        Args:
+            sn_prefix: 设备 SN 前缀，如 "M70"、"AIR" 等
+            handler: 异步处理函数，签名为 async def handler(sn: str, payload: dict)
+        """
+        self.data_handlers[sn_prefix] = handler
+        print(f"[MQTT] ✅ 已注册数据处理器: {sn_prefix}")
+
+    def register_status_handler(self, sn_prefix: str, handler: StatusHandler):
+        """注册状态处理器（按 SN 前缀）
+        
+        Args:
+            sn_prefix: 设备 SN 前缀，如 "M70"、"AIR" 等
+            handler: 异步处理函数，签名为 async def handler(sn: str, payload: dict)
+        """
+        self.status_handlers[sn_prefix] = handler
+        print(f"[MQTT] ✅ 已注册状态处理器: {sn_prefix}")
+
+    def set_default_data_handler(self, handler: DataHandler):
+        """设置默认数据处理器（当没有匹配的前缀处理器时使用）"""
+        self.default_data_handler = handler
+        print("[MQTT] ✅ 已设置默认数据处理器")
+
+    def set_default_status_handler(self, handler: StatusHandler):
+        """设置默认状态处理器（当没有匹配的前缀处理器时使用）"""
+        self.default_status_handler = handler
+        print("[MQTT] ✅ 已设置默认状态处理器")
+
+    def _get_handler_for_sn(self, sn: str, handlers: Dict[str, Callable]) -> Optional[Callable]:
+        """根据 SN 前缀匹配处理器
+        
+        按前缀长度降序排列，优先匹配更具体的前缀
+        例如：SN="M701001" 会优先匹配 "M701" 而不是 "M70"
+        """
+        for prefix in sorted(handlers.keys(), key=len, reverse=True):
+            if sn.startswith(prefix):
+                return handlers[prefix]
+        return None
+
     async def _on_data(self, sn: Optional[str], payload: Dict[str, Any]):
         """处理设备数据消息"""
         if not sn:
             print(f"⚠️ [MQTT] 收到数据消息但缺少SN: {payload}")
             return
+        
         print(f"📊 [MQTT] 收到设备 {sn} 的数据: {payload}")
-        # TODO: 保存到数据库 / WebSocket 推送前端 / 告警处理
+        
+        # 查找匹配的处理器
+        handler = self._get_handler_for_sn(sn, self.data_handlers)
+        if handler:
+            try:
+                await handler(sn, payload)
+            except Exception as e:
+                print(f"❌ [MQTT] 数据处理器执行失败 ({sn}): {e}")
+                import traceback
+                traceback.print_exc()
+        elif self.default_data_handler:
+            try:
+                await self.default_data_handler(sn, payload)
+            except Exception as e:
+                print(f"❌ [MQTT] 默认数据处理器执行失败 ({sn}): {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"⚠️ [MQTT] 未找到设备 {sn} 的数据处理器")
 
     async def _on_status(self, sn: Optional[str], payload: Dict[str, Any]):
         """处理设备状态消息（包括 LWT 离线消息）"""
@@ -161,7 +234,24 @@ class MQTTService:
         
         print(f"📡 [MQTT] 收到设备 {sn} 的状态: {payload}")
         
-        # 检查是否为离线消息（包括 LWT 消息）
+        # 查找匹配的处理器
+        handler = self._get_handler_for_sn(sn, self.status_handlers)
+        if handler:
+            try:
+                await handler(sn, payload)
+            except Exception as e:
+                print(f"❌ [MQTT] 状态处理器执行失败 ({sn}): {e}")
+                import traceback
+                traceback.print_exc()
+        elif self.default_status_handler:
+            try:
+                await self.default_status_handler(sn, payload)
+            except Exception as e:
+                print(f"❌ [MQTT] 默认状态处理器执行失败 ({sn}): {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # 保留原有的在线/离线状态处理逻辑
         status = payload.get("status", "").lower()
         if status == "offline":
             # 判断是主动离线还是 LWT（设备异常断开）
@@ -282,3 +372,74 @@ class MQTTService:
 
 # 全局 MQTT 服务实例
 mqtt_service = MQTTService()
+
+
+# ==================== M70 室内空气质量监测器处理器 ====================
+
+async def handle_m70_data(sn: str, payload: Dict[str, Any]):
+    """处理 M70 室内空气质量监测器数据
+    
+    数据格式示例:
+    {'sn': 'M701001', 'co2': 485, 'hcho': 17, 'tvoc': 27, 'pm25': 21, 'pm10': 26, 'temp': 26.1, 'humi': 41.0}
+    """
+    print(f"🌡️ [M70] 处理设备 {sn} 的空气质量数据")
+    
+    # 提取数据
+    co2 = payload.get("co2")      # 二氧化碳 (ppm)
+    hcho = payload.get("hcho")    # 甲醛 (μg/m³)
+    tvoc = payload.get("tvoc")    # 总挥发性有机化合物 (μg/m³)
+    pm25 = payload.get("pm25")    # PM2.5 (μg/m³)
+    pm10 = payload.get("pm10")    # PM10 (μg/m³)
+    temp = payload.get("temp")    # 温度 (°C)
+    humi = payload.get("humi")    # 湿度 (%)
+    
+    print(f"   CO2: {co2} ppm, HCHO: {hcho} μg/m³, TVOC: {tvoc} μg/m³")
+    print(f"   PM2.5: {pm25} μg/m³, PM10: {pm10} μg/m³")
+    print(f"   温度: {temp} °C, 湿度: {humi} %")
+    
+    # TODO: 保存到数据库
+    # from app.crud.device_data import save_device_data
+    # await save_device_data(sn, payload)
+    
+    # TODO: 通过 WebSocket 推送给前端
+    # from app.services.websocket_tool import websocket_tool
+    # await websocket_tool.broadcast_device_data(sn, payload)
+    
+    # 阈值告警检查
+    alerts = []
+    if co2 and co2 > 1000:
+        alerts.append(f"CO2 超标: {co2} ppm (阈值: 1000 ppm)")
+    if hcho and hcho > 100:
+        alerts.append(f"甲醛超标: {hcho} μg/m³ (阈值: 100 μg/m³)")
+    if tvoc and tvoc > 600:
+        alerts.append(f"TVOC 超标: {tvoc} μg/m³ (阈值: 600 μg/m³)")
+    if pm25 and pm25 > 75:
+        alerts.append(f"PM2.5 超标: {pm25} μg/m³ (阈值: 75 μg/m³)")
+    if pm10 and pm10 > 150:
+        alerts.append(f"PM10 超标: {pm10} μg/m³ (阈值: 150 μg/m³)")
+    
+    if alerts:
+        print(f"⚠️ [M70] 设备 {sn} 告警:")
+        for alert in alerts:
+            print(f"   - {alert}")
+        # TODO: 发送告警通知
+        # await send_device_alert(sn, alerts)
+
+
+async def handle_m70_status(sn: str, payload: Dict[str, Any]):
+    """处理 M70 室内空气质量监测器状态"""
+    print(f"📡 [M70] 处理设备 {sn} 的状态: {payload}")
+    
+    status = payload.get("status", "").lower()
+    if status == "online":
+        print(f"🟢 [M70] 设备 {sn} 上线")
+    elif status == "offline":
+        print(f"🔴 [M70] 设备 {sn} 离线")
+    
+    # TODO: 更新数据库设备状态
+    # TODO: 通过 WebSocket 通知前端
+
+
+# 注册 M70 处理器
+mqtt_service.register_data_handler("M70", handle_m70_data)
+mqtt_service.register_status_handler("M70", handle_m70_status)
