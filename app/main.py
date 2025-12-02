@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI):
         pass
     print("💔 微信二维码清理任务已停止")
     
-    # 停止MQTT监听任务
+    # 停止MQTT监听任务并断开连接
     try:
         if mqtt_listen_task is not None:
             mqtt_listen_task.cancel()
@@ -114,8 +114,12 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
             print("💔 MQTT监听任务已停止")
+        
+        # 断开 MQTT 连接
+        if mqtt_service.client:
+            await mqtt_service.disconnect()
     except Exception as e:
-        print(f"⚠️ 停止MQTT监听任务时出现异常（可忽略）: {e}")
+        print(f"⚠️ 停止MQTT服务时出现异常（可忽略）: {e}")
     
     # 关闭数据库引擎的连接池
     try:
