@@ -472,6 +472,10 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
                 print(f"⚠️ [M701001] 设备 {sn} 不存在于数据库中")
                 return
             
+            if device.user_id is None:
+                print(f"⚠️ [M701001] 设备 {sn} 未绑定用户，无法更新状态")
+                return
+            
             # 更新设备状态
             device_status = DeviceStatus.online if status == "online" else DeviceStatus.offline
             device_update = DeviceUpdate(status=device_status)
