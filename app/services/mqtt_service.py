@@ -426,7 +426,7 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
                                     "senderId": sender_id,
                                     "senderRole": sender_role,
                                     "title": "设备告警",
-                                    "message": f"设备 {sn} 发生告警：{alert_message}",
+                                    "message": alert_message,
                                     "level": "error",
                                     "deviceId": device.id,
                                     "deviceSn": sn,
