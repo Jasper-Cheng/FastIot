@@ -11,8 +11,7 @@ from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.crud.account import get_account
-from app.crud.user import get_user
-from app.crud.member import get_members_by_user
+from app.crud.family_member import get_family_members_by_account
 
 router = APIRouter()
 
@@ -27,22 +26,20 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
             account_id: int | None = payload.get("account_id")
-            real_id: int | None = payload.get("id")
             role: str | None = payload.get("role")
-            user_id: int | None = payload.get("user_id")
             platform: str | None = payload.get("platform", "web")  # 从token中获取平台信息，默认为"web"
 
-            if not account_id or not real_id or not role:
+            if not account_id or not role:
                 await websocket.close(code=4001, reason="身份验证失败")
                 return
 
             # 验证role是否为有效值
-            if role not in ["owner", "member", "admin"]:
+            if role not in ["user", "admin"]:
                 await websocket.close(code=4001, reason="未知用户类型")
                 return
 
-            if user_id is None or role == "admin":
-                #管理员没有user_id
+            if role == "admin":
+                # 管理员不允许连接（如果需要支持管理员，可以后续添加）
                 await websocket.close(code=4001, reason="管理员不允许连接")
                 return
             
@@ -57,8 +54,8 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                 await websocket.close(code=4001, reason="角色不匹配")
                 return
             
-            # 使用token中的role和id构建client_id
-            client_id = f"{role}_{real_id}"
+            # 使用token中的role和account_id构建client_id
+            client_id = f"{role}_{account_id}"
 
             # 检查是否已经连接，如果已连接则先发送family消息并断开旧连接
             if websocket_tool.is_client_connected(client_id):
@@ -70,7 +67,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                         client_id=client_id,
                         message_type="force.logout",
                         data={
-                            "senderId": real_id,
+                            "senderId": account_id,
                             "senderRole": role,
                             "title": "强制退出",
                             "message": f"{account.nickname or account.phone} 的账号登录，当前将被强制退出",
@@ -86,24 +83,30 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                 # 断开旧连接
                 await websocket_tool._force_disconnect(client_id)
             
-            # 获取family相关的所有client_id
+            # 获取family相关的所有client_id（账号所在的所有家庭的成员）
             family_clients = []
             
-            # 获取owner的client_id
-            owner = await get_user(db, user_id)
-            if owner:
-                family_clients.append(f"owner_{owner.id}")
-
-            # 获取所有member的client_id
-            members = await get_members_by_user(db, user_id)
-            for member in members:
-                family_clients.append(f"member_{member.id}")
+            # 添加当前账号的client_id
+            family_clients.append(f"user_{account_id}")
+            
+            # 获取账号所在的所有家庭
+            from app.crud.family import get_families_by_account
+            families = await get_families_by_account(db, account_id)
+            
+            # 获取所有家庭成员
+            for family in families:
+                from app.crud.family_member import get_family_members_by_family
+                members = await get_family_members_by_family(db, family.id)
+                for member in members:
+                    member_client_id = f"user_{member.account_id}"
+                    if member_client_id not in family_clients:
+                        family_clients.append(member_client_id)
             
             # 连接成功，设置客户端ID和元数据
             metadata = {
                 "client_id": client_id,
                 "role": role,
-                "real_id": real_id,
+                "real_id": account_id,
                 "family_clients": family_clients
             }
             
@@ -121,7 +124,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                     client_id=client_id,
                     message_type="connect",
                     data={
-                        "senderId": real_id,
+                        "senderId": account_id,
                         "senderRole": role,
                         "title": "用户连接",
                         "message": f"{account.nickname or account.phone} 已连接",
@@ -145,7 +148,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                         client_id=client_id,
                         message_type="disconnect",
                         data={
-                            "senderId": real_id,
+                            "senderId": account_id,
                             "senderRole": role,
                             "title": "用户断开连接",
                             "message": f"{account.nickname or account.phone} 已断开连接",
@@ -166,7 +169,7 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                         client_id=client_id,
                         message_type="disconnect",
                         data={
-                            "senderId": real_id,
+                            "senderId": account_id,
                             "senderRole": role,
                             "title": "用户断开连接",
                             "message": f"{account.nickname or account.phone} 已断开连接",

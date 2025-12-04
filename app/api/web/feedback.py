@@ -58,14 +58,14 @@ async def create_feedback(
     # 发送family消息通知创建意见反馈
     try:
         role = token_info.get("role")
-        real_id = token_info.get("id")
-        if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+        account_id = token_info.get("account_id")
+        if role and account_id is not None:
+            client_id = f"{role}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="feedback.create",
                 data={
-                    "senderId": real_id,
+                    "senderId": account_id,
                     "senderRole": role,
                     "title": "意见反馈",
                     "message": f"用户 {feedback_in.name} 创建了意见反馈",
@@ -102,31 +102,14 @@ async def get_feedbacks(
             type=type,
             status=status
         )
-    elif token_info["role"] == AccountRole.owner:
-        # 主账号可以看到自己和所有成员的反馈
-        return await feedback.get_by_user_and_members(
+    else:
+        # 普通用户可以看到自己和所在家庭所有成员的反馈
+        return await feedback.get_by_family_members(
             db=db,
-            user_account_id=token_info["account_id"],
+            account_id=token_info["account_id"],
             skip=skip,
             limit=limit,
             type=type,
             status=status
         )
-    elif token_info["role"] == AccountRole.member:
-        # 成员可以看到自己和所属user的所有反馈
-        # 直接从token中获取user_id，然后获取user的account_id
-        from app.crud.user import get_user
-        user = await get_user(db, token_info["user_id"])
-        
-        if user:
-            # 返回user及其所有成员的反馈
-            return await feedback.get_by_user_and_members(
-                db=db,
-                user_account_id=user.account_id,
-                skip=skip,
-                limit=limit,
-                type=type,
-                status=status
-            )
-    return []
 

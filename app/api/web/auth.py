@@ -15,9 +15,6 @@ from app.crud.account import (
     create_account,
     update_account,
 )
-from app.crud.user import create_user, get_user_by_account_id
-from app.crud.member import create_member, get_member_by_account_id
-from app.crud.admin import get_admin_by_account_id
 from app.crud.user_operation_log import user_operation_log
 from app.models.account import (
     AccountCreate,
@@ -90,36 +87,17 @@ async def _generate_login_token_and_notify(
         "platform": platform,  # 添加平台信息到token
     }
     
-    # 根据账号角色获取真正的ID和user_id
-    user_id = None
-    if acc.role == AccountRole.admin:
-        admin = await get_admin_by_account_id(db, acc.id)
-        if admin:
-            extra_claims["id"] = admin.id
-    elif acc.role == AccountRole.member:
-        member = await get_member_by_account_id(db, acc.id)
-        if member:
-            extra_claims["id"] = member.id
-            user_id = member.user_id
-            extra_claims["user_id"] = user_id
-    elif acc.role == AccountRole.owner:
-        user = await get_user_by_account_id(db, acc.id)
-        if user:
-            extra_claims["id"] = user.id
-            user_id = user.id
-            extra_claims["user_id"] = user_id
-    
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
     
-    # 发送family消息通知登录（仅owner和member）
+    # 发送websocket消息通知登录
     # 延迟一秒发送，防止客户端的websocket连接还没建立
-    if acc.role in [AccountRole.owner, AccountRole.member] and "id" in extra_claims:
+    if acc.role == AccountRole.user:
         async def send_login_message():
             await asyncio.sleep(1)  # 延迟一秒
             try:
                 role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-                real_id = extra_claims["id"]
-                client_id = f"{role_str}_{real_id}"
+                account_id = acc.id
+                client_id = f"{role_str}_{account_id}"
                 
                 # 根据登录类型设置不同的消息
                 if login_type == "wechat":
@@ -131,7 +109,7 @@ async def _generate_login_token_and_notify(
                     client_id=client_id,
                     message_type="login",
                     data={
-                        "senderId": real_id,
+                        "senderId": account_id,
                         "senderRole": role_str,
                         "title": "用户登录",
                         "message": message_text,
@@ -169,9 +147,7 @@ async def _generate_login_token_and_notify(
     return TokenResponse(
         access_token=token,
         role=acc.role,
-        account=Account.model_validate(acc),
-        id=extra_claims.get("id"),
-        user_id=extra_claims.get("user_id")
+        account=Account.model_validate(acc)
     )
 
 
@@ -299,12 +275,12 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             gender=req.gender,  # type: ignore[arg-type]
             email=norm_email,
             avatar=req.avatar,
-            role=AccountRole.owner,
+            role=AccountRole.user,
         ),
     )
 
     # 创建 user（owner 对应记录）
-    await create_user(db, user=type("UserCreate", (), {"account_id": acc.id})())
+    # 不再需要创建 user 记录
 
     # 记录注册操作
     try:
@@ -314,7 +290,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
                 operation_type=OperationTypeEnum.register,
                 description=f"用户注册新账号（{acc.nickname or acc.phone}）",
                 extra={
-                    "registration_type": "owner",
+                    "registration_type": "user",
                     "phone": acc.phone,
                     "email": acc.email
                 }
@@ -337,18 +313,18 @@ async def logout(
     """用户登出"""
     
     # 构建 client_id
-    user_id = token_info["id"] if "id" in token_info else None
+    account_id = token_info["account_id"] if "account_id" in token_info else None
     role = token_info["role"] if "role" in token_info else None
-    if user_id and role:
-        client_id = f"{role}_{user_id}"
+    if account_id and role:
+        client_id = f"{role}_{account_id}"
         
-        # 发送family消息通知登出
+        # 发送websocket消息通知登出
         try:
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="logout",
                 data={
-                    "senderId": user_id,
+                    "senderId": account_id,
                     "senderRole": role,
                     "title": "用户登出",
                     "message": f"{current_account.nickname or current_account.phone} 已登出",
@@ -538,7 +514,7 @@ async def check_wechat_login_status(
                         nickname=nickname,
                         avatar=avatar,
                         gender=gender,
-                        role=AccountRole.owner,  # 微信登录默认创建owner
+                        role=AccountRole.user,  # 微信登录默认创建user
                         password=None  # 微信登录不需要密码
                     )
                 )
@@ -549,7 +525,7 @@ async def check_wechat_login_status(
                 await db.refresh(acc)
                 
                 # 创建对应的user记录
-                await create_user(db, user=type("UserCreate", (), {"account_id": acc.id})())
+                # 不再需要创建 user 记录
             
             # 判断手机号是否为真实手机号（格式：1开头的11位数字）
             phone_pattern = r"^1\d{10}$"
@@ -755,6 +731,215 @@ async def set_password(
         print(f"记录操作失败: {e}")
     
     return {"message": "密码设置成功"}
+
+
+@router.patch("/profile", response_model=Account)
+async def update_profile(
+    account_update: AccountUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_account: Account = Depends(get_current_account)
+):
+    """更新当前用户信息
+    
+    接收一个对象，只更新提供的字段：
+    - nickname: 昵称
+    - gender: 性别 (male/female/other)
+    - email: 邮箱
+    - phone: 手机号
+    - avatar: 头像URL
+    - password: 密码（RSA加密的Base64字符串，会自动解密）
+    """
+    # 如果提供了密码，需要先解密
+    update_data = account_update.dict(exclude_unset=True)
+    
+    if "password" in update_data and update_data["password"]:
+        try:
+            # RSA解密密码
+            plain_password = rsa_crypto.decrypt(update_data["password"])
+            # 验证密码长度
+            if len(plain_password) < 6:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="密码长度至少6位"
+                )
+            update_data["password"] = plain_password
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"密码解密失败: {str(e)}"
+            )
+    
+    # 如果提供了手机号，检查是否已被其他账号使用
+    if "phone" in update_data and update_data["phone"]:
+        existing_account = await get_account_by_phone(db, update_data["phone"])
+        if existing_account and existing_account.id != current_account.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该手机号已被其他账号使用"
+            )
+    
+    # 如果提供了邮箱，检查是否已被其他账号使用
+    if "email" in update_data and update_data["email"]:
+        existing_account = await get_account_by_email(db, update_data["email"])
+        if existing_account and existing_account.id != current_account.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该邮箱已被其他账号使用"
+            )
+    
+    # 创建更新对象
+    update_obj = AccountUpdate(**update_data)
+    
+    # 更新账号信息
+    updated_account = await update_account(db, current_account.id, update_obj)
+    
+    if not updated_account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="账号不存在"
+        )
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.account_update,
+                description="更新用户信息",
+                extra={"updated_fields": list(update_data.keys())}
+            ),
+            account_id=current_account.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响更新流程
+        print(f"记录操作日志失败: {e}")
+    
+    return updated_account
+
+
+@router.delete("/account")
+async def delete_account(
+    db: AsyncSession = Depends(get_db),
+    current_account: Account = Depends(get_current_account),
+    token_info: dict = Depends(get_current_token)
+):
+    """注销账号（删除当前登录用户的账号）
+    
+    不需要接收参数，会自动删除当前登录用户的账号。
+    删除前会：
+    1. 如果账号是家庭创建者，自动删除这些家庭（会级联删除家庭成员和设备关联）
+    2. 从所有家庭中移除设备关联（family_device 表）
+    3. 更新设备状态为 unbound
+    4. 记录操作日志
+    5. 发送 WebSocket 通知
+    6. 删除账号（会级联删除家庭成员关系、签到记录、积分记录、反馈、操作日志等）
+    
+    注意：
+    - device.account_id 会在删除账号时自动设为 NULL（ON DELETE SET NULL）
+    - family_member 记录会在删除账号时自动删除（ON DELETE CASCADE）
+    """
+    account_id = token_info["account_id"]
+    
+    # 如果账号是任何家庭的创建者，先删除这些家庭
+    from app.crud.family_member import get_family_members_by_account
+    from app.models.family_member import FamilyMemberRole
+    from app.crud.family import get_family, delete_family
+    
+    family_members = await get_family_members_by_account(db, account_id)
+    creator_families = [fm for fm in family_members if fm.role == FamilyMemberRole.creator]
+    
+    # 删除所有创建的家庭
+    for fm in creator_families:
+        family = await get_family(db, fm.family_id)
+        if family:
+            # 记录删除家庭的操作日志
+            try:
+                await user_operation_log.create(
+                    db=db,
+                    obj_in=UserOperationLogCreate(
+                        operation_type=OperationTypeEnum.family_delete,
+                        description=f"删除家庭: {family.name}（账号注销时自动删除）",
+                        extra={"family_id": family.id, "family_name": family.name, "reason": "account_deletion"}
+                    ),
+                    account_id=account_id
+                )
+            except Exception as e:
+                print(f"记录删除家庭操作日志失败: {e}")
+            
+            # 删除家庭（会级联删除家庭成员和设备关联）
+            # delete_family 内部已经提交事务
+            await delete_family(db, fm.family_id)
+    
+    # 记录操作日志（在删除前记录，因为删除后日志也会被级联删除）
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.account_delete,
+                description=f"注销账号：{current_account.nickname or current_account.phone}",
+                extra={
+                    "account_id": account_id,
+                    "nickname": current_account.nickname,
+                    "phone": current_account.phone
+                }
+            ),
+            account_id=account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响注销流程
+        print(f"记录操作日志失败: {e}")
+    
+    # 处理设备：从所有家庭中移除，并更新状态
+    # 注意：device.account_id 会在删除账号时自动设为 NULL（ON DELETE SET NULL）
+    from app.crud.device import get_devices_by_account
+    from app.crud.family_device import delete_all_family_devices_by_device
+    from app.models.device import DeviceStatus
+    
+    devices = await get_devices_by_account(db, account_id)
+    for device in devices:
+        # 从所有家庭中移除设备（必须手动处理，因为 family_device 没有 account_id 外键）
+        await delete_all_family_devices_by_device(db, device.id)
+        # 更新设备状态为 unbound（数据库不会自动更新状态）
+        device.status = DeviceStatus.unbound
+        # 不需要手动设置 device.account_id = None，数据库会自动处理（ON DELETE SET NULL）
+    
+    await db.commit()
+    
+    # 发送 WebSocket 通知（在删除前发送）
+    try:
+        role = token_info.get("role")
+        if role and account_id is not None:
+            client_id = f"{role}_{account_id}"
+            await websocket_tool.send_family_message(
+                client_id=client_id,
+                message_type="account.delete",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "账号注销",
+                    "message": f"{current_account.nickname or current_account.phone} 的账号已注销",
+                    "level": "warning"
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响注销流程
+        print(f"发送注销通知失败: {e}")
+    
+    # 删除账号（会级联删除家庭成员关系、签到记录、积分记录、反馈、操作日志等）
+    # device.account_id 会自动设为 NULL（ON DELETE SET NULL）
+    from app.crud.account import delete_account as delete_account_crud
+    success = await delete_account_crud(db, account_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="账号不存在"
+        )
+    
+    await db.commit()
+    
+    return {"message": "账号已成功注销"}
 
 
 

@@ -67,30 +67,37 @@ class CRUDFeedback:
         )
         return result.scalars().all()
 
-    async def get_by_user_and_members(
+    async def get_by_family_members(
         self, 
         db: AsyncSession, 
         *, 
-        user_account_id: int, 
+        account_id: int, 
         skip: int = 0, 
         limit: int = 100,
         type: Optional[str] = None,
         status: Optional[str] = None
     ) -> List[Feedback]:
-        """获取用户及其所有成员的反馈列表"""
-        from app.db.models.user import User
-        from app.db.models.member import Member
+        """获取账号及其所在家庭所有成员的反馈列表"""
+        from app.db.models.family_member import FamilyMember
         
-        # 获取用户的所有成员账号ID
-        members_result = await db.execute(
-            select(Member.account_id)
-            .join(User, Member.user_id == User.id)
-            .where(User.account_id == user_account_id)
+        # 获取账号所在的所有家庭
+        families_result = await db.execute(
+            select(FamilyMember.family_id)
+            .where(FamilyMember.account_id == account_id)
         )
-        member_account_ids = [row[0] for row in members_result.fetchall()]
+        family_ids = [row[0] for row in families_result.fetchall()]
         
-        # 包含用户自己的账号ID
-        all_account_ids = [user_account_id] + member_account_ids
+        # 获取所有家庭成员账号ID
+        all_account_ids = [account_id]  # 包含自己
+        if family_ids:
+            members_result = await db.execute(
+                select(FamilyMember.account_id)
+                .where(FamilyMember.family_id.in_(family_ids))
+            )
+            member_account_ids = [row[0] for row in members_result.fetchall()]
+            all_account_ids.extend(member_account_ids)
+            # 去重
+            all_account_ids = list(set(all_account_ids))
         
         # 构建查询
         query = select(Feedback).where(Feedback.account_id.in_(all_account_ids))

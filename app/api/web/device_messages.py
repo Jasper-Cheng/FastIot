@@ -4,11 +4,12 @@ from typing import List, Optional
 
 from app.db.session import get_db
 from app.crud.device_message import (
-    get_user_device_messages,
+    get_account_device_messages,
     update_device_message_status,
-    mark_all_user_device_messages_read,
+    mark_all_account_device_messages_read,
     get_device_message,
 )
+from app.crud.device_permission import can_control_device
 from app.crud.device import get_device
 from app.models.device_message import (
     DeviceMessageInDB,
@@ -54,13 +55,13 @@ async def list_device_messages(
                 detail=f"无效的消息状态 '{status}'。有效值: {', '.join(valid_statuses)}"
             )
     
-    # 使用token中的user_id
-    user_id = token_info["user_id"]
+    # 使用token中的account_id
+    account_id = token_info["account_id"]
     
     # 在数据库查询中应用过滤条件和分页
-    alerts = await get_user_device_messages(
+    alerts = await get_account_device_messages(
         db, 
-        user_id, 
+        account_id, 
         skip=skip,
         limit=limit,
         level=level,
@@ -72,12 +73,13 @@ async def list_device_messages(
 
 @router.patch("/{message_id}/make-read", response_model=DeviceMessageInDB)
 async def make_device_message_read(
-    message_id: int, 
+    message_id: int,
+    family_id: Optional[int] = Query(None, description="当前家庭ID"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
     """标记设备消息为已读状态"""
-    user_id = token_info["user_id"]
+    account_id = token_info["account_id"]
     
     # 获取消息记录
     message = await get_device_message(db, message_id)
@@ -89,28 +91,28 @@ async def make_device_message_read(
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
-    # 验证设备是否属于当前用户
-    if device.user_id != user_id:
+    # 检查权限：个人设备由拥有者控制，家庭设备由家庭成员控制
+    if not await can_control_device(db, account_id, message.device_id, family_id):
         raise HTTPException(status_code=403, detail="无权标记此设备消息")
     
     updated = await update_device_message_status(db, message_id, DeviceMessageStatus.read)
     if not updated:
         raise HTTPException(status_code=404, detail="设备消息不存在")
     
-    # 发送family消息通知设备消息已读
+    # 发送websocket消息通知设备消息已读
     try:
         role = token_info.get("role")
-        real_id = token_info.get("id")
-        if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+        account_id = token_info.get("account_id")
+        if role and account_id is not None:
+            client_id = f"{role}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.message.read",
                 data={
-                    "senderId": real_id,
+                    "senderId": account_id,
                     "senderRole": role,
                     "title": "设备消息已读",
-                    "message": f"设备 {device.name or device.device_id} 的消息已标记为已读",
+                    "message": f"设备 {device.name or device.id} 的消息已标记为已读",
                     "level": "normal",
                     "deviceId": device.id,
                     "deviceName": device.name,
@@ -129,24 +131,23 @@ async def mark_all_device_messages_read(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
-    """标记当前用户所有设备消息为已读"""
-    # 使用token中的user_id
-    user_id = token_info["user_id"]
+    """标记当前账号所有设备消息为已读"""
+    # 使用token中的account_id
+    account_id = token_info["account_id"]
     
-    # 更新用户所有设备的消息状态为已读
-    count = await mark_all_user_device_messages_read(db, user_id)
+    # 更新账号所有设备的消息状态为已读
+    count = await mark_all_account_device_messages_read(db, account_id)
     
-    # 发送family消息通知所有设备消息已读
+    # 发送websocket消息通知所有设备消息已读
     try:
         role = token_info.get("role")
-        real_id = token_info.get("id")
-        if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+        if role and account_id is not None:
+            client_id = f"{role}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.message.mark_all_read",
                 data={
-                    "senderId": real_id,
+                    "senderId": account_id,
                     "senderRole": role,
                     "title": "所有设备消息已读",
                     "message": f"{count} 条设备消息已标记为已读",
@@ -158,4 +159,4 @@ async def mark_all_device_messages_read(
         # 发送消息失败不影响业务流程
         print(f"发送所有设备消息已读通知失败: {e}")
     
-    return {"message": f"用户 {user_id} 的 {count} 条设备消息已标记为已读"}
+    return {"message": f"账号 {account_id} 的 {count} 条设备消息已标记为已读"}

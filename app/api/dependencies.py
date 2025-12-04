@@ -23,19 +23,15 @@ async def get_current_token(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         account_id: int | None = payload.get("account_id")
-        id: int | None = payload.get("id")  # 使用统一的id字段
         role: str | None = payload.get("role")  # 直接使用token中的role字段
-        user_id: int | None = payload.get("user_id")  # user_id（owner和member有，admin可能没有）
         platform: str | None = payload.get("platform", "web")  # 平台信息，默认为"web"
         
-        if not account_id or not id or not role or not user_id:
+        if not account_id or not role:
             raise credentials_exception
             
         return {
             "account_id": account_id,
-            "id": id,
             "role": role,
-            "user_id": user_id,
             "platform": platform
         }
     except JWTError:

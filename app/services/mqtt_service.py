@@ -394,30 +394,33 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
                 created_message = await create_device_message(db, device_message)
                 print(f"✅ [M701001] 告警消息已插入数据库，消息ID: {created_message.id}")
                 
-                # 发送 family message（遍历 owner 和所有 members，找到第一个在线的发送）
-                if device.user_id:
-                    from app.crud.member import get_members_by_user
-                    
-                    # 获取所有 members
-                    members = await get_members_by_user(db, device.user_id)
-                    
-                    # 构建所有 family 成员的 client_id 列表（owner 在前）
-                    family_client_ids = [f"owner_{device.user_id}"]
-                    for member in members:
-                        family_client_ids.append(f"member_{member.id}")
-                    
-                    # 循环查找第一个在线的客户端并发送消息
+                # 发送 websocket message（遍历账号和家庭成员，找到第一个在线的发送）
+                family_client_ids = []
+                
+                # 如果是个人设备，发送给设备拥有者
+                if device.account_id:
+                    family_client_ids.append(f"user_{device.account_id}")
+                
+                # 如果是家庭设备，发送给所有家庭成员（通过 family_device 关联表）
+                from app.crud.family_device import get_device_families
+                from app.crud.family_member import get_family_members_by_family
+                device_families = await get_device_families(db, device.id)
+                for family in device_families:
+                    family_members = await get_family_members_by_family(db, family.id)
+                    for member in family_members:
+                        client_id = f"user_{member.account_id}"
+                        if client_id not in family_client_ids:
+                            family_client_ids.append(client_id)
+                
+                # 循环查找第一个在线的客户端并发送消息
+                if family_client_ids:
                     sent = False
                     for client_id in family_client_ids:
                         if websocket_tool.is_client_connected(client_id):
                             # 确定发送者信息
-                            if client_id.startswith("owner_"):
-                                sender_id = device.user_id
-                                sender_role = "owner"
-                            else:
-                                member_id = int(client_id.split("_")[1])
-                                sender_id = member_id
-                                sender_role = "member"
+                            account_id = int(client_id.split("_")[1])
+                            sender_id = account_id
+                            sender_role = "user"
                             
                             await websocket_tool.send_family_message(
                                 client_id=client_id,
@@ -435,14 +438,14 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
                                     "alerts": alert_details
                                 }
                             )
-                            print(f"✅ [M701001] 告警 family message 已通过 {client_id} 发送")
+                            print(f"✅ [M701001] 告警 websocket message 已通过 {client_id} 发送")
                             sent = True
                             break  # 找到第一个在线的就退出循环
                     
                     if not sent:
-                        print(f"⚠️ [M701001] 所有 family 成员均未在线，无法发送 family message")
+                        print(f"⚠️ [M701001] 所有相关账号均未在线，无法发送 websocket message")
                 else:
-                    print(f"⚠️ [M701001] 设备 {sn} 未绑定用户，无法发送 family message")
+                    print(f"⚠️ [M701001] 设备 {sn} 未绑定账号或家庭，无法发送 websocket message")
                     
         except Exception as e:
             print(f"❌ [M701001] 处理告警失败 ({sn}): {e}")
@@ -472,8 +475,11 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
                 print(f"⚠️ [M701001] 设备 {sn} 不存在于数据库中")
                 return
             
-            if device.user_id is None:
-                print(f"⚠️ [M701001] 设备 {sn} 未绑定用户，无法更新状态")
+            # 检查设备是否属于账号或家庭
+            from app.crud.family_device import get_device_families
+            device_families = await get_device_families(db, device.id)
+            if device.account_id is None and len(device_families) == 0:
+                print(f"⚠️ [M701001] 设备 {sn} 未绑定账号或家庭，无法更新状态")
                 return
             
             # 更新设备状态

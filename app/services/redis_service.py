@@ -53,29 +53,29 @@ class RedisService:
         except Exception as e:
             print(f"❌ 设置设备信息缓存失败: {e}")
     
-    async def get_user_device_ids(self, user_id: int) -> Optional[list]:
-        """获取用户设备ID列表缓存"""
+    async def get_account_device_ids(self, account_id: int) -> Optional[list]:
+        """获取账号设备ID列表缓存"""
         if not self.redis:
             return None
         try:
-            key = f"user_devices:{user_id}"
+            key = f"account_devices:{account_id}"
             data = await self.redis.get(key)
             if data:
                 return json.loads(data)
             return None
         except Exception as e:
-            print(f"❌ 获取用户设备ID列表失败: {e}")
+            print(f"❌ 获取账号设备ID列表失败: {e}")
             return None
     
-    async def set_user_device_ids(self, user_id: int, device_ids: list, expire: int = 1800):
-        """设置用户设备ID列表缓存"""
+    async def set_account_device_ids(self, account_id: int, device_ids: list, expire: int = 1800):
+        """设置账号设备ID列表缓存"""
         if not self.redis:
             return
         try:
-            key = f"user_devices:{user_id}"
+            key = f"account_devices:{account_id}"
             await self.redis.setex(key, expire, json.dumps(device_ids))
         except Exception as e:
-            print(f"❌ 设置用户设备ID列表失败: {e}")
+            print(f"❌ 设置账号设备ID列表失败: {e}")
     
     async def delete_device_cache(self, device_id: int):
         """删除设备相关缓存"""
@@ -84,8 +84,8 @@ class RedisService:
         try:
             # 删除设备信息缓存
             await self.redis.delete(f"device_info:{device_id}")
-            # 删除所有用户的设备ID列表缓存（需要重新加载）
-            pattern = "user_devices:*"
+            # 删除所有账号的设备ID列表缓存（需要重新加载）
+            pattern = "account_devices:*"
             keys = await self.redis.keys(pattern)
             if keys:
                 await self.redis.delete(*keys)

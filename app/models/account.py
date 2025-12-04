@@ -4,8 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 class AccountRole(str, Enum):
-    owner = "owner"
-    member = "member"
+    user = "user"
     admin = "admin"
 
 class AccountGender(str, Enum):
@@ -19,7 +18,7 @@ class AccountBase(BaseModel):
     phone: str
     email: Optional[str] = None
     avatar: Optional[str] = None
-    role: Optional[AccountRole] = AccountRole.member
+    role: Optional[AccountRole] = AccountRole.user
 
 class AccountCreate(AccountBase):
     password: Optional[str] = None
@@ -62,8 +61,6 @@ class TokenResponse(BaseModel):
     token_type: Literal["bearer"] = "bearer"
     role: AccountRole
     account: Account
-    id: int | None = None  # 统一的用户ID（admin/owner/member的真正ID）
-    user_id: int | None = None  # user_id（owner和member有，admin没有）
 
 
 class RegisterRequest(BaseModel):

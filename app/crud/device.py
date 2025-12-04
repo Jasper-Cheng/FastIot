@@ -1,10 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from app.db.models.device import Device
 from app.models.device import DeviceUpdate
 from typing import Optional, List
-from app.db.models.room_device import RoomDevice
-from app.db.models.member_device_permission import MemberDevicePermission
 
 async def get_device(db: AsyncSession, device_id: int) -> Optional[Device]:
     """根据ID获取设备"""
@@ -22,10 +20,9 @@ async def update_device(db: AsyncSession, device_id: int, device: DeviceUpdate) 
     if not db_device:
         return None
     
-    previous_user_id = db_device.user_id
     update_data = device.dict(exclude_unset=True)
-    # 允许更新的字段白名单
-    allowed_fields = {"name", "sn", "status", "user_id"}
+    # 允许更新的字段白名单（移除 family_id，因为现在使用 family_device 关联表）
+    allowed_fields = {"name", "sn", "status", "account_id"}
     for field, value in update_data.items():
         if field not in allowed_fields:
             continue
@@ -33,22 +30,52 @@ async def update_device(db: AsyncSession, device_id: int, device: DeviceUpdate) 
             setattr(db_device, field, (value.value if hasattr(value, 'value') else value))
         else:
             setattr(db_device, field, value)
-    # 如果设备从绑定状态改为未绑定，清理与用户相关的关联记录
-    if previous_user_id is not None and db_device.user_id is None:
-        # 删除房间-设备关系
-        await db.execute(
-            delete(RoomDevice).where(RoomDevice.device_id == device_id)
-        )
-        # 删除成员-设备权限关系
-        await db.execute(
-            delete(MemberDevicePermission).where(MemberDevicePermission.device_id == device_id)
-        )
 
     await db.commit()
     await db.refresh(db_device)
     return db_device
 
-async def get_devices_by_user(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100) -> List[Device]:
-    """根据用户ID获取设备列表"""
-    result = await db.execute(select(Device).filter(Device.user_id == user_id).offset(skip).limit(limit))
+async def get_devices_by_account(
+    db: AsyncSession,
+    account_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    family_id: Optional[int] = None
+) -> List[Device]:
+    """根据账号ID获取设备列表
+
+    - 提供 family_id 时：只返回该家庭的设备
+    - 未提供 family_id 时：只返回个人设备
+    """
+    from app.db.models.family_member import FamilyMember
+    from app.db.models.family_device import FamilyDevice
+
+    if family_id:
+        # 检查账号是否属于该家庭
+        family_member_result = await db.execute(
+            select(FamilyMember).filter(
+                FamilyMember.family_id == family_id,
+                FamilyMember.account_id == account_id
+            )
+        )
+        if not family_member_result.scalar_one_or_none():
+            return []
+
+        query = (
+            select(Device)
+            .join(FamilyDevice, Device.id == FamilyDevice.device_id)
+            .filter(FamilyDevice.family_id == family_id)
+            .offset(skip)
+            .limit(limit)
+        )
+    else:
+        # 仅返回个人设备
+        query = (
+            select(Device)
+            .filter(Device.account_id == account_id)
+            .offset(skip)
+            .limit(limit)
+        )
+
+    result = await db.execute(query)
     return result.scalars().all()

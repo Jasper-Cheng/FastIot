@@ -21,11 +21,11 @@ class DeviceUpdate(BaseModel):
     name: Optional[str] = None
     sn: Optional[str] = None
     status: Optional[DeviceStatus] = None
-    user_id: Optional[int] = None
+    account_id: Optional[int] = None
 
 class DeviceInDB(DeviceBase):
     id: int
-    user_id: Optional[int] = None
+    account_id: Optional[int] = None
     model_id: int
     created_at: datetime
 

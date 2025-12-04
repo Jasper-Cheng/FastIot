@@ -3,7 +3,7 @@ CREATE DATABASE IF NOT EXISTS `iot` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicod
 
 USE `iot`;
 
--- 账号表：所有能登录的用户（包含主账号和子账号）
+-- 账号表：所有能登录的用户
 CREATE TABLE IF NOT EXISTS `account` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '账号ID',
     `password` VARCHAR(128) NULL COMMENT '密码',
@@ -13,45 +13,38 @@ CREATE TABLE IF NOT EXISTS `account` (
     `phone` VARCHAR(32) NOT NULL UNIQUE COMMENT '手机号',
     `email` VARCHAR(128) UNIQUE COMMENT '邮箱',
     `avatar` VARCHAR(255) NULL COMMENT '头像URL',
-    `role` ENUM('owner','member','admin') NOT NULL DEFAULT 'member' COMMENT '角色: 主账号/子账号/管理员',
+    `role` ENUM('user','admin') NOT NULL DEFAULT 'user' COMMENT '角色: 普通用户/管理员',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX `idx_unionid` (`unionid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账号表';
 
--- 管理员表：与 account 一一对应
-CREATE TABLE IF NOT EXISTS `admin` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '管理员ID',
-    `account_id` BIGINT NOT NULL UNIQUE COMMENT '对应 account.id',
+-- 家庭表：家庭/组织容器
+CREATE TABLE IF NOT EXISTS `family` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '家庭ID',
+    `name` VARCHAR(100) NOT NULL COMMENT '家庭名称',
+    `avatar` VARCHAR(255) NULL COMMENT '家庭头像',
+    `description` VARCHAR(500) NULL COMMENT '家庭描述',
+    `invite_code` VARCHAR(32) UNIQUE NULL COMMENT '家庭邀请码',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='管理员表';
+    `updated_at` TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX `idx_family_invite_code` (`invite_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='家庭表';
 
--- 用户表：主账号（家庭/组织的拥有者），和 account 一一对应
-CREATE TABLE IF NOT EXISTS `user` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
-    `account_id` BIGINT NOT NULL UNIQUE COMMENT '对应 account.id',
+-- 家庭成员关联表：账号与家庭的多对多关系
+CREATE TABLE IF NOT EXISTS `family_member` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '关联ID',
+    `family_id` BIGINT NOT NULL COMMENT '家庭ID',
+    `account_id` BIGINT NOT NULL COMMENT '账号ID',
+    `role` ENUM('creator','member') NOT NULL DEFAULT 'member' COMMENT '在家庭中的角色：创建者/成员',
+    `nickname` VARCHAR(64) NULL COMMENT '在家庭中的昵称（可选，覆盖账号默认昵称）',
+    `joined_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
-
--- 成员表：子账号，同样和 account 一一对应，并且属于某个 user
-CREATE TABLE IF NOT EXISTS `member` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '成员ID',
-    `user_id` BIGINT NOT NULL COMMENT '归属主账号',
-    `account_id` BIGINT NOT NULL UNIQUE COMMENT '对应 account.id',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='成员表';
-
--- 房间表：用于组织和管理设备的空间
-CREATE TABLE IF NOT EXISTS `room` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '房间ID',
-    `user_id` BIGINT NOT NULL COMMENT '所属用户ID',
-    `name` VARCHAR(50) NOT NULL COMMENT '房间名称',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='房间表';
+    FOREIGN KEY (`family_id`) REFERENCES `family`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+    UNIQUE KEY `uq_family_account` (`family_id`, `account_id`) COMMENT '同一账号在同一家庭中只能有一条记录',
+    INDEX `idx_family_member_family` (`family_id`),
+    INDEX `idx_family_member_account` (`account_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='家庭成员关联表';
 
 -- 物模型表：定义设备功能能力（属性/服务/事件）
 CREATE TABLE IF NOT EXISTS `device_thing_model` (
@@ -81,36 +74,31 @@ CREATE TABLE IF NOT EXISTS `device_model` (
 -- 设备表：具体的物联网设备实例
 CREATE TABLE IF NOT EXISTS `device` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '设备ID',
-    `user_id` BIGINT NULL COMMENT '所属用户ID',
+    `account_id` BIGINT NULL COMMENT '所属账号ID（个人设备）',
     `model_id` BIGINT NOT NULL COMMENT '设备型号ID',
     `name` VARCHAR(100) NOT NULL COMMENT '设备名称',
     `sn` VARCHAR(100) UNIQUE NOT NULL COMMENT '设备序列号',
     `status` ENUM('unconfigured','configured','unbound','bound','offline','online','fault') DEFAULT 'unconfigured' COMMENT '设备状态',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE SET NULL,
-    FOREIGN KEY (`model_id`) REFERENCES `device_model`(`id`)
+    FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`model_id`) REFERENCES `device_model`(`id`),
+    INDEX `idx_device_account` (`account_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备表';
 
--- 房间设备关联表：设备与房间的多对多关系
-CREATE TABLE IF NOT EXISTS `room_device` (
+-- 家庭设备关联表：设备与家庭的多对多关系（一个设备可以属于多个家庭）
+CREATE TABLE IF NOT EXISTS `family_device` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '关联ID',
-    `room_id` BIGINT NOT NULL COMMENT '房间ID',
+    `family_id` BIGINT NOT NULL COMMENT '家庭ID',
     `device_id` BIGINT NOT NULL COMMENT '设备ID',
-    `sort_order` INT DEFAULT 0 COMMENT '排序顺序',
-    FOREIGN KEY (`room_id`) REFERENCES `room`(`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='房间设备关联表';
-
-
--- 成员设备权限表：控制成员对设备的访问权限
-CREATE TABLE IF NOT EXISTS `member_device_permission` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '权限ID',
-    `member_id` BIGINT NOT NULL COMMENT '成员ID',
-    `device_id` BIGINT NOT NULL COMMENT '设备ID',
-    FOREIGN KEY (`member_id`) REFERENCES `member`(`id`) ON DELETE CASCADE,
+    `added_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '添加到家庭的时间',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    FOREIGN KEY (`family_id`) REFERENCES `family`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`device_id`) REFERENCES `device`(`id`) ON DELETE CASCADE,
-    UNIQUE(`member_id`, `device_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='成员设备权限表';
+    UNIQUE KEY `uq_family_device` (`family_id`, `device_id`) COMMENT '同一设备在同一家庭中只能有一条记录',
+    INDEX `idx_family_device_family` (`family_id`),
+    INDEX `idx_family_device_device` (`device_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='家庭设备关联表';
+
 
 -- 设备消息表：记录设备产生的消息信息
 CREATE TABLE IF NOT EXISTS `device_message` (
@@ -235,17 +223,13 @@ CREATE TABLE IF NOT EXISTS `feedback` (
     INDEX `idx_feedback_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='意见反馈表';
 
--- 插入默认账号和用户（密码: admin123）
+-- 插入默认账号（密码: admin123）
 INSERT INTO `account` (`password`, `nickname`, `email`, `role`, `phone`) 
 VALUES ('admin123', '管理员', 'admin@fastiot.com', 'admin', '13800000000')
 ON DUPLICATE KEY UPDATE `nickname` = VALUES(`nickname`);
 
--- 为默认管理员创建对应的 admin 记录
-INSERT INTO `admin` (`account_id`)
-SELECT `id` FROM `account` WHERE `email` = 'admin@fastiot.com' AND `role` = 'admin'
-ON DUPLICATE KEY UPDATE `account_id` = `account_id`;
-
--- 管理员账号不自动创建 user 记录
+-- 数据迁移：将 account.role 中的 'owner' 和 'member' 改为 'user'
+UPDATE `account` SET `role` = 'user' WHERE `role` IN ('owner', 'member');
 
 -- 插入示例物模型
 INSERT INTO `device_thing_model` (`name`, `description`, `properties`, `services`, `events`) 
@@ -289,20 +273,14 @@ VALUES
  '["air_quality_alert", "sensor_fault", "data_anomaly", "calibration_complete", "low_battery", "data_exported", "threshold_exceeded"]')
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
--- 插入示例设备
-INSERT INTO `device` (`user_id`, `model_id`, `name`, `sn`, `status`) 
-VALUES 
-(1, 1, '温度传感器-01', 'TEMP001', 'bound'),
-(1, 2, '湿度传感器-01', 'HUM001', 'bound'),
-(1, 3, '环境监测器-01', 'ENV001', 'bound'),
-(1, 4, '室内空气质量监测器-01', 'M701001', 'bound')
-ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+-- 注意：示例设备插入已移除，因为需要 account_id 或 family_id
+-- 实际使用时，设备应该通过 account_id 或 family_id 绑定
 
 -- 用户操作记录表：记录用户的重要操作行为
 CREATE TABLE IF NOT EXISTS `user_operation_log` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '操作记录ID',
     `account_id` BIGINT NOT NULL COMMENT '操作用户账号ID',
-    `operation_type` ENUM('login','logout','register','user_delete','user_update','device_bind','device_unbind','room_add','room_delete','room_device_sort','member_add','member_delete','member_update','permission_update','quick_control') NOT NULL COMMENT '操作类型',
+    `operation_type` ENUM('login','logout','register','account_delete','account_update','device_bind','device_unbind','family_create','family_delete','family_member_add','family_member_remove','family_member_update','permission_update','quick_control') NOT NULL COMMENT '操作类型',
     `description` VARCHAR(500) NOT NULL COMMENT '操作描述',
     `extra` JSON NULL COMMENT '扩展信息（如快捷控制的具体操作、设备排序详情等）',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',

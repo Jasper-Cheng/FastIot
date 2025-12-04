@@ -14,13 +14,12 @@ class Account(Base):
     phone = Column(String(32), unique=True, nullable=False)
     email = Column(String(128), unique=True, nullable=True)
     avatar = Column(String(255), nullable=True)
-    role = Column(Enum('owner', 'member', 'admin', name='role_enum'), nullable=False, default='member')
+    role = Column(Enum('user', 'admin', name='role_enum'), nullable=False, default='user')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # 关系
-    user = relationship("User", back_populates="account", uselist=False, passive_deletes=True)
-    member = relationship("Member", back_populates="account", uselist=False, passive_deletes=True)
-    admin = relationship("Admin", back_populates="account", uselist=False, passive_deletes=True)
+    devices = relationship("Device", foreign_keys="Device.account_id", back_populates="account", passive_deletes=True)
+    family_members = relationship("FamilyMember", back_populates="account", passive_deletes=True)
     check_ins = relationship("CheckIn", back_populates="account", passive_deletes=True)
     points = relationship("Points", back_populates="account", passive_deletes=True)
     feedbacks = relationship("Feedback", back_populates="account", passive_deletes=True)

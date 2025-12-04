@@ -13,10 +13,8 @@ def create_access_token(
     - 不再使用JWT的sub
     - extra_claims: 额外载荷，包含以下字段：
       - account_id: 账户ID（必填）
-      - role: 账户角色（必填，如 owner/member/admin）
+      - role: 账户角色（必填，如 user/admin）
       - platform: 平台标识（必填，如 web/mobile/app）
-      - id: 角色对应的实体ID（可选，如 user.id/member.id/admin.id）
-      - user_id: 用户ID（可选，仅member和owner有）
     """
     if expires_delta:
         expire = get_utc_time() + expires_delta

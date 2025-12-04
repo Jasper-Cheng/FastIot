@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 
 from app.db.session import get_db
 from app.crud.device import (
     get_device,
     get_device_by_sn,
-    get_devices_by_user,
+    get_devices_by_account,
     update_device,
 )
-from app.crud.user import get_user
+from app.crud.device_permission import can_control_device
 from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceNameUpdate, DeviceBindBySNRequest
 from app.models.account import AccountRole
@@ -25,17 +25,37 @@ async def list_devices(
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
+    family_id: Optional[int] = Query(None, description="当前家庭ID，如果提供则只返回该家庭的设备"),
     token_info: dict = Depends(get_current_token),
 ):
-    # 使用token中的user_id来获取设备
-    user_id = token_info["user_id"]
-    return await get_devices_by_user(db, user_id=user_id, skip=skip, limit=limit)
+    """获取设备列表
+    
+    - 如果提供 family_id：只返回个人设备 + 该家庭的设备
+    - 如果不提供 family_id：返回个人设备 + 所有家庭的设备
+    """
+    account_id = token_info["account_id"]
+    
+    # 如果提供了 family_id，验证是否是家庭成员
+    if family_id:
+        from app.crud.family_member import get_family_member_by_family_and_account
+        family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
+        if not family_member:
+            raise HTTPException(status_code=403, detail="无权访问此家庭")
+    
+    return await get_devices_by_account(
+        db, 
+        account_id=account_id, 
+        skip=skip, 
+        limit=limit,
+        family_id=family_id
+    )
 
 
 @router.patch("/{device_id}/name", response_model=DeviceInDB)
 async def update_device_name(
     device_id: int, 
-    payload: DeviceNameUpdate, 
+    payload: DeviceNameUpdate,
+    family_id: Optional[int] = Query(None, description="当前家庭ID"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
@@ -43,33 +63,32 @@ async def update_device_name(
     
     - name: 新的设备名称
     """
-    # 使用token中的user_id来获取设备
-    user_id = token_info["user_id"]
+    account_id = token_info["account_id"]
     
     # 检查设备是否存在
     device = await get_device(db, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
-    # 验证设备是否属于当前用户
-    if device.user_id != user_id:
+    # 检查权限：个人设备由拥有者控制，家庭设备由家庭成员控制
+    if not await can_control_device(db, account_id, device_id, family_id):
         raise HTTPException(status_code=403, detail="无权修改此设备")
     
     # 更新设备名称
     old_name = device.name
     updated = await update_device(db, device_id, DeviceUpdate(name=payload.name))
     
-    # 发送family消息通知设备名称修改
+    # 发送websocket消息通知设备名称修改
     try:
         role = token_info.get("role")
-        real_id = token_info.get("id")
-        if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+        account_id = token_info.get("account_id")
+        if role and account_id is not None:
+            client_id = f"{role}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.name.update",
                 data={
-                    "senderId": real_id,
+                    "senderId": account_id,
                     "senderRole": role,
                     "title": "设备名称修改",
                     "message": f"设备 {old_name} 已更名为 {payload.name}",
@@ -92,17 +111,12 @@ async def bind_device_by_sn(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
-    """通过序列号绑定设备到当前用户
+    """通过序列号绑定设备到当前账号
     
     - sn: 设备序列号
-    - 只有owner角色才能绑定设备
     """
 
-    user_id = token_info["user_id"]
-
-    # 验证只有owner角色才能绑定设备
-    if token_info["role"] != AccountRole.owner:
-        raise HTTPException(status_code=403, detail="无权绑定设备")
+    account_id = token_info["account_id"]
     
     # 通过序列号查找设备
     device = await get_device_by_sn(db, payload.sn)
@@ -110,14 +124,14 @@ async def bind_device_by_sn(
         raise HTTPException(status_code=404, detail="设备不存在")
     
     # 检查设备状态是否允许绑定
-    if device.user_id is not None:
-        raise HTTPException(status_code=400, detail="设备已被其他用户绑定")
+    if device.account_id is not None:
+        raise HTTPException(status_code=400, detail="设备已被其他账号绑定")
     
     if device.status not in ['unconfigured', 'configured', 'unbound']:
         raise HTTPException(status_code=400, detail="设备状态不允许激活，当前状态：" + device.status)
     
-    # 绑定设备：绑定用户并更新状态
-    device.user_id = user_id
+    # 绑定设备：绑定账号并更新状态
+    device.account_id = account_id
     device.status = 'bound'  # 激活后状态变为已绑定
     
     await db.commit()
@@ -134,27 +148,26 @@ async def bind_device_by_sn(
                     "device_id": device.id,
                     "device_name": device.name,
                     "device_sn": device.sn,
-                    "bound_user_id": user_id,
+                    "bound_account_id": account_id,
                     "device_status": device.status
                 }
             ),
-            account_id=token_info["account_id"]
+            account_id=account_id
         )
     except Exception as e:
         # 记录操作失败不影响绑定流程
         print(f"记录设备绑定操作失败: {e}")
 
-    # 发送family消息通知设备绑定
+    # 发送websocket消息通知设备绑定
     try:
         role = token_info.get("role")
-        real_id = token_info.get("id")
-        if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+        if role and account_id is not None:
+            client_id = f"{role}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.bind",
                 data={
-                    "senderId": real_id,
+                    "senderId": account_id,
                     "senderRole": role,
                     "title": "设备绑定",
                     "message": f"设备 {device.name} 已绑定",
@@ -178,15 +191,12 @@ async def unbind_device_by_sn(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
-    """通过序列号解绑设备，将设备从用户中移除
+    """通过序列号解绑设备，将设备从账号中移除
     
     - sn: 设备序列号
     """
 
-    user_id = token_info["user_id"]
-    
-    if token_info["role"] != AccountRole.owner:
-        raise HTTPException(status_code=403, detail="无权解绑设备")
+    account_id = token_info["account_id"]
 
     # 通过序列号查找设备
     device = await get_device_by_sn(db, sn)
@@ -194,55 +204,56 @@ async def unbind_device_by_sn(
         raise HTTPException(status_code=404, detail="设备不存在")
 
     # 检查设备是否已绑定
-    if device.user_id is None:
+    if device.account_id is None:
         raise HTTPException(status_code=400, detail="设备未绑定，无需解绑")
     
-    # 验证设备是否属于当前用户
-    if device.user_id != user_id:
+    # 验证设备是否属于当前账号
+    if device.account_id != account_id:
         raise HTTPException(status_code=403, detail="无权解绑此设备")
     
     # 记录解绑前的设备信息
-    original_user_id = device.user_id
     device_name = device.name
     
-    # 通过统一更新逻辑处理解绑与清理关联关系
-    updated = await update_device(db, device.id, DeviceUpdate(user_id=None, status=DeviceStatus.unbound))
+    # 从所有家庭中移除设备
+    from app.crud.family_device import delete_all_family_devices_by_device
+    removed_count = await delete_all_family_devices_by_device(db, device.id)
+    if removed_count > 0:
+        print(f"设备 {device_name} 已从 {removed_count} 个家庭中移除")
+    
+    # 通过统一更新逻辑处理解绑
+    updated = await update_device(db, device.id, DeviceUpdate(account_id=None, status=DeviceStatus.unbound))
     
     # 记录设备解绑操作
     try:
-        # 获取被解绑用户的账号信息
-        unbound_user = await get_user(db, original_user_id)
-        if unbound_user:
-            await user_operation_log.create(
-                db=db,
-                obj_in=UserOperationLogCreate(
-                    operation_type=OperationTypeEnum.device_unbind,
-                    description=f"解绑设备：{device_name}（SN: {sn}）",
-                    extra={
-                        "device_id": device.id,
-                        "device_name": device_name,
-                        "device_sn": sn,
-                        "unbound_user_id": original_user_id,
-                        "device_status": updated.status if updated else "unbound"
-                    }
-                ),
-                account_id=unbound_user.account_id
-            )
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_unbind,
+                description=f"解绑设备：{device_name}（SN: {sn}）",
+                extra={
+                    "device_id": device.id,
+                    "device_name": device_name,
+                    "device_sn": sn,
+                    "unbound_account_id": account_id,
+                    "device_status": updated.status if updated else "unbound"
+                }
+            ),
+            account_id=account_id
+        )
     except Exception as e:
         # 记录操作失败不影响解绑流程
         print(f"记录设备解绑操作失败: {e}")
     
-    # 发送family消息通知设备解绑
+    # 发送websocket消息通知设备解绑
     try:
         role = token_info.get("role")
-        real_id = token_info.get("id")
-        if role and real_id is not None:
-            client_id = f"{role}_{real_id}"
+        if role and account_id is not None:
+            client_id = f"{role}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.unbind",
                 data={
-                    "senderId": real_id,
+                    "senderId": account_id,
                     "senderRole": role,
                     "title": "设备解绑",
                     "message": f"设备 {device_name} 已解绑",

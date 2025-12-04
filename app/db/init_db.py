@@ -8,16 +8,12 @@ from sqlalchemy import text
 from app.db.base import Base
 from app.db.session import engine
 from app.db.models.account import Account
-from app.db.models.admin import Admin
-from app.db.models.user import User
-from app.db.models.member import Member
-from app.db.models.room import Room
+from app.db.models.family import Family
+from app.db.models.family_member import FamilyMember
 from app.db.models.device import Device
 from app.db.models.device_thing_model import DeviceThingModel
 from app.db.models.device_model import DeviceModel
 from app.db.models.device_message import DeviceMessage
-from app.db.models.room_device import RoomDevice
-from app.db.models.member_device_permission import MemberDevicePermission
 from app.db.models.device_network import DeviceNetwork
 from app.db.models.check_in import CheckIn
 from app.db.models.points import Points
@@ -83,14 +79,10 @@ async def init_db(reset=False) -> None:
             print("数据库重置完成！")
             print("\n创建的测试数据包括:")
             print("   3个管理员账号")
-            print("   15个主账号")
-            print("   35个成员账号")
-            print("   多个房间")
+            print("   50个普通用户账号")
             print("   11种物模型类型")
             print("   33种设备型号")
             print("   50+个设备")
-            print("   房间设备关联")
-            print("   成员设备权限")
             print("   设备参数数据")
             print("   设备日志记录")
             print("   告警记录")
@@ -99,13 +91,12 @@ async def init_db(reset=False) -> None:
             print("   版本信息")
             print("   意见反馈")
             print("\n数据库结构说明：")
-            print("   account 表：统一管理所有登录账号（管理员、主账号和子账号）")
-            print("   admin 表：管理员，与 account 一一对应")
-            print("   user 表：主账号，与 account 一一对应")
-            print("   member 表：子账号，与 account 一一对应，属于某个 user")
+            print("   account 表：统一管理所有登录账号（管理员和普通用户）")
+            print("   family 表：家庭/组织容器")
+            print("   family_member 表：家庭成员关联")
             print("   thing_model 表：物模型定义")
             print("   device_model 表：设备型号定义")
-            print("   device 表：具体设备实例")
+            print("   device 表：具体设备实例（可属于账号或家庭）")
     finally:
         # 确保引擎正确关闭
         await engine.dispose()
@@ -119,57 +110,40 @@ async def insert_initial_data(session: AsyncSession) -> None:
     if count == 0:
         print("开始创建测试数据...")
         
-        # 1. 创建账号（含一个管理员）
+        # 1. 创建账号
         accounts = await create_accounts(session)
-        # 1.1 创建管理员记录
-        await create_admins(session, accounts)
         
-        # 2. 创建用户
-        users = await create_users(session, accounts)
-        
-        # 3. 创建成员
-        members = await create_members(session, users, accounts)
-        
-        # 4. 创建房间
-        rooms = await create_rooms(session, users)
-        
-        # 5. 创建物模型
+        # 2. 创建物模型
         thing_models = await create_thing_models(session)
         
-        # 6. 创建设备型号
+        # 3. 创建设备型号
         device_models = await create_device_models(session, thing_models)
         
-        # 7. 创建设备
-        devices = await create_devices(session, users, device_models)
+        # 4. 创建设备（直接绑定到账号）
+        devices = await create_devices(session, accounts, device_models)
         
-        # 8. 创建房间设备关联
-        await create_room_devices(session, rooms, devices)
-        
-        # 9. 创建成员设备权限
-        await create_member_device_permissions(session, members, devices)
-        
-        # 10. 创建设备消息
+        # 5. 创建设备消息
         await create_device_messages(session, devices)
         
-        # 12. 创建设备网络信息
+        # 6. 创建设备网络信息
         await create_device_networks(session, devices)
         
-        # 13. 创建签到记录
+        # 7. 创建签到记录
         await create_check_ins(session, accounts, devices)
         
-        # 14. 创建积分记录
+        # 8. 创建积分记录
         await create_points(session, accounts)
         
-        # 15. 创建系统消息
+        # 9. 创建系统消息
         await create_system_messages(session)
         
-        # 16. 创建版本信息
+        # 10. 创建版本信息
         await create_version_infos(session)
         
-        # 17. 创建意见反馈
+        # 11. 创建意见反馈
         await create_feedbacks(session, accounts)
         
-        # 18. 创建用户操作记录
+        # 12. 创建用户操作记录
         await create_user_operation_logs(session, accounts)
         
         await session.commit()
@@ -194,28 +168,15 @@ async def create_accounts(session: AsyncSession):
         session.add(admin_account)
         accounts.append(admin_account)
 
-    # 创建15个主账号
-    for i in range(15):
+    # 创建50个普通用户账号
+    for i in range(50):
         account = Account(
             password=get_password_hash("password123"),
             nickname=f"用户{i+1}",
             gender=random.choice(['male', 'female', 'other']),
             phone=f"1380000000{i}" if i < 9 else f"138000000{i}",
             email=f"user{i+1}@example.com",
-            role='owner'
-        )
-        session.add(account)
-        accounts.append(account)
-
-    # 创建35个子账号
-    for i in range(35):
-        account = Account(
-            password=get_password_hash("password123"),
-            nickname=f"成员{i+1}",
-            gender=random.choice(['male', 'female', 'other']),
-            phone=f"1390000000{i}" if i < 9 else f"139000000{i}",
-            email=f"member{i+1}@example.com",
-            role='member'
+            role='user'
         )
         session.add(account)
         accounts.append(account)
@@ -223,69 +184,6 @@ async def create_accounts(session: AsyncSession):
     await session.flush()
     return accounts
 
-async def create_admins(session: AsyncSession, accounts):
-    """根据 admin 账号创建管理员记录"""
-    print("创建管理员...")
-    from sqlalchemy import select
-    for acc in accounts:
-        if acc.role == 'admin':
-            # 检查是否已存在对应 Admin 记录
-            result = await session.execute(select(Admin).where(Admin.account_id == acc.id))
-            exists = result.scalar_one_or_none()
-            if exists is None:
-                session.add(Admin(account_id=acc.id))
-    await session.flush()
-
-async def create_users(session: AsyncSession, accounts):
-    """创建用户"""
-    print("创建用户...")
-    users = []
-
-    # 为前15个账号（owner角色）创建用户
-    for i, account in enumerate(accounts[3:18]):  # 跳过3个admin账号
-        user = User(account_id=account.id)
-        session.add(user)
-        users.append(user)
-
-    await session.flush()
-    return users
-
-async def create_members(session: AsyncSession, users, accounts):
-    """创建成员"""
-    print("创建成员...")
-    members = []
-
-    # 为后35个账号（member角色）创建成员
-    member_accounts = accounts[18:]  # 后35个账号
-    for i, account in enumerate(member_accounts):
-        # 随机分配给某个用户
-        user = random.choice(users)
-        member = Member(user_id=user.id, account_id=account.id)
-        session.add(member)
-        members.append(member)
-
-    await session.flush()
-    return members
-
-async def create_rooms(session: AsyncSession, users):
-    """创建房间"""
-    print("创建房间...")
-    rooms = []
-    room_names = ["客厅", "卧室", "厨房", "卫生间", "书房", "阳台", "储藏室", "玄关"]
-
-    for user in users:
-        # 每个用户创建2-4个房间
-        num_rooms = random.randint(2, 4)
-        for i in range(num_rooms):
-            room = Room(
-                user_id=user.id,
-                name=f"{random.choice(room_names)}{i+1}"
-            )
-            session.add(room)
-            rooms.append(room)
-
-    await session.flush()
-    return rooms
 
 async def create_thing_models(session: AsyncSession):
     """创建物模型"""
@@ -766,7 +664,7 @@ async def create_device_models(session: AsyncSession, thing_models):
     await session.flush()
     return device_models
 
-async def create_devices(session: AsyncSession, users, device_models):
+async def create_devices(session: AsyncSession, accounts, device_models):
     """创建设备"""
     print("创建设备...")
     devices = []
@@ -774,7 +672,7 @@ async def create_devices(session: AsyncSession, users, device_models):
     # 用于跟踪每个型号的流水号
     model_serial_counters = {}
 
-    # 创建一些未绑定的设备（user_id=None）
+    # 创建一些未绑定的设备（account_id=None）
     unbound_count = 10
     for i in range(unbound_count):
         device_model = random.choice(device_models)
@@ -792,7 +690,7 @@ async def create_devices(session: AsyncSession, users, device_models):
         sn = f"{model_code}-{production_date}-{model_serial_counters[model_code]:06d}"
         
         device = Device(
-            user_id=None,
+            account_id=None,
             model_id=device_model.id,
             name=f"未绑定设备{i+1}",
             sn=sn,
@@ -801,12 +699,13 @@ async def create_devices(session: AsyncSession, users, device_models):
         session.add(device)
         devices.append(device)
 
-    # 为每个用户创建设备，确保总数不少于50个
+    # 为每个账号创建设备，确保总数不少于50个
     device_count = 0
     target_count = 50
+    user_accounts = [acc for acc in accounts if acc.role == 'user']  # 只使用普通用户账号
 
-    for user in users:
-        # 每个用户创建3-8个设备
+    for account in user_accounts:
+        # 每个账号创建3-8个设备
         num_devices = random.randint(3, 8)
         for i in range(num_devices):
             if device_count >= target_count:
@@ -845,7 +744,7 @@ async def create_devices(session: AsyncSession, users, device_models):
             sn = f"{model_code}-{production_date}-{model_serial_counters[model_code]:06d}"
 
             device = Device(
-                user_id=user.id,
+                account_id=account.id,
                 model_id=device_model.id,
                 name=f"设备{i+1}",
                 sn=sn,
@@ -860,7 +759,7 @@ async def create_devices(session: AsyncSession, users, device_models):
 
     # 如果还没达到目标数量，继续创建
     while device_count < target_count:
-        user = random.choice(users)
+        account = random.choice(user_accounts)
         device_model = random.choice(device_models)
         model_code = device_model.model_code
         
@@ -876,7 +775,7 @@ async def create_devices(session: AsyncSession, users, device_models):
         sn = f"{model_code}-{production_date}-{model_serial_counters[model_code]:06d}"
         
         device = Device(
-            user_id=user.id,
+            account_id=account.id,
             model_id=device_model.id,
             name=f"额外设备{device_count+1}",
             sn=sn,
@@ -888,46 +787,6 @@ async def create_devices(session: AsyncSession, users, device_models):
 
     await session.flush()
     return devices
-
-async def create_room_devices(session: AsyncSession, rooms, devices):
-    """创建房间设备关联"""
-    print("创建房间设备关联...")
-
-    # 将设备随机分配到房间（只处理已绑定用户的设备）
-    for device in devices:
-        # 只处理已绑定用户的设备
-        if device.user_id is not None:
-            # 找到该用户的所有房间
-            user_rooms = [room for room in rooms if room.user_id == device.user_id]
-            if user_rooms:
-                room = random.choice(user_rooms)
-                room_device = RoomDevice(
-                    room_id=room.id,
-                    device_id=device.id,
-                    sort_order=random.randint(0, 10)
-                )
-                session.add(room_device)
-
-async def create_member_device_permissions(session: AsyncSession, members, devices):
-    """创建成员设备权限"""
-    print("创建成员设备权限...")
-
-    for member in members:
-        # 为每个成员随机分配一些设备的控制权限（只处理已绑定用户的设备）
-        user_devices = [device for device in devices if device.user_id == member.user_id and device.user_id is not None]
-        if user_devices:
-            # 随机选择1-3个设备给成员权限
-            num_devices = random.randint(1, min(3, len(user_devices)))
-            selected_devices = random.sample(user_devices, num_devices)
-
-            for device in selected_devices:
-                # 仅为部分设备创建权限记录（存在即有权限，无字段）
-                if random.choice([True, False]):
-                    permission = MemberDevicePermission(
-                        member_id=member.id,
-                        device_id=device.id
-                    )
-                    session.add(permission)
 
 
 
@@ -1549,26 +1408,25 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
     print("创建用户操作记录...")
 
     operation_types = [
-        'login', 'logout', 'register', 'user_delete', 'user_update',
-        'device_bind', 'device_unbind', 'room_add', 'room_delete', 'room_device_sort',
-        'member_add', 'member_delete', 'member_update', 'permission_update',
-        'quick_control'
+        'login', 'logout', 'register', 'account_delete', 'account_update',
+        'device_bind', 'device_unbind', 'family_create', 'family_delete',
+        'family_member_add', 'family_member_remove', 'family_member_update',
+        'permission_update', 'quick_control'
     ]
 
     operation_descriptions = {
         'login': '用户登录系统',
         'logout': '用户登出系统',
         'register': '用户注册新账号',
-        'user_delete': '删除用户',
-        'user_update': '更新用户信息',
+        'account_delete': '删除账号',
+        'account_update': '更新账号信息',
         'device_bind': '绑定设备',
         'device_unbind': '解绑设备',
-        'room_add': '创建新房间',
-        'room_delete': '删除房间',
-        'room_device_sort': '调整房间内设备排序',
-        'member_add': '添加新成员',
-        'member_delete': '删除成员',
-        'member_update': '更新成员信息',
+        'family_create': '创建家庭',
+        'family_delete': '删除家庭',
+        'family_member_add': '添加家庭成员',
+        'family_member_remove': '移除家庭成员',
+        'family_member_update': '更新家庭成员信息',
         'permission_update': '更新权限设置',
         'quick_control': '快捷控制操作'
     }
@@ -1593,10 +1451,10 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
                 device_names = ['温度传感器', '湿度传感器', '智能开关', '智能灯泡', '门锁']
                 device_name = random.choice(device_names)
                 description = f"绑定设备：{device_name}-{random.randint(1, 99):02d}"
-            elif operation_type == 'room_add':
-                room_names = ['客厅', '卧室', '厨房', '卫生间', '书房', '阳台']
-                room_name = random.choice(room_names)
-                description = f"创建房间：{room_name}"
+            elif operation_type == 'family_create':
+                family_names = ['我的家庭', '温馨之家', '智能家居', '幸福家庭']
+                family_name = random.choice(family_names)
+                description = f"创建家庭：{family_name}"
             elif operation_type == 'quick_control':
                 control_type = random.choice(quick_control_types)
                 control_descriptions = {
