@@ -19,6 +19,7 @@ class AccountBase(BaseModel):
     email: Optional[str] = None
     avatar: Optional[str] = None
     role: Optional[AccountRole] = AccountRole.user
+    current_family_id: Optional[int] = None  # 当前使用的家庭ID，个人使用则为NULL
 
 class AccountCreate(AccountBase):
     password: Optional[str] = None
@@ -33,6 +34,7 @@ class AccountUpdate(BaseModel):
     email: Optional[str] = None
     avatar: Optional[str] = None
     password: Optional[str] = None
+    current_family_id: Optional[int] = None  # 当前使用的家庭ID，个人使用则为NULL
 
 class AccountInDB(AccountBase):
     id: int

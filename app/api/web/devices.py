@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
-from app.db.session import get_db
 from app.crud.device import (
     get_device,
     get_device_by_sn,
@@ -13,7 +12,8 @@ from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceNameUpdate, DeviceBindBySNRequest
 from app.models.account import AccountRole
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_token
+from app.api.dependencies import get_current_token, get_family_clients
+from app.db.session import get_db
 from app.services.websocket_tool import websocket_tool
 
 router = APIRouter()
@@ -22,10 +22,10 @@ router = APIRouter()
 @router.get("/", response_model=List[DeviceInDB])
 async def list_devices(
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     family_id: Optional[int] = Query(None, description="当前家庭ID，如果提供则只返回该家庭的设备"),
-    token_info: dict = Depends(get_current_token),
 ):
     """获取设备列表
     
@@ -53,10 +53,11 @@ async def list_devices(
 @router.patch("/{device_id}/name", response_model=DeviceInDB)
 async def update_device_name(
     device_id: int, 
-    payload: DeviceNameUpdate,
-    family_id: Optional[int] = Query(None, description="当前家庭ID，如果提供则判断为家庭修改，可以修改家庭内的所有设备"),
+    payload: DeviceNameUpdate = Body(...),
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients),
+    family_id: Optional[int] = Query(None, description="当前家庭ID，如果提供则判断为家庭修改，可以修改家庭内的所有设备"),
 ):
     """修改设备名称
     
@@ -94,10 +95,11 @@ async def update_device_name(
     
     # 发送websocket消息通知设备名称修改
     try:
+        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         account_id = token_info.get("account_id")
-        if role and account_id is not None:
-            client_id = f"{role}_{account_id}"
+        if account_id is not None:
+            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.name.update",
@@ -110,7 +112,8 @@ async def update_device_name(
                     "deviceId": device.id,
                     "deviceName": payload.name,
                     "oldName": old_name
-                }
+                },
+                family_clients=family_clients
             )
     except Exception as e:
         # 发送消息失败不影响业务流程
@@ -121,9 +124,10 @@ async def update_device_name(
 
 @router.post("/bind-by-sn/", response_model=DeviceInDB)
 async def bind_device_by_sn(
-    payload: DeviceBindBySNRequest,
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients),
+    payload: DeviceBindBySNRequest = Body(...)
 ):
     """通过序列号绑定设备到当前账号
     
@@ -174,9 +178,10 @@ async def bind_device_by_sn(
 
     # 发送websocket消息通知设备绑定
     try:
+        platform = token_info.get("platform", "web")
         role = token_info.get("role")
-        if role and account_id is not None:
-            client_id = f"{role}_{account_id}"
+        if account_id is not None:
+            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.bind",
@@ -189,7 +194,8 @@ async def bind_device_by_sn(
                     "deviceId": device.id,
                     "deviceName": device.name,
                     "deviceSn": device.sn
-                }
+                },
+                family_clients=family_clients
             )
     except Exception as e:
         # 发送消息失败不影响业务流程
@@ -203,7 +209,8 @@ async def bind_device_by_sn(
 async def unbind_device_by_sn(
     sn: str, 
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients)
 ):
     """通过序列号解绑设备，将设备从账号中移除
     
@@ -260,9 +267,10 @@ async def unbind_device_by_sn(
     
     # 发送websocket消息通知设备解绑
     try:
+        platform = token_info.get("platform", "web")
         role = token_info.get("role")
-        if role and account_id is not None:
-            client_id = f"{role}_{account_id}"
+        if account_id is not None:
+            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.unbind",
@@ -275,7 +283,8 @@ async def unbind_device_by_sn(
                     "deviceId": device.id,
                     "deviceName": device_name,
                     "deviceSn": sn
-                }
+                },
+                family_clients=family_clients
             )
     except Exception as e:
         # 发送消息失败不影响业务流程

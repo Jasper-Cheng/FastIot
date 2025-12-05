@@ -14,8 +14,11 @@ CREATE TABLE IF NOT EXISTS `account` (
     `email` VARCHAR(128) UNIQUE COMMENT '邮箱',
     `avatar` VARCHAR(255) NULL COMMENT '头像URL',
     `role` ENUM('user','admin') NOT NULL DEFAULT 'user' COMMENT '角色: 普通用户/管理员',
+    `current_family_id` BIGINT NULL COMMENT '当前使用的家庭ID，个人使用则为NULL',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    INDEX `idx_unionid` (`unionid`)
+    FOREIGN KEY (`current_family_id`) REFERENCES `family`(`id`) ON DELETE SET NULL,
+    INDEX `idx_unionid` (`unionid`),
+    INDEX `idx_account_current_family` (`current_family_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账号表';
 
 -- 家庭表：家庭/组织容器

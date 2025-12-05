@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
-from app.db.session import get_db
 from app.crud.device_message import (
     get_account_device_messages,
     update_device_message_status,
@@ -16,7 +15,8 @@ from app.models.device_message import (
     DeviceMessageStatus,
     DeviceMessageLevel,
 )
-from app.api.dependencies import get_current_token
+from app.api.dependencies import get_current_token, get_family_clients
+from app.db.session import get_db
 from app.services.websocket_tool import websocket_tool
 router = APIRouter()
 
@@ -24,11 +24,11 @@ router = APIRouter()
 @router.get("/", response_model=List[DeviceMessageInDB])
 async def list_device_messages(
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     level: Optional[List[str]] = Query(None, description="按消息级别筛选，可传入多个值 (low, normal, error, fatal)"),
-    status: Optional[str] = Query(None, description="按消息状态极筛选 (new, read)"),
-    token_info: dict = Depends(get_current_token)
+    status: Optional[str] = Query(None, description="按消息状态极筛选 (new, read)")
 ):
     """获取当前用户的设备消息列表
     
@@ -74,9 +74,10 @@ async def list_device_messages(
 @router.patch("/{message_id}/make-read", response_model=DeviceMessageInDB)
 async def make_device_message_read(
     message_id: int,
-    family_id: Optional[int] = Query(None, description="当前家庭ID"),
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients),
+    family_id: Optional[int] = Query(None, description="当前家庭ID")
 ):
     """标记设备消息为已读状态"""
     account_id = token_info["account_id"]
@@ -101,10 +102,11 @@ async def make_device_message_read(
     
     # 发送websocket消息通知设备消息已读
     try:
+        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         account_id = token_info.get("account_id")
-        if role and account_id is not None:
-            client_id = f"{role}_{account_id}"
+        if account_id is not None:
+            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.message.read",
@@ -117,7 +119,8 @@ async def make_device_message_read(
                     "deviceId": device.id,
                     "deviceName": device.name,
                     "messageId": message_id
-                }
+                },
+                family_clients=family_clients
             )
     except Exception as e:
         # 发送消息失败不影响业务流程
@@ -129,7 +132,8 @@ async def make_device_message_read(
 @router.patch("/mark-all-read")
 async def mark_all_device_messages_read(
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients)
 ):
     """标记当前账号所有设备消息为已读"""
     # 使用token中的account_id
@@ -140,9 +144,10 @@ async def mark_all_device_messages_read(
     
     # 发送websocket消息通知所有设备消息已读
     try:
+        platform = token_info.get("platform", "web")
         role = token_info.get("role")
-        if role and account_id is not None:
-            client_id = f"{role}_{account_id}"
+        if account_id is not None:
+            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="device.message.mark_all_read",
@@ -153,7 +158,8 @@ async def mark_all_device_messages_read(
                     "message": f"{count} 条设备消息已标记为已读",
                     "level": "normal",
                     "count": count
-                }
+                },
+                family_clients=family_clients
             )
     except Exception as e:
         # 发送消息失败不影响业务流程

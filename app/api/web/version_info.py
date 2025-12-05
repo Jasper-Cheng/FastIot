@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from app.api.dependencies import get_db, get_current_token
+from app.api.dependencies import get_current_token
+from app.db.session import get_db
 from app.crud.version_info import version_info
 from app.models.version_info import VersionInfo, PlatformEnum
 

@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.db.session import get_db
 from app.crud.family import (
     get_family,
     get_families_by_account,
@@ -16,15 +15,16 @@ from app.models.family import FamilyCreate, FamilyUpdate, FamilyInDB
 from app.models.device import DeviceInDB
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
+from app.db.session import get_db
 
 router = APIRouter()
 
 
 @router.post("/", response_model=FamilyInDB)
 async def create_family_endpoint(
-    family: FamilyCreate,
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family: FamilyCreate = Body(...)
 ):
     """创建家庭
     
@@ -54,9 +54,9 @@ async def create_family_endpoint(
 @router.get("/", response_model=List[FamilyInDB])
 async def list_families(
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
-    token_info: dict = Depends(get_current_token)
 ):
     """获取当前账号所在的所有家庭"""
     account_id = token_info["account_id"]
@@ -88,9 +88,9 @@ async def get_family_endpoint(
 @router.patch("/{family_id}", response_model=FamilyInDB)
 async def update_family_endpoint(
     family_id: int,
-    family: FamilyUpdate,
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family: FamilyUpdate = Body(...)
 ):
     """更新家庭信息（家庭成员）"""
     account_id = token_info["account_id"]
@@ -251,9 +251,9 @@ async def remove_device_from_family(
 async def list_family_devices(
     family_id: int,
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
-    token_info: dict = Depends(get_current_token)
 ):
     """获取家庭的所有设备（需要是家庭成员）"""
     account_id = token_info["account_id"]

@@ -394,58 +394,56 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
                 created_message = await create_device_message(db, device_message)
                 print(f"✅ [M701001] 告警消息已插入数据库，消息ID: {created_message.id}")
                 
-                # 发送 websocket message（遍历账号和家庭成员，找到第一个在线的发送）
+                # 发送 websocket message（根据设备拥有者的 current_family_id 判断发送目标）
                 family_client_ids = []
+                platforms = ["web", "app"]  # 尝试所有可能的平台
                 
-                # 如果是个人设备，发送给设备拥有者
-                if device.account_id:
-                    family_client_ids.append(f"user_{device.account_id}")
+                # 先根据 device.account_id 查询 account 表
+                if not device.account_id:
+                    print(f"⚠️ [M701001] 设备 {sn} 未绑定账号，无法发送 websocket message")
+                    return
                 
-                # 如果是家庭设备，发送给所有家庭成员（通过 family_device 关联表）
-                from app.crud.family_device import get_device_families
+                from app.crud.account import get_account
                 from app.crud.family_member import get_family_members_by_family
-                device_families = await get_device_families(db, device.id)
-                for family in device_families:
-                    family_members = await get_family_members_by_family(db, family.id)
-                    for member in family_members:
-                        client_id = f"user_{member.account_id}"
-                        if client_id not in family_client_ids:
-                            family_client_ids.append(client_id)
                 
-                # 循环查找第一个在线的客户端并发送消息
-                if family_client_ids:
-                    sent = False
-                    for client_id in family_client_ids:
-                        if websocket_tool.is_client_connected(client_id):
-                            # 确定发送者信息
-                            account_id = int(client_id.split("_")[1])
-                            sender_id = account_id
-                            sender_role = "user"
-                            
-                            await websocket_tool.send_family_message(
-                                client_id=client_id,
-                                message_type="device.alert",
-                                data={
-                                    "senderId": sender_id,
-                                    "senderRole": sender_role,
-                                    "title": "设备告警",
-                                    "message": alert_message,
-                                    "level": "error",
-                                    "deviceId": device.id,
-                                    "deviceSn": sn,
-                                    "deviceName": device.name,
-                                    "messageId": created_message.id,
-                                    "alerts": alert_details
-                                }
-                            )
-                            print(f"✅ [M701001] 告警 websocket message 已通过 {client_id} 发送")
-                            sent = True
-                            break  # 找到第一个在线的就退出循环
-                    
-                    if not sent:
-                        print(f"⚠️ [M701001] 所有相关账号均未在线，无法发送 websocket message")
+                account = await get_account(db, device.account_id)
+                if not account:
+                    print(f"⚠️ [M701001] 账号 {device.account_id} 不存在，无法发送 websocket message")
+                    return
+                
+                # 根据 current_family_id 判断是个人还是家庭
+                if account.current_family_id is None:
+                    # 个人模式：发送给设备拥有者
+                    for platform in platforms:
+                        client_id = f"{platform}_{device.account_id}"
+                        family_client_ids.append(client_id)
                 else:
-                    print(f"⚠️ [M701001] 设备 {sn} 未绑定账号或家庭，无法发送 websocket message")
+                    # 家庭模式：查询该家庭所有成员
+                    family_members = await get_family_members_by_family(db, account.current_family_id)
+                    for member in family_members:
+                        for platform in platforms:
+                            client_id = f"{platform}_{member.account_id}"
+                            if client_id not in family_client_ids:
+                                family_client_ids.append(client_id)
+                
+                # 调用发送方法
+                if family_client_ids:
+                    await websocket_tool.send_family_message(
+                            message_type="device.alert",
+                            data={
+                                "title": "设备告警",
+                                "message": alert_message,
+                                "level": "error",
+                                "deviceId": device.id,
+                                "deviceSn": sn,
+                                "deviceName": device.name,
+                                "messageId": created_message.id,
+                                "alerts": alert_details
+                            },
+                            family_clients=family_client_ids
+                        )
+                else:
+                    print(f"⚠️ [M701001] 未找到可发送的客户端")
                     
         except Exception as e:
             print(f"❌ [M701001] 处理告警失败 ({sn}): {e}")

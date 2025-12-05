@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from datetime import date
-from app.db.session import get_db
 from app.api.dependencies import get_current_token
+from app.db.session import get_db
 from app.utils.time_utils import get_local_time
 from app.crud.check_in import (
     get_check_in_by_date, 
@@ -24,9 +24,9 @@ router = APIRouter()
 
 @router.post("/", response_model=CheckInResponse)
 async def check_in(
-    request: CheckInRequest,
+    db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    db: AsyncSession = Depends(get_db)
+    request: CheckInRequest = Body(...)
 ):
     """用户签到"""
     today = date.today()
@@ -65,10 +65,10 @@ async def check_in(
 
 @router.get("/calendar", response_model=CheckInCalendarResponse)
 async def get_check_in_calendar_data(
-    year: int = Query(..., ge=2020, le=2030),
-    month: int = Query(..., ge=1, le=12),
+    db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    db: AsyncSession = Depends(get_db)
+    year: int = Query(..., ge=2020, le=2030),
+    month: int = Query(..., ge=1, le=12)
 ):
     """获取签到日历数据"""
     calendar_data = await get_check_in_calendar(db, token_info["account_id"], year, month)
@@ -88,10 +88,10 @@ async def get_check_in_statistics(
 
 @router.get("/history", response_model=List[CheckInResponse])
 async def get_check_in_history(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100)
 ):
     """获取当前用户的签到历史记录"""
     account_id = token_info["account_id"]

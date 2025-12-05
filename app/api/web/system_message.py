@@ -4,8 +4,8 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.session import get_db
 from app.api.dependencies import get_current_token
+from app.db.session import get_db
 from app.crud.system_message import (
     get_system_messages as crud_get_system_messages,
 )

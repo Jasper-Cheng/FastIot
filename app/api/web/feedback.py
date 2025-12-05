@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from app.api.dependencies import get_db, get_current_token
+from app.api.dependencies import get_current_token, get_family_clients
+from app.db.session import get_db
 from app.crud.feedback import feedback
 from app.models.feedback import Feedback, FeedbackCreate, SourceEnum
 from app.models.account import AccountRole
@@ -14,8 +15,9 @@ router = APIRouter()
 async def create_feedback(
     *,
     db: AsyncSession = Depends(get_db),
-    feedback_in: FeedbackCreate,
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients),
+    feedback_in: FeedbackCreate = Body(...)
 ):
     """创建意见反馈
     
@@ -57,10 +59,11 @@ async def create_feedback(
     
     # 发送family消息通知创建意见反馈
     try:
+        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         account_id = token_info.get("account_id")
-        if role and account_id is not None:
-            client_id = f"{role}_{account_id}"
+        if account_id is not None:
+            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="feedback.create",
@@ -73,7 +76,8 @@ async def create_feedback(
                     "feedbackId": created_feedback.id,
                     "feedbackType": feedback_in.type if hasattr(feedback_in, 'type') else None,
                     "feedbackContent": feedback_in.content[:100] if len(feedback_in.content) > 100 else feedback_in.content
-                }
+                },
+                family_clients=family_clients
             )
     except Exception as e:
         # 发送消息失败不影响业务流程
@@ -85,11 +89,11 @@ async def create_feedback(
 @router.get("/", response_model=List[Feedback])
 async def get_feedbacks(
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    token_info: dict = Depends(get_current_token)
 ):
     """获取意见反馈列表"""
     # 根据用户角色决定返回的数据

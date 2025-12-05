@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Enum, DateTime
+from sqlalchemy import Column, BigInteger, String, Enum, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -15,6 +15,7 @@ class Account(Base):
     email = Column(String(128), unique=True, nullable=True)
     avatar = Column(String(255), nullable=True)
     role = Column(Enum('user', 'admin', name='role_enum'), nullable=False, default='user')
+    current_family_id = Column(BigInteger, ForeignKey('family.id', ondelete='SET NULL'), nullable=True, index=True, comment='当前使用的家庭ID，个人使用则为NULL')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # 关系

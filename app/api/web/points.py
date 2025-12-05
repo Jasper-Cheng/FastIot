@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from app.db.session import get_db
 from app.crud.points import (
     get_user_points_balance,
     get_points_history
 )
 from app.models.points import PointsResponse, PointsBalanceResponse
 from app.api.dependencies import get_current_token
+from app.db.session import get_db
 
 router = APIRouter()
 
@@ -25,11 +25,11 @@ async def get_points_balance(
 
 @router.get("/history", response_model=List[PointsResponse])
 async def get_points_history_data(
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    type: Optional[str] = Query(None, description="积分类型筛选"),
-    db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    type: Optional[str] = Query(None, description="积分类型筛选")
 ):
     """获取积分历史记录"""
     account_id = token_info["account_id"]

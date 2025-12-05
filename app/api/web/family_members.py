@@ -4,7 +4,6 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from typing import List, Optional
 
-from app.db.session import get_db
 from app.crud.family import get_family, get_family_by_invite_code
 from app.crud.family_member import (
     get_family_member,
@@ -28,16 +27,17 @@ from app.models.family_member import (
 )
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
+from app.db.session import get_db
 
 router = APIRouter()
 
 
 @router.post("/join-by-invite-code")
 async def join_family_by_invite_code(
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     invite_code: str = Query(..., description="家庭邀请码"),
     request: Optional[JoinFamilyRequest] = Body(None, description="加入家庭请求，包含可选的nickname"),
-    db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
 ):
     """通过邀请码加入家庭"""
     account_id = token_info["account_id"]
@@ -97,9 +97,9 @@ async def join_family_by_invite_code(
 async def list_family_members(
     family_id: int,
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
-    token_info: dict = Depends(get_current_token)
 ):
     """获取家庭成员列表"""
     account_id = token_info["account_id"]
@@ -128,9 +128,9 @@ async def list_family_members(
 @router.patch("/{family_member_id}", response_model=FamilyMemberWithAccount)
 async def update_family_member(
     family_member_id: int,
-    family_member: FamilyMemberUpdate,
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_member: FamilyMemberUpdate = Body(...)
 ):
     """更新家庭成员昵称
     

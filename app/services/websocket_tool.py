@@ -302,7 +302,8 @@ class WebSocketTool:
         self,
         client_id: str,
         message_type: str,
-        data: Dict[str, Any]
+        data: Dict[str, Any],
+        family_clients: Optional[list[str]] = None
     ):
         """
         发送family消息给指定发送者的family成员
@@ -311,15 +312,12 @@ class WebSocketTool:
             client_id: 发送者客户端ID
             message_type: 消息类型，例如：delete.member
             data: 消息数据
+            family_clients: family客户端ID列表，如果未提供或为空则不发送消息
         """
         
-        # 获取发送者的family信息
-        sender_metadata = self.get_connection_info(client_id)
-        if not sender_metadata or "metadata" not in sender_metadata or "family_clients" not in sender_metadata["metadata"]:
-            print(f"❌ [WebSocket] 无法获取客户端 {client_id} 的family信息")
+        # 如果family_clients为空或None，则不发送
+        if not family_clients:
             return
-        
-        family_clients = sender_metadata["metadata"]["family_clients"]
         
         # 生成消息ID和时间戳
         message_id = f"fam_{uuid.uuid4().hex[:8]}"

@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 import re
 import asyncio
 
-from app.db.session import get_db
 from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.crud.account import (
@@ -29,7 +28,8 @@ from app.models.account import (
     SetPasswordRequest
 )
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_account, get_current_token
+from app.api.dependencies import get_current_account, get_current_token, get_family_clients
+from app.db.session import get_db
 from app.services.websocket_tool import websocket_tool
 from app.services.wechat_service import wechat_service, QRCodeStatus
 from app.core.rsa_crypto import rsa_crypto
@@ -97,7 +97,19 @@ async def _generate_login_token_and_notify(
             try:
                 role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
                 account_id = acc.id
-                client_id = f"{role_str}_{account_id}"
+                client_id = f"{platform}_{account_id}"
+                
+                # 获取 family_clients
+                family_clients = []
+                if acc.current_family_id is not None:
+                    from app.crud.family_member import get_family_members_by_family
+                    members = await get_family_members_by_family(db, acc.current_family_id)
+                    platforms_list = ["web", "app"]
+                    for member in members:
+                        for p in platforms_list:
+                            member_client_id = f"{p}_{member.account_id}"
+                            if member_client_id not in family_clients:
+                                family_clients.append(member_client_id)
                 
                 # 根据登录类型设置不同的消息
                 if login_type == "wechat":
@@ -114,7 +126,8 @@ async def _generate_login_token_and_notify(
                         "title": "用户登录",
                         "message": message_text,
                         "level": "normal"
-                    }
+                    },
+                    family_clients=family_clients
                 )
             except Exception as e:
                 # 发送消息失败不影响登录流程
@@ -152,7 +165,7 @@ async def _generate_login_token_and_notify(
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(db: AsyncSession = Depends(get_db), payload: LoginRequest = Body(...)):
     """统一登录：支持手机号登录
 
     说明：
@@ -192,9 +205,9 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 #最后记得移除这个方法
 @router.post("/login/form", response_model=TokenResponse, include_in_schema=False)
 async def login_form(
+    db: AsyncSession = Depends(get_db),
     username: str = Form(...),  # OAuth2标准字段名，实际为手机号
-    password: str = Form(...),
-    db: AsyncSession = Depends(get_db)
+    password: str = Form(...)
 ):
     """表单登录：兼容 Swagger Authorize（OAuth2 Password flow）
 
@@ -227,7 +240,7 @@ async def login_form(
 
 
 @router.post("/register", response_model=Account)
-async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(db: AsyncSession = Depends(get_db), req: RegisterRequest = Body(...)):
     """注册主账号：固定创建 owner 账号并生成对应 user 记录
 
     必填: phone
@@ -307,16 +320,18 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/logout")
 async def logout(
     db: AsyncSession = Depends(get_db),
-    current_account: Account = Depends(get_current_account),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients),
+    current_account: Account = Depends(get_current_account)
 ):
     """用户登出"""
     
     # 构建 client_id
     account_id = token_info["account_id"] if "account_id" in token_info else None
-    role = token_info["role"] if "role" in token_info else None
-    if account_id and role:
-        client_id = f"{role}_{account_id}"
+    platform = token_info.get("platform", "web")
+    role = token_info.get("role")
+    if account_id:
+        client_id = f"{platform}_{account_id}"
         
         # 发送websocket消息通知登出
         try:
@@ -329,7 +344,8 @@ async def logout(
                     "title": "用户登出",
                     "message": f"{current_account.nickname or current_account.phone} 已登出",
                     "level": "normal"
-                }
+                },
+                family_clients=family_clients
             )
         except Exception as e:
             # 发送消息失败不影响登出流程
@@ -374,13 +390,13 @@ async def get_wechat_qrcode(db: AsyncSession = Depends(get_db)):
 
 @router.get("/login/wechat_callback")
 async def wechat_callback(
+    db: AsyncSession = Depends(get_db),
     code: str = Query(None, description="微信授权码（授权回调时必填）"),
     state: str = Query(None, description="自定义参数，包含scene_id（授权回调时可选）"),
     signature: str = Query(None, description="微信加密签名（验证请求时必填）"),
     timestamp: str = Query(None, description="时间戳（验证请求时必填）"),
     nonce: str = Query(None, description="随机数（验证请求时必填）"),
-    echostr: str = Query(None, description="随机字符串（验证请求时必填）"),
-    db: AsyncSession = Depends(get_db)
+    echostr: str = Query(None, description="随机字符串（验证请求时必填）")
 ):
     """处理微信回调和验证
     
@@ -470,8 +486,8 @@ async def wechat_callback(
 
 @router.get("/login/check_status")
 async def check_wechat_login_status(
-    scene_id: str = Query(..., description="场景ID，从qrcode接口获取"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    scene_id: str = Query(..., description="场景ID，从qrcode接口获取")
 ):
     """轮询二维码登录状态
     
@@ -571,8 +587,8 @@ async def check_wechat_login_status(
 
 @router.post("/login/bind_phone", response_model=TokenResponse)
 async def bind_phone(
-    payload: BindPhoneRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    payload: BindPhoneRequest = Body(...)
 ):
     """绑定手机号接口
     
@@ -665,9 +681,9 @@ async def bind_phone(
 
 @router.post("/set_password")
 async def set_password(
-    payload: SetPasswordRequest,
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    payload: SetPasswordRequest = Body(...)
 ):
     """设置密码接口
     
@@ -735,9 +751,9 @@ async def set_password(
 
 @router.patch("/profile", response_model=Account)
 async def update_profile(
-    account_update: AccountUpdate,
     db: AsyncSession = Depends(get_db),
-    current_account: Account = Depends(get_current_account)
+    current_account: Account = Depends(get_current_account),
+    account_update: AccountUpdate = Body(...)
 ):
     """更新当前用户信息
     
@@ -822,8 +838,9 @@ async def update_profile(
 @router.delete("/account")
 async def delete_account(
     db: AsyncSession = Depends(get_db),
-    current_account: Account = Depends(get_current_account),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients),
+    current_account: Account = Depends(get_current_account)
 ):
     """注销账号（删除当前登录用户的账号）
     
@@ -909,9 +926,10 @@ async def delete_account(
     
     # 发送 WebSocket 通知（在删除前发送）
     try:
+        platform = token_info.get("platform", "web")
         role = token_info.get("role")
-        if role and account_id is not None:
-            client_id = f"{role}_{account_id}"
+        if account_id is not None:
+            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
                 client_id=client_id,
                 message_type="account.delete",
@@ -921,7 +939,8 @@ async def delete_account(
                     "title": "账号注销",
                     "message": f"{current_account.nickname or current_account.phone} 的账号已注销",
                     "level": "warning"
-                }
+                },
+                family_clients=family_clients
             )
     except Exception as e:
         # 发送消息失败不影响注销流程
