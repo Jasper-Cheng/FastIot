@@ -26,10 +26,16 @@ async def create_family_endpoint(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
-    """创建家庭"""
+    """创建家庭
+    
+    限制：每个账号最多只能创建6个家庭
+    """
     account_id = token_info["account_id"]
     
-    db_family = await create_family(db, family, account_id)
+    try:
+        db_family = await create_family(db, family, account_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     
     # 记录操作日志
     await user_operation_log.create(
@@ -174,7 +180,7 @@ async def add_device_to_family(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
-    """将设备添加到家庭（需要是家庭创建者或设备拥有者）"""
+    """将设备添加到家庭（只有当前用户绑定的设备才可以被添加到家庭设备中）"""
     account_id = token_info["account_id"]
     
     # 检查设备是否存在
@@ -183,16 +189,15 @@ async def add_device_to_family(
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
-    # 检查是否是设备拥有者或家庭创建者
+    # 检查设备是否属于当前用户
+    if device.account_id != account_id:
+        raise HTTPException(status_code=403, detail="无权将设备添加到此家庭，只能添加自己绑定的设备")
+    
+    # 检查是否是家庭成员
     from app.crud.family_member import get_family_member_by_family_and_account
-    from app.models.family_member import FamilyMemberRole
-    
-    is_device_owner = device.account_id == account_id
     family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
-    is_family_creator = family_member and family_member.role == FamilyMemberRole.creator
-    
-    if not is_device_owner and not is_family_creator:
-        raise HTTPException(status_code=403, detail="无权将设备添加到此家庭")
+    if not family_member:
+        raise HTTPException(status_code=403, detail="无权访问此家庭")
     
     # 检查设备是否已在家庭中
     from app.crud.family_device import check_device_in_family, create_family_device
@@ -213,7 +218,7 @@ async def remove_device_from_family(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
-    """从家庭中移除设备（需要是家庭创建者或设备拥有者）"""
+    """从家庭中移除设备（只要是属于该家庭的成员，都可以移除设备）"""
     account_id = token_info["account_id"]
     
     # 检查设备是否存在
@@ -222,16 +227,16 @@ async def remove_device_from_family(
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
-    # 检查是否是设备拥有者或家庭创建者
+    # 检查是否是家庭成员
     from app.crud.family_member import get_family_member_by_family_and_account
-    from app.models.family_member import FamilyMemberRole
-    
-    is_device_owner = device.account_id == account_id
     family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
-    is_family_creator = family_member and family_member.role == FamilyMemberRole.creator
+    if not family_member:
+        raise HTTPException(status_code=403, detail="无权访问此家庭")
     
-    if not is_device_owner and not is_family_creator:
-        raise HTTPException(status_code=403, detail="无权从此家庭移除设备")
+    # 检查设备是否属于该家庭
+    from app.crud.family_device import check_device_in_family
+    if not await check_device_in_family(db, device_id, family_id):
+        raise HTTPException(status_code=404, detail="设备不属于此家庭")
     
     # 移除设备
     from app.crud.family_device import delete_family_device

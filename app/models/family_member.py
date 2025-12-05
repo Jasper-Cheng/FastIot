@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from enum import Enum
+from app.models.account import Account
 
 class FamilyMemberRole(str, Enum):
     creator = "creator"
@@ -19,6 +20,10 @@ class FamilyMemberCreate(FamilyMemberBase):
 class FamilyMemberUpdate(BaseModel):
     nickname: Optional[str] = None
 
+class JoinFamilyRequest(BaseModel):
+    """加入家庭请求"""
+    nickname: Optional[str] = None  # 在家庭中的昵称，不提供则使用账号的nickname
+
 class FamilyMemberInDB(FamilyMemberBase):
     id: int
     joined_at: datetime
@@ -29,4 +34,17 @@ class FamilyMemberInDB(FamilyMemberBase):
 
 class FamilyMember(FamilyMemberInDB):
     pass
+
+class FamilyMemberWithAccount(BaseModel):
+    """家庭成员信息，包含完整的 account 信息"""
+    id: int
+    family_id: int
+    role: FamilyMemberRole
+    nickname: Optional[str] = None
+    joined_at: datetime
+    created_at: datetime
+    account: Account  # 完整的 account 信息，而不是 account_id
+
+    class Config:
+        from_attributes = True
 

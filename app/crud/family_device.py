@@ -98,3 +98,40 @@ async def delete_all_family_devices_by_device(
     await db.commit()
     return result.rowcount
 
+async def add_account_devices_to_family(
+    db: AsyncSession, account_id: int, family_id: int
+) -> int:
+    """将账号的所有设备添加到家庭
+    
+    返回成功添加的设备数量（不包括已存在的设备）
+    """
+    from app.crud.device import get_devices_by_account
+    
+    # 获取账号的所有个人设备
+    devices = await get_devices_by_account(db, account_id, skip=0, limit=1000)
+    
+    if not devices:
+        return 0
+    
+    # 获取已存在的设备ID列表
+    existing_result = await db.execute(
+        select(FamilyDevice.device_id).filter(
+            and_(
+                FamilyDevice.family_id == family_id,
+                FamilyDevice.device_id.in_([device.id for device in devices])
+            )
+        )
+    )
+    existing_device_ids = {row[0] for row in existing_result.all()}
+    
+    # 批量添加新设备
+    new_devices = [device for device in devices if device.id not in existing_device_ids]
+    for device in new_devices:
+        family_device = FamilyDevice(family_id=family_id, device_id=device.id)
+        db.add(family_device)
+    
+    if new_devices:
+        await db.commit()
+    
+    return len(new_devices)
+

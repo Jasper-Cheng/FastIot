@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from app.db.models.family_member import FamilyMember
 from app.models.family_member import FamilyMemberCreate, FamilyMemberUpdate, FamilyMemberRole
@@ -27,6 +28,7 @@ async def get_family_members_by_family(
     """根据家庭ID获取所有家庭成员"""
     result = await db.execute(
         select(FamilyMember)
+        .options(selectinload(FamilyMember.account))
         .filter(FamilyMember.family_id == family_id)
         .offset(skip)
         .limit(limit)

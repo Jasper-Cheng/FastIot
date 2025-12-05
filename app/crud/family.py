@@ -28,8 +28,31 @@ async def get_families_by_account(db: AsyncSession, account_id: int, skip: int =
     )
     return result.scalars().all()
 
+async def count_created_families_by_account(db: AsyncSession, account_id: int) -> int:
+    """统计账号作为创建者创建的家庭数量"""
+    from app.db.models.family_member import FamilyMember
+    from app.models.family_member import FamilyMemberRole
+    from sqlalchemy import func
+    
+    result = await db.execute(
+        select(func.count(FamilyMember.id))
+        .filter(
+            FamilyMember.account_id == account_id,
+            FamilyMember.role == FamilyMemberRole.creator
+        )
+    )
+    return result.scalar() or 0
+
 async def create_family(db: AsyncSession, family: FamilyCreate, creator_account_id: int) -> Family:
-    """创建家庭"""
+    """创建家庭
+    
+    限制：每个账号最多只能创建6个家庭
+    """
+    # 检查创建家庭数量限制
+    created_count = await count_created_families_by_account(db, creator_account_id)
+    if created_count >= 6:
+        raise ValueError("每个账号最多只能创建6个家庭")
+    
     # 生成邀请码
     invite_code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
     
@@ -43,16 +66,28 @@ async def create_family(db: AsyncSession, family: FamilyCreate, creator_account_
     await db.commit()
     await db.refresh(db_family)
     
+    # 获取创建者账号信息，用于设置nickname
+    from app.crud.account import get_account
+    creator_account = await get_account(db, creator_account_id)
+    nickname = None
+    if creator_account and creator_account.nickname:
+        nickname = creator_account.nickname
+    
     # 创建家庭成员记录（创建者）
     from app.db.models.family_member import FamilyMember
     from app.models.family_member import FamilyMemberRole
     family_member = FamilyMember(
         family_id=db_family.id,
         account_id=creator_account_id,
-        role=FamilyMemberRole.creator
+        role=FamilyMemberRole.creator,
+        nickname=nickname
     )
     db.add(family_member)
     await db.commit()
+    
+    # 自动将创建者的所有设备添加到家庭
+    from app.crud.family_device import add_account_devices_to_family
+    await add_account_devices_to_family(db, creator_account_id, db_family.id)
     
     return db_family
 

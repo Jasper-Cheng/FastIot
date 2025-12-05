@@ -9,7 +9,6 @@ from app.crud.device import (
     get_devices_by_account,
     update_device,
 )
-from app.crud.device_permission import can_control_device
 from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceNameUpdate, DeviceBindBySNRequest
 from app.models.account import AccountRole
@@ -55,13 +54,14 @@ async def list_devices(
 async def update_device_name(
     device_id: int, 
     payload: DeviceNameUpdate,
-    family_id: Optional[int] = Query(None, description="当前家庭ID"),
+    family_id: Optional[int] = Query(None, description="当前家庭ID，如果提供则判断为家庭修改，可以修改家庭内的所有设备"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
     """修改设备名称
     
     - name: 新的设备名称
+    - family_id: 可选，如果提供则判断为家庭修改，可以修改家庭内的所有设备；如果不提供则判断为个人修改，只能修改自己绑定的设备
     """
     account_id = token_info["account_id"]
     
@@ -70,9 +70,23 @@ async def update_device_name(
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
-    # 检查权限：个人设备由拥有者控制，家庭设备由家庭成员控制
-    if not await can_control_device(db, account_id, device_id, family_id):
-        raise HTTPException(status_code=403, detail="无权修改此设备")
+    # 权限检查
+    if family_id is None:
+        # 个人修改：只能修改自己绑定的设备
+        if device.account_id != account_id:
+            raise HTTPException(status_code=403, detail="无权修改此设备，只能修改自己绑定的设备")
+    else:
+        # 家庭修改：可以修改家庭内的所有设备
+        # 1. 检查是否是家庭成员
+        from app.crud.family_member import get_family_member_by_family_and_account
+        family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
+        if not family_member:
+            raise HTTPException(status_code=403, detail="无权访问此家庭")
+        
+        # 2. 检查设备是否属于该家庭
+        from app.crud.family_device import check_device_in_family
+        if not await check_device_in_family(db, device_id, family_id):
+            raise HTTPException(status_code=403, detail="设备不属于此家庭")
     
     # 更新设备名称
     old_name = device.name
