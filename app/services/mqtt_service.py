@@ -395,7 +395,7 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
                 print(f"✅ [M701001] 告警消息已插入数据库，消息ID: {created_message.id}")
                 
                 # 发送 websocket message 给所有订阅了该设备的客户端，此消息为家庭消息
-                await websocket_tool.send_device_alert_message(
+                await websocket_tool.send_device_family_message(
                     device_sn=sn,
                     message_type="device.alert",
                     data={
