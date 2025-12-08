@@ -56,7 +56,6 @@ async def update_device_name(
     payload: DeviceNameUpdate = Body(...),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_clients: list[str] = Depends(get_family_clients),
     family_id: Optional[int] = Query(None, description="当前家庭ID，如果提供则判断为家庭修改，可以修改家庭内的所有设备"),
 ):
     """修改设备名称
@@ -97,8 +96,9 @@ async def update_device_name(
     try:
         role = token_info.get("role")
         account_id = token_info.get("account_id")
-        if account_id is not None:
-            await websocket_tool.send_family_message(
+        if account_id is not None and device.sn:
+            await websocket_tool.send_device_family_message(
+                device_sn=device.sn,
                 message_type="device.name.update",
                 data={
                     "senderId": account_id,
@@ -109,8 +109,7 @@ async def update_device_name(
                     "deviceId": device.id,
                     "deviceName": payload.name,
                     "oldName": old_name
-                },
-                family_clients=family_clients
+                }
             )
     except Exception as e:
         # 发送消息失败不影响业务流程
