@@ -278,27 +278,40 @@ async def remove_family_member(
 ):
     """移除家庭成员
     
-    - 成员只能移除自己
-    - 创建者则删除整个家庭（调用删除家庭的逻辑）
+    - 如果当前成员是创建者，可以移除该家庭的任何成员
+    - 如果不是创建者，只能移除自己
+    - 如果移除的是创建者自己，则删除整个家庭
     """
     account_id = token_info["account_id"]
+    role = token_info.get("role")
     
+    # 获取要移除的成员信息
     db_family_member = await get_family_member(db, family_member_id)
     if not db_family_member:
         raise HTTPException(status_code=404, detail="家庭成员不存在")
     
-    # 检查当前用户是否有权限访问此家庭
-    if db_family_member.account_id != account_id:
+    # 获取当前用户在同一个家庭中的成员信息
+    current_member = await get_family_member_by_family_and_account(
+        db, db_family_member.family_id, account_id
+    )
+    if not current_member:
+        raise HTTPException(status_code=403, detail="无权访问此家庭")
+    
+    # 检查权限：如果不是创建者，只能移除自己
+    if current_member.role != FamilyMemberRole.creator and db_family_member.account_id != account_id:
         raise HTTPException(status_code=403, detail="只能移除自己")
     
-    # 如果是创建者，删除整个家庭（调用删除家庭的逻辑）
+    # 提前获取家庭和被移除成员的信息（两个分支都需要）
+    family = await get_family(db, db_family_member.family_id)
+    if not family:
+        raise HTTPException(status_code=404, detail="家庭不存在")
+    
+    removed_account = await get_account(db, db_family_member.account_id)
+    family_id = db_family_member.family_id
+    family_name = family.name
+    
+    # 如果要移除的是创建者，删除整个家庭
     if db_family_member.role == FamilyMemberRole.creator:
-        family_id = db_family_member.family_id
-        family = await get_family(db, family_id)
-        if not family:
-            raise HTTPException(status_code=404, detail="家庭不存在")
-        
-        family_name = family.name
         success = await delete_family(db, family_id)
         if not success:
             raise HTTPException(status_code=404, detail="删除家庭失败")
@@ -316,48 +329,40 @@ async def remove_family_member(
         
         # 发送家庭消息通知
         try:
-            role = token_info.get("role")
-            if family_id is not None:
-                await websocket_tool.send_family_message_by_id(
-                    family_id=family_id,
-                    message_type="family.delete",
-                    data={
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "家庭删除",
-                        "message": f"家庭 {family_name} 已删除",
-                        "level": "warning",
-                        "familyId": family_id,
-                        "familyName": family_name
-                    }
-                )
+            await websocket_tool.send_family_message_by_id(
+                family_id=family_id,
+                message_type="family.delete",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "家庭删除",
+                    "message": f"家庭 {family_name} 已删除",
+                    "level": "warning",
+                    "familyId": family_id,
+                    "familyName": family_name
+                }
+            )
         except Exception as e:
-            # 发送消息失败不影响删除流程
             print(f"发送删除家庭消息失败: {e}")
         
         return {"message": "家庭已删除"}
     
-    # 普通成员只能移除自己
-    if db_family_member.account_id != account_id:
-        raise HTTPException(status_code=403, detail="成员只能移除自己")
-    
-    # 移除自己
-    family = await get_family(db, db_family_member.family_id)
-    removed_account = await get_account(db, db_family_member.account_id)
-    
+    # 移除普通成员
     success = await delete_family_member(db, family_member_id)
     if not success:
         raise HTTPException(status_code=404, detail="家庭成员不存在")
+    
+    removed_member_name = removed_account.nickname if removed_account and removed_account.nickname else removed_account.phone if removed_account else "成员"
     
     # 记录操作日志
     await user_operation_log.create(
         db=db,
         obj_in=UserOperationLogCreate(
             operation_type=OperationTypeEnum.family_member_remove,
-            description=f"移除家庭成员: {removed_account.nickname or removed_account.phone}",
+            description=f"移除家庭成员: {removed_member_name}",
             extra={
-                "family_id": db_family_member.family_id,
-                "family_name": family.name if family else None,
+                "family_id": family_id,
+                "family_name": family_name,
                 "removed_account_id": db_family_member.account_id
             }
         ),
@@ -366,28 +371,22 @@ async def remove_family_member(
     
     # 发送家庭消息通知成员已移除
     try:
-        role = token_info.get("role")
-        family_name = family.name if family else None
-        removed_member_name = removed_account.nickname if removed_account and removed_account.nickname else removed_account.phone if removed_account else "成员"
-        
-        if db_family_member.family_id is not None:
-            await websocket_tool.send_family_message_by_id(
-                family_id=db_family_member.family_id,
-                message_type="member.remove",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "成员已移除",
-                    "message": f"{removed_member_name} 已从家庭 {family_name or db_family_member.family_id} 中移除",
-                    "level": "warning",
-                    "familyId": db_family_member.family_id,
-                    "familyName": family_name,
-                    "memberId": db_family_member.account_id,
-                    "memberName": removed_member_name
-                }
-            )
+        await websocket_tool.send_family_message_by_id(
+            family_id=family_id,
+            message_type="member.remove",
+            data={
+                "senderId": account_id,
+                "senderRole": role,
+                "title": "成员已移除",
+                "message": f"{removed_member_name} 已从家庭 {family_name} 中移除",
+                "level": "warning",
+                "familyId": family_id,
+                "familyName": family_name,
+                "memberId": db_family_member.account_id,
+                "memberName": removed_member_name
+            }
+        )
     except Exception as e:
-        # 发送消息失败不影响移除流程
         print(f"发送成员移除消息失败: {e}")
     
     return {"message": "成员已移除"}
