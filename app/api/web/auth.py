@@ -681,8 +681,7 @@ async def update_profile(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
     current_account: Account = Depends(get_current_account),
-    account_update: AccountUpdate = Body(...),
-    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
+    account_update: AccountUpdate = Body(...)
 ):
     """更新当前用户信息
     
@@ -788,23 +787,28 @@ async def update_profile(
             else:
                 message_text = "用户信息已更新"
             
-            # 确定要发送的家庭ID
-            target_family_id = family_id if family_id is not None else current_account.current_family_id
+            # 查询该用户的所有家庭，然后为每个家庭发送消息
+            from app.crud.family import get_families_by_account
+            families = await get_families_by_account(db, account_id)
             
-            if target_family_id is not None:
-                await websocket_tool.send_family_message_by_id(
-                    family_id=target_family_id,
-                    message_type="account.update",
-                    data={
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "用户信息更新",
-                        "message": message_text,
-                        "level": "normal",
-                        "accountId": account_id,
-                        "updatedFields": updated_fields
-                    }
-                )
+            for family in families:
+                if family.id is not None:
+                    try:
+                        await websocket_tool.send_family_message_by_id(
+                            family_id=family.id,
+                            message_type="account.update",
+                            data={
+                                "senderId": account_id,
+                                "senderRole": role,
+                                "title": "用户信息更新",
+                                "message": message_text,
+                                "level": "normal",
+                                "accountId": account_id,
+                                "updatedFields": updated_fields
+                            }
+                        )
+                    except Exception as e:
+                        print(f"发送用户信息更新消息失败 (family_id={family.id}): {e}")
     except Exception as e:
         # 发送消息失败不影响更新流程
         print(f"发送用户信息更新消息失败: {e}")
