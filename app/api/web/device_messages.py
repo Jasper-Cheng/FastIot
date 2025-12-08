@@ -8,7 +8,6 @@ from app.crud.device_message import (
     mark_all_account_device_messages_read,
     get_device_message,
 )
-from app.crud.device_permission import can_control_device
 from app.crud.device import get_device
 from app.models.device_message import (
     DeviceMessageInDB,
@@ -28,9 +27,13 @@ async def list_device_messages(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     level: Optional[List[str]] = Query(None, description="按消息级别筛选，可传入多个值 (low, normal, error, fatal)"),
-    status: Optional[str] = Query(None, description="按消息状态极筛选 (new, read)")
+    status: Optional[str] = Query(None, description="按消息状态极筛选 (new, read)"),
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则返回该家庭中所有设备的消息；如果不提供则返回个人所有设备的消息")
 ):
-    """获取当前用户的设备消息列表
+    """获取设备消息列表
+    
+    - 如果有 family_id：返回该家庭中所有设备的消息
+    - 如果没有 family_id：返回个人所有设备的消息
     
     支持按级别、状态筛选
     """
@@ -58,6 +61,13 @@ async def list_device_messages(
     # 使用token中的account_id
     account_id = token_info["account_id"]
     
+    # 如果提供了 family_id，验证是否是家庭成员
+    if family_id:
+        from app.crud.family_member import get_family_member_by_family_and_account
+        family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
+        if not family_member:
+            raise HTTPException(status_code=403, detail="无权访问此家庭")
+    
     # 在数据库查询中应用过滤条件和分页
     alerts = await get_account_device_messages(
         db, 
@@ -65,7 +75,8 @@ async def list_device_messages(
         skip=skip,
         limit=limit,
         level=level,
-        status=status
+        status=status,
+        family_id=family_id
     )
     
     return alerts
@@ -76,8 +87,7 @@ async def make_device_message_read(
     message_id: int,
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_clients: list[str] = Depends(get_family_clients),
-    family_id: Optional[int] = Query(None, description="当前家庭ID")
+    family_clients: list[str] = Depends(get_family_clients)
 ):
     """标记设备消息为已读状态"""
     account_id = token_info["account_id"]
@@ -87,24 +97,20 @@ async def make_device_message_read(
     if not message:
         raise HTTPException(status_code=404, detail="设备消息不存在")
     
-    # 获取消息关联的设备
-    device = await get_device(db, message.device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    
-    # 检查权限：个人设备由拥有者控制，家庭设备由家庭成员控制
-    if not await can_control_device(db, account_id, message.device_id, family_id):
-        raise HTTPException(status_code=403, detail="无权标记此设备消息")
-    
+    # 更新消息状态为已读
     updated = await update_device_message_status(db, message_id, DeviceMessageStatus.read)
     if not updated:
         raise HTTPException(status_code=404, detail="设备消息不存在")
+    
+    # 获取消息关联的设备（用于websocket通知）
+    device = await get_device(db, message.device_id)
+    device_name = device.name if device else None
+    device_id = device.id if device else message.device_id
     
     # 发送websocket消息通知设备消息已读
     try:
         platform = token_info.get("platform", "web")
         role = token_info.get("role")
-        account_id = token_info.get("account_id")
         if account_id is not None:
             client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
@@ -114,10 +120,10 @@ async def make_device_message_read(
                     "senderId": account_id,
                     "senderRole": role,
                     "title": "设备消息已读",
-                    "message": f"设备 {device.name or device.id} 的消息已标记为已读",
+                    "message": f"设备 {device_name or device_id} 的消息已标记为已读",
                     "level": "normal",
-                    "deviceId": device.id,
-                    "deviceName": device.name,
+                    "deviceId": device_id,
+                    "deviceName": device_name,
                     "messageId": message_id
                 },
                 family_clients=family_clients
@@ -133,14 +139,26 @@ async def make_device_message_read(
 async def mark_all_device_messages_read(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_clients: list[str] = Depends(get_family_clients)
+    family_clients: list[str] = Depends(get_family_clients),
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则标记该家庭中所有设备的消息为已读；如果不提供则标记个人所有设备的消息为已读")
 ):
-    """标记当前账号所有设备消息为已读"""
+    """标记设备消息为已读
+    
+    - 如果有 family_id：标记该家庭中所有设备的消息为已读
+    - 如果没有 family_id：标记个人所有设备的消息为已读
+    """
     # 使用token中的account_id
     account_id = token_info["account_id"]
     
-    # 更新账号所有设备的消息状态为已读
-    count = await mark_all_account_device_messages_read(db, account_id)
+    # 如果提供了 family_id，验证是否是家庭成员
+    if family_id:
+        from app.crud.family_member import get_family_member_by_family_and_account
+        family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
+        if not family_member:
+            raise HTTPException(status_code=403, detail="无权访问此家庭")
+    
+    # 更新设备消息状态为已读
+    count = await mark_all_account_device_messages_read(db, account_id, family_id=family_id)
     
     # 发送websocket消息通知所有设备消息已读
     try:
@@ -165,4 +183,7 @@ async def mark_all_device_messages_read(
         # 发送消息失败不影响业务流程
         print(f"发送所有设备消息已读通知失败: {e}")
     
-    return {"message": f"账号 {account_id} 的 {count} 条设备消息已标记为已读"}
+    if family_id:
+        return {"message": f"家庭 {family_id} 的 {count} 条设备消息已标记为已读"}
+    else:
+        return {"message": f"账号 {account_id} 的 {count} 条设备消息已标记为已读"}
