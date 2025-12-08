@@ -89,51 +89,6 @@ async def _generate_login_token_and_notify(
     
     token = create_access_token(expires_delta=access_token_expires, extra_claims=extra_claims)
     
-    # 发送websocket消息通知登录
-    # 延迟一秒发送，防止客户端的websocket连接还没建立
-    if acc.role == AccountRole.user:
-        async def send_login_message():
-            await asyncio.sleep(1)  # 延迟一秒
-            try:
-                role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
-                account_id = acc.id
-                
-                # 获取 family_clients
-                family_clients = []
-                if acc.current_family_id is not None:
-                    from app.crud.family_member import get_family_members_by_family
-                    members = await get_family_members_by_family(db, acc.current_family_id)
-                    platforms_list = ["web", "app"]
-                    for member in members:
-                        for p in platforms_list:
-                            member_client_id = f"{p}_{member.account_id}"
-                            if member_client_id not in family_clients:
-                                family_clients.append(member_client_id)
-                
-                # 根据登录类型设置不同的消息
-                if login_type == "wechat":
-                    message_text = f"{acc.nickname or acc.phone} 已通过微信登录"
-                else:
-                    message_text = f"{acc.nickname or acc.phone} 已登录"
-                
-                await websocket_tool.send_family_message(
-                    message_type="login",
-                    data={
-                        "senderId": account_id,
-                        "senderRole": role_str,
-                        "title": "用户登录",
-                        "message": message_text,
-                        "level": "normal"
-                    },
-                    family_clients=family_clients
-                )
-            except Exception as e:
-                # 发送消息失败不影响登录流程
-                print(f"发送登录消息失败: {e}")
-        
-        # 在后台任务中发送消息，不阻塞登录响应
-        asyncio.create_task(send_login_message())
-    
     # 记录登录操作
     try:
         log_description = f"用户登录系统（{acc.nickname or acc.phone}）"
@@ -319,32 +274,9 @@ async def register(db: AsyncSession = Depends(get_db), req: RegisterRequest = Bo
 async def logout(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_clients: list[str] = Depends(get_family_clients),
     current_account: Account = Depends(get_current_account)
 ):
     """用户登出"""
-    
-    # 构建 client_id
-    account_id = token_info["account_id"] if "account_id" in token_info else None
-    role = token_info.get("role")
-    if account_id:
-        
-        # 发送websocket消息通知登出
-        try:
-            await websocket_tool.send_family_message(
-                message_type="logout",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "用户登出",
-                    "message": f"{current_account.nickname or current_account.phone} 已登出",
-                    "level": "normal"
-                },
-                family_clients=family_clients
-            )
-        except Exception as e:
-            # 发送消息失败不影响登出流程
-            print(f"发送登出消息失败: {e}")
     
     # 记录登出操作
     try:
@@ -747,7 +679,9 @@ async def set_password(
 @router.patch("/profile", response_model=Account)
 async def update_profile(
     db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
     current_account: Account = Depends(get_current_account),
+    family_clients: list[str] = Depends(get_family_clients),
     account_update: AccountUpdate = Body(...)
 ):
     """更新当前用户信息
@@ -827,6 +761,50 @@ async def update_profile(
         # 记录操作失败不影响更新流程
         print(f"记录操作日志失败: {e}")
     
+    # 发送家庭消息通知用户信息更新
+    try:
+        account_id = token_info.get("account_id")
+        role = token_info.get("role")
+        if account_id is not None:
+            # 构建更新的字段描述
+            updated_fields = list(update_data.keys())
+            if "password" in updated_fields:
+                updated_fields.remove("password")
+                updated_fields.append("密码")
+            
+            field_names = {
+                "nickname": "昵称",
+                "gender": "性别",
+                "email": "邮箱",
+                "phone": "手机号",
+                "avatar": "头像",
+                "密码": "密码"
+            }
+            
+            field_display_names = [field_names.get(field, field) for field in updated_fields if field in field_names]
+            
+            if field_display_names:
+                message_text = f"用户信息已更新：{', '.join(field_display_names)}"
+            else:
+                message_text = "用户信息已更新"
+            
+            await websocket_tool.send_family_message(
+                message_type="account.update",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "用户信息更新",
+                    "message": message_text,
+                    "level": "normal",
+                    "accountId": account_id,
+                    "updatedFields": updated_fields
+                },
+                family_clients=family_clients
+            )
+    except Exception as e:
+        # 发送消息失败不影响更新流程
+        print(f"发送用户信息更新消息失败: {e}")
+    
     return updated_account
 
 
@@ -834,8 +812,8 @@ async def update_profile(
 async def delete_account(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_clients: list[str] = Depends(get_family_clients),
-    current_account: Account = Depends(get_current_account)
+    current_account: Account = Depends(get_current_account),
+    family_clients: list[str] = Depends(get_family_clients)
 ):
     """注销账号（删除当前登录用户的账号）
     
@@ -863,26 +841,82 @@ async def delete_account(
     creator_families = [fm for fm in family_members if fm.role == FamilyMemberRole.creator]
     
     # 删除所有创建的家庭
+    deleted_families = []  # 记录成功删除的家庭信息
     for fm in creator_families:
         family = await get_family(db, fm.family_id)
         if family:
-            # 记录删除家庭的操作日志
-            try:
-                await user_operation_log.create(
-                    db=db,
-                    obj_in=UserOperationLogCreate(
-                        operation_type=OperationTypeEnum.family_delete,
-                        description=f"删除家庭: {family.name}（账号注销时自动删除）",
-                        extra={"family_id": family.id, "family_name": family.name, "reason": "account_deletion"}
-                    ),
-                    account_id=account_id
-                )
-            except Exception as e:
-                print(f"记录删除家庭操作日志失败: {e}")
+            # 保存家庭信息用于后续日志和消息
+            family_id = family.id
+            family_name = family.name
             
-            # 删除家庭（会级联删除家庭成员和设备关联）
+            # 先删除家庭（会级联删除家庭成员和设备关联）
             # delete_family 内部已经提交事务
-            await delete_family(db, fm.family_id)
+            success = await delete_family(db, fm.family_id)
+            
+            # 删除成功后保存家庭信息
+            if success:
+                deleted_families.append({
+                    "familyId": family_id,
+                    "familyName": family_name
+                })
+    
+    # 如果删除了家庭，记录一条日志并发送一条消息
+    if deleted_families:
+        # 记录删除家庭的操作日志（仅一条）
+        try:
+            if len(deleted_families) == 1:
+                description = f"删除家庭: {deleted_families[0]['familyName']}（账号注销时自动删除）"
+                extra = {
+                    "family_id": deleted_families[0]["familyId"],
+                    "family_name": deleted_families[0]["familyName"],
+                    "reason": "account_deletion"
+                }
+            else:
+                family_names = [f["familyName"] for f in deleted_families]
+                description = f"删除 {len(deleted_families)} 个家庭（账号注销时自动删除）: {', '.join(family_names)}"
+                extra = {
+                    "families": deleted_families,
+                    "count": len(deleted_families),
+                    "reason": "account_deletion"
+                }
+            
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.family_delete,
+                    description=description,
+                    extra=extra
+                ),
+                account_id=account_id
+            )
+        except Exception as e:
+            print(f"记录删除家庭操作日志失败: {e}")
+        
+        # 发送一条删除家庭的消息
+        try:
+            role = token_info.get("role")
+            # 构建消息内容
+            if len(deleted_families) == 1:
+                message_text = f"家庭 {deleted_families[0]['familyName']} 已删除"
+            else:
+                family_names = [f["familyName"] for f in deleted_families]
+                message_text = f"{len(deleted_families)} 个家庭已删除：{', '.join(family_names)}"
+            
+            await websocket_tool.send_family_message(
+                message_type="family.delete",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "家庭删除",
+                    "message": message_text,
+                    "level": "warning",
+                    "families": deleted_families
+                },
+                family_clients=family_clients
+            )
+        except Exception as e:
+            # 发送消息失败不影响删除流程
+            print(f"发送删除家庭消息失败: {e}")
     
     # 记录操作日志（在删除前记录，因为删除后日志也会被级联删除）
     try:
@@ -918,25 +952,6 @@ async def delete_account(
         # 不需要手动设置 device.account_id = None，数据库会自动处理（ON DELETE SET NULL）
     
     await db.commit()
-    
-    # 发送 WebSocket 通知（在删除前发送）
-    try:
-        role = token_info.get("role")
-        if account_id is not None:
-            await websocket_tool.send_family_message(
-                message_type="account.delete",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "账号注销",
-                    "message": f"{current_account.nickname or current_account.phone} 的账号已注销",
-                    "level": "warning"
-                },
-                family_clients=family_clients
-            )
-    except Exception as e:
-        # 发送消息失败不影响注销流程
-        print(f"发送注销通知失败: {e}")
     
     # 删除账号（会级联删除家庭成员关系、签到记录、积分记录、反馈、操作日志等）
     # device.account_id 会自动设为 NULL（ON DELETE SET NULL）
