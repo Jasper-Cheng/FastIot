@@ -765,22 +765,32 @@ async def update_profile(
         account_id = token_info.get("account_id")
         role = token_info.get("role")
         if account_id is not None:
-            # 构建更新的字段描述
-            updated_fields = list(update_data.keys())
-            if "password" in updated_fields:
-                updated_fields.remove("password")
-                updated_fields.append("密码")
-            
+            # 构建更新的字段描述和值
+            updated_fields = {}
             field_names = {
                 "nickname": "昵称",
                 "gender": "性别",
                 "email": "邮箱",
                 "phone": "手机号",
                 "avatar": "头像",
-                "密码": "密码"
+                "password": "密码"
             }
             
-            field_display_names = [field_names.get(field, field) for field in updated_fields if field in field_names]
+            # 构建包含字段名和值的字典（使用英文字段名作为键）
+            for field, value in update_data.items():
+                if field == "password":
+                    # 密码字段不显示值，只显示已更新
+                    updated_fields[field] = "已更新"
+                else:
+                    updated_fields[field] = value
+            
+            # 构建显示名称列表用于消息文本
+            field_display_names = []
+            for field in update_data.keys():
+                if field == "password":
+                    field_display_names.append("密码")
+                else:
+                    field_display_names.append(field_names.get(field, field))
             
             if field_display_names:
                 message_text = f"用户信息已更新：{', '.join(field_display_names)}"
