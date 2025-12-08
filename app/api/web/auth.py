@@ -880,18 +880,18 @@ async def delete_account(
                     "reason": "account_deletion"
                 }
             
-            await user_operation_log.create(
-                db=db,
-                obj_in=UserOperationLogCreate(
-                    operation_type=OperationTypeEnum.family_delete,
+                await user_operation_log.create(
+                    db=db,
+                    obj_in=UserOperationLogCreate(
+                        operation_type=OperationTypeEnum.family_delete,
                     description=description,
                     extra=extra
-                ),
-                account_id=account_id
-            )
+                    ),
+                    account_id=account_id
+                )
         except Exception as e:
             print(f"记录删除家庭操作日志失败: {e}")
-        
+            
         # 发送一条删除家庭的消息
         try:
             role = token_info.get("role")

@@ -397,18 +397,18 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
                 # 发送 websocket message 给所有订阅了该设备的客户端，此消息为家庭消息
                 await websocket_tool.send_device_family_message(
                     device_sn=sn,
-                    message_type="device.alert",
-                    data={
-                        "title": "设备告警",
-                        "message": alert_message,
-                        "level": "error",
-                        "deviceId": device.id,
-                        "deviceSn": sn,
-                        "deviceName": device.name,
-                        "messageId": created_message.id,
-                        "alerts": alert_details
+                            message_type="device.alert",
+                            data={
+                                "title": "设备告警",
+                                "message": alert_message,
+                                "level": "error",
+                                "deviceId": device.id,
+                                "deviceSn": sn,
+                                "deviceName": device.name,
+                                "messageId": created_message.id,
+                                "alerts": alert_details
                     }
-                )
+                        )
                     
         except Exception as e:
             print(f"❌ [M701001] 处理告警失败 ({sn}): {e}")

@@ -14,8 +14,9 @@ from app.crud.user_operation_log import user_operation_log
 from app.models.family import FamilyCreate, FamilyUpdate, FamilyInDB
 from app.models.device import DeviceInDB
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_token
+from app.api.dependencies import get_current_token, get_family_clients
 from app.db.session import get_db
+from app.services.websocket_tool import websocket_tool
 
 router = APIRouter()
 
@@ -113,7 +114,8 @@ async def update_family_endpoint(
 async def delete_family_endpoint(
     family_id: int,
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    family_clients: list[str] = Depends(get_family_clients)
 ):
     """删除家庭（仅创建者）"""
     account_id = token_info["account_id"]
@@ -145,6 +147,26 @@ async def delete_family_endpoint(
         ),
         account_id=account_id
     )
+    
+    # 发送家庭消息通知
+    try:
+        role = token_info.get("role")
+        await websocket_tool.send_family_message(
+            message_type="family.delete",
+            data={
+                "senderId": account_id,
+                "senderRole": role,
+                "title": "家庭删除",
+                "message": f"家庭 {family_name} 已删除",
+                "level": "warning",
+                "familyId": family_id,
+                "familyName": family_name
+            },
+            family_clients=family_clients
+        )
+    except Exception as e:
+        # 发送消息失败不影响删除流程
+        print(f"发送删除家庭消息失败: {e}")
     
     return {"message": "家庭已删除"}
 
