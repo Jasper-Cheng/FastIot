@@ -22,7 +22,7 @@ from app.api.web import websocket as websocket_endpoints
 
 # 将所有路由添加到 web_router
 # 统一管理依赖：get_db（数据库会话）、get_current_token（认证）、get_family_clients（家庭客户端列表）
-web_router.include_router(auth_endpoints.router, prefix="/auth", dependencies=[Depends(get_db), Depends(get_family_clients)])
+web_router.include_router(auth_endpoints.router, prefix="/auth", dependencies=[Depends(get_db)])
 web_router.include_router(families_endpoints.router, prefix="/families", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(family_members_endpoints.router, prefix="/family-members", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(devices_endpoints.router, prefix="/devices", dependencies=[Depends(get_db), Depends(get_current_token), Depends(get_family_clients)])
