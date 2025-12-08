@@ -92,6 +92,27 @@ async def update_device_name(
     old_name = device.name
     updated = await update_device(db, device_id, DeviceUpdate(name=payload.name))
     
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_name_update,
+                description=f"修改设备名称：{old_name} -> {payload.name}",
+                extra={
+                    "device_id": device.id,
+                    "device_name": payload.name,
+                    "old_name": old_name,
+                    "device_sn": device.sn,
+                    "family_id": family_id
+                }
+            ),
+            account_id=account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响更新流程
+        print(f"记录设备名称修改操作日志失败: {e}")
+    
     # 发送websocket消息通知设备名称修改
     try:
         role = token_info.get("role")

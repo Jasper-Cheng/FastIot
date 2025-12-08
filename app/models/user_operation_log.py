@@ -11,6 +11,7 @@ class OperationTypeEnum(str, Enum):
     account_update = "account_update"
     device_bind = "device_bind"
     device_unbind = "device_unbind"
+    device_name_update = "device_name_update"
     device_add_to_family = "device_add_to_family"
     device_remove_from_family = "device_remove_from_family"
     family_create = "family_create"
