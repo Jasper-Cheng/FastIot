@@ -25,6 +25,8 @@ class WebSocketTool:
         self.method_handlers: Dict[str, Callable] = {}  # method_name -> handler_function
         # 事件订阅管理
         self.event_subscriptions: Dict[str, Set[str]] = {}  # device_sn -> set of client_ids
+        # 家庭订阅管理
+        self.family_subscriptions: Dict[int, Set[str]] = {}  # family_id -> set of client_ids
         # 待处理请求
         self.pending_requests: Dict[str, Dict[str, Any]] = {}  # request_id -> request_info
         # 心跳超时时间（秒）
@@ -55,6 +57,12 @@ class WebSocketTool:
             self.event_subscriptions[device_sn].discard(client_id)
             if not self.event_subscriptions[device_sn]:
                 del self.event_subscriptions[device_sn]
+        
+        # 清理家庭订阅
+        for family_id in list(self.family_subscriptions.keys()):
+            self.family_subscriptions[family_id].discard(client_id)
+            if not self.family_subscriptions[family_id]:
+                del self.family_subscriptions[family_id]
             
         print(f"❌ [WebSocket] 客户端 {client_id} 已断开")
         
@@ -149,6 +157,66 @@ class WebSocketTool:
             if not self.event_subscriptions[device_sn]:
                 del self.event_subscriptions[device_sn]
         print(f"❌ [WebSocket] 客户端 {client_id} 取消订阅设备 {device_sn} 事件")
+    
+    def subscribe_to_family(self, client_id: str, family_id: int):
+        """订阅家庭消息"""
+        if family_id not in self.family_subscriptions:
+            self.family_subscriptions[family_id] = set()
+        self.family_subscriptions[family_id].add(client_id)
+        print(f"✅ [WebSocket] 客户端 {client_id} 订阅家庭 {family_id} 消息")
+    
+    def unsubscribe_from_family(self, client_id: str, family_id: int):
+        """取消订阅家庭消息"""
+        if family_id in self.family_subscriptions:
+            self.family_subscriptions[family_id].discard(client_id)
+            if not self.family_subscriptions[family_id]:
+                del self.family_subscriptions[family_id]
+        print(f"❌ [WebSocket] 客户端 {client_id} 取消订阅家庭 {family_id} 消息")
+    
+    async def send_family_message_by_id(
+        self,
+        family_id: int,
+        message_type: str,
+        data: Dict[str, Any]
+    ):
+        """
+        发送家庭消息给指定家庭的所有订阅客户端
+        
+        Args:
+            family_id: 家庭ID
+            message_type: 消息类型，例如：family.delete
+            data: 消息数据
+        """
+        # 获取订阅了该家庭的所有客户端
+        subscribed_clients = self.family_subscriptions.get(family_id, set())
+        
+        if not subscribed_clients:
+            print(f"⚠️ [WebSocket] 没有客户端订阅家庭 {family_id}，无法发送家庭消息")
+            return
+        
+        # 生成消息ID和时间戳
+        message_id = f"fam_{uuid.uuid4().hex[:8]}"
+        timestamp = int(datetime.now().timestamp() * 1000)
+        
+        # 构建family消息
+        family_message = {
+            "id": message_id,
+            "method": "family.message",
+            "params": {
+                "type": message_type,
+                "data": data
+            },
+            "timestamp": timestamp
+        }
+        
+        # 发送给所有订阅了该家庭的客户端
+        for client_id in subscribed_clients:
+            try:
+                await self.send_message(client_id, family_message)
+            except Exception as e:
+                print(f"❌ [WebSocket] 发送家庭消息给 {client_id} 失败: {e}")
+        
+        print(f"✅ [WebSocket] 家庭 {family_id} 消息已发送给 {len(subscribed_clients)} 个订阅客户端")
         
     async def handle_message(self, client_id: str, message: str):
         """处理接收到的消息"""
@@ -492,7 +560,61 @@ async def event_unsubscribe_handler(client_id: str, request_id: str, params: Dic
     await websocket_tool.send_response(client_id, request_id, "event.unsubscribe", response_params)
 
 
+async def family_subscribe_handler(client_id: str, request_id: str, params: Dict[str, Any]):
+    """处理 family.subscribe 请求"""
+    family_id = params.get("familyId")
+    
+    if family_id is None:
+        await websocket_tool.send_response(
+            client_id, 
+            request_id, 
+            "family.subscribe", 
+            {}, 
+            success=False, 
+            error="缺少 familyId 参数"
+        )
+        return
+    
+    # 订阅家庭消息
+    websocket_tool.subscribe_to_family(client_id, family_id)
+    
+    response_params = {
+        "familyId": family_id,
+        "subscribed": True
+    }
+    
+    await websocket_tool.send_response(client_id, request_id, "family.subscribe", response_params)
+
+
+async def family_unsubscribe_handler(client_id: str, request_id: str, params: Dict[str, Any]):
+    """处理 family.unsubscribe 请求"""
+    family_id = params.get("familyId")
+    
+    if family_id is None:
+        await websocket_tool.send_response(
+            client_id, 
+            request_id, 
+            "family.unsubscribe", 
+            {}, 
+            success=False, 
+            error="缺少 familyId 参数"
+        )
+        return
+    
+    # 取消订阅家庭消息
+    websocket_tool.unsubscribe_from_family(client_id, family_id)
+    
+    response_params = {
+        "familyId": family_id,
+        "unsubscribed": True
+    }
+    
+    await websocket_tool.send_response(client_id, request_id, "family.unsubscribe", response_params)
+
+
 # 注册默认方法处理器
 websocket_tool.register_method_handler("service.invoke", service_invoke_handler)
 websocket_tool.register_method_handler("event.subscribe", event_subscribe_handler)
 websocket_tool.register_method_handler("event.unsubscribe", event_unsubscribe_handler)
+websocket_tool.register_method_handler("family.subscribe", family_subscribe_handler)
+websocket_tool.register_method_handler("family.unsubscribe", family_unsubscribe_handler)
