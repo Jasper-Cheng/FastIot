@@ -826,6 +826,48 @@ async def update_profile(
     return updated_account
 
 
+@router.patch("/current-family", response_model=Account)
+async def update_current_family(
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+    current_account: Account = Depends(get_current_account),
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则设置为当前家庭；如果为None则设置为个人使用")
+):
+    """更新当前使用的家庭ID
+    
+    - 如果提供 family_id：验证用户是否是家庭成员，然后设置为当前家庭
+    - 如果 family_id 为 None：设置为个人使用（current_family_id = NULL）
+    """
+    account_id = token_info["account_id"]
+    print('family_id', family_id)
+    print('current_account', current_account)
+    print('account_id', account_id)
+    print('token_info', token_info)
+    
+    # 如果提供了 family_id，验证用户是否是家庭成员
+    if family_id is not None:
+        from app.crud.family_member import get_family_member_by_family_and_account
+        from app.crud.family import get_family
+        
+        # 验证家庭是否存在
+        family = await get_family(db, family_id)
+        if not family:
+            raise HTTPException(status_code=404, detail="家庭不存在")
+        
+        
+        # 验证用户是否是家庭成员
+        family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
+        if not family_member:
+            raise HTTPException(status_code=403, detail="无权访问此家庭")
+    
+    # 直接更新 current_family_id（因为 update_account 使用 exclude_unset=True 可能排除 None 值）
+    current_account.current_family_id = family_id
+    await db.commit()
+    await db.refresh(current_account)
+    
+    return current_account
+
+
 @router.delete("/account")
 async def delete_account(
     db: AsyncSession = Depends(get_db),
