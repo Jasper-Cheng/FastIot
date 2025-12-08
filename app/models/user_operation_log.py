@@ -11,6 +11,8 @@ class OperationTypeEnum(str, Enum):
     account_update = "account_update"
     device_bind = "device_bind"
     device_unbind = "device_unbind"
+    device_add_to_family = "device_add_to_family"
+    device_remove_from_family = "device_remove_from_family"
     family_create = "family_create"
     family_delete = "family_delete"
     family_member_add = "family_member_add"
@@ -18,6 +20,7 @@ class OperationTypeEnum(str, Enum):
     family_member_update = "family_member_update"
     permission_update = "permission_update"
     quick_control = "quick_control"
+    feedback_create = "feedback_create"
 
 class UserOperationLogBase(BaseModel):
     operation_type: OperationTypeEnum = Field(..., description="操作类型")

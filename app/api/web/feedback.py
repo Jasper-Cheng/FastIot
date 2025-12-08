@@ -4,9 +4,10 @@ from typing import List, Optional
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
 from app.crud.feedback import feedback
+from app.crud.user_operation_log import user_operation_log
 from app.models.feedback import Feedback, FeedbackCreate, SourceEnum
 from app.models.account import AccountRole
-from app.services.websocket_tool import websocket_tool
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 
 router = APIRouter()
 
@@ -16,8 +17,7 @@ async def create_feedback(
     *,
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    feedback_in: FeedbackCreate = Body(...),
-    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
+    feedback_in: FeedbackCreate = Body(...)
 ):
     """创建意见反馈
     
@@ -57,34 +57,27 @@ async def create_feedback(
     
     created_feedback = db_obj
     
-    # 发送family消息通知创建意见反馈
+    # 记录操作日志
     try:
-        role = token_info.get("role")
-        account_id = token_info.get("account_id")
-        if account_id is not None:
-            # 获取当前账号的 current_family_id
-            from app.crud.account import get_account
-            account = await get_account(db, account_id)
-            target_family_id = family_id if family_id is not None else (account.current_family_id if account else None)
-            
-            if target_family_id is not None:
-                await websocket_tool.send_family_message_by_id(
-                    family_id=target_family_id,
-                    message_type="feedback.create",
-                    data={
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "意见反馈",
-                        "message": f"用户 {feedback_in.name} 创建了意见反馈",
-                        "level": "normal",
-                        "feedbackId": created_feedback.id,
-                        "feedbackType": feedback_in.type if hasattr(feedback_in, 'type') else None,
-                        "feedbackContent": feedback_in.content[:100] if len(feedback_in.content) > 100 else feedback_in.content
-                    }
-                )
+        account_id = token_info["account_id"]
+        feedback_type = feedback_in.type if hasattr(feedback_in, 'type') and feedback_in.type else 'other'
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.feedback_create,
+                description=f"创建意见反馈：{feedback_type}",
+                extra={
+                    "feedback_id": created_feedback.id,
+                    "feedback_type": feedback_type,
+                    "feedback_name": feedback_in.name if hasattr(feedback_in, 'name') else None,
+                    "source": source.value
+                }
+            ),
+            account_id=account_id
+        )
     except Exception as e:
-        # 发送消息失败不影响业务流程
-        print(f"发送意见反馈创建通知失败: {e}")
+        # 记录操作失败不影响创建流程
+        print(f"记录意见反馈创建操作日志失败: {e}")
     
     return created_feedback
 

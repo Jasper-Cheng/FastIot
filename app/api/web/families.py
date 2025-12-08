@@ -153,17 +153,17 @@ async def delete_family_endpoint(
         if family_id is not None:
             await websocket_tool.send_family_message_by_id(
                 family_id=family_id,
-                message_type="family.delete",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "家庭删除",
-                    "message": f"家庭 {family_name} 已删除",
-                    "level": "warning",
-                    "familyId": family_id,
-                    "familyName": family_name
+            message_type="family.delete",
+            data={
+                "senderId": account_id,
+                "senderRole": role,
+                "title": "家庭删除",
+                "message": f"家庭 {family_name} 已删除",
+                "level": "warning",
+                "familyId": family_id,
+                "familyName": family_name
                 }
-            )
+        )
     except Exception as e:
         # 发送消息失败不影响删除流程
         print(f"发送删除家庭消息失败: {e}")
@@ -230,6 +230,55 @@ async def add_device_to_family(
     if not family_device:
         raise HTTPException(status_code=400, detail="设备添加失败")
     
+    # 获取家庭信息用于消息和日志
+    family = await get_family(db, family_id)
+    family_name = family.name if family else None
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_add_to_family,
+                description=f"将设备 {device.name} 添加到家庭 {family_name or family_id}",
+                extra={
+                    "family_id": family_id,
+                    "family_name": family_name,
+                    "device_id": device.id,
+                    "device_name": device.name,
+                    "device_sn": device.sn
+                }
+            ),
+            account_id=account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响添加流程
+        print(f"记录设备添加到家庭操作日志失败: {e}")
+    
+    # 发送家庭消息通知设备已添加到家庭
+    try:
+        role = token_info.get("role")
+        if family_id is not None:
+            await websocket_tool.send_family_message_by_id(
+                family_id=family_id,
+                message_type="device.add",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "设备已添加到家庭",
+                    "message": f"设备 {device.name} 已添加到家庭 {family_name or family_id}",
+                    "level": "normal",
+                    "familyId": family_id,
+                    "familyName": family_name,
+                    "deviceId": device.id,
+                    "deviceName": device.name,
+                    "deviceSn": device.sn
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响添加流程
+        print(f"发送设备添加到家庭消息失败: {e}")
+    
     return {"message": "设备已添加到家庭", "device_id": device_id, "family_id": family_id}
 
 
@@ -265,6 +314,55 @@ async def remove_device_from_family(
     success = await delete_family_device(db, family_id, device_id)
     if not success:
         raise HTTPException(status_code=404, detail="设备不在此家庭中")
+    
+    # 获取家庭信息用于消息和日志
+    family = await get_family(db, family_id)
+    family_name = family.name if family else None
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_remove_from_family,
+                description=f"将设备 {device.name} 从家庭 {family_name or family_id} 中移除",
+                extra={
+                    "family_id": family_id,
+                    "family_name": family_name,
+                    "device_id": device.id,
+                    "device_name": device.name,
+                    "device_sn": device.sn
+                }
+            ),
+            account_id=account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响移除流程
+        print(f"记录设备从家庭移除操作日志失败: {e}")
+    
+    # 发送家庭消息通知设备已从家庭中移除
+    try:
+        role = token_info.get("role")
+        if family_id is not None:
+            await websocket_tool.send_family_message_by_id(
+                family_id=family_id,
+                message_type="device.remove",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "设备已从家庭中移除",
+                    "message": f"设备 {device.name} 已从家庭 {family_name or family_id} 中移除",
+                    "level": "normal",
+                    "familyId": family_id,
+                    "familyName": family_name,
+                    "deviceId": device.id,
+                    "deviceName": device.name,
+                    "deviceSn": device.sn
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响移除流程
+        print(f"发送设备从家庭移除消息失败: {e}")
     
     return {"message": "设备已从家庭中移除", "device_id": device_id, "family_id": family_id}
 

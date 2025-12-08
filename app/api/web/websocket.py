@@ -57,18 +57,23 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
             # 使用token中的platform和account_id构建client_id
             client_id = f"{platform}_{account_id}"
 
-            # 检查是否已经连接，如果已连接则先发送family消息并断开旧连接
+            # 检查是否已经连接，如果已连接则先发送消息并断开旧连接
             if websocket_tool.is_client_connected(client_id):
-                print(f"⚠️ [WebSocket] 客户端 {client_id} 已存在连接，正在发送强制退出family消息并断开旧连接")
+                print(f"⚠️ [WebSocket] 客户端 {client_id} 已存在连接，正在发送强制退出消息并断开旧连接")
                 
-                # 发送family消息给所有family成员（包括旧连接）
+                # 直接发送消息给旧连接
                 try:
-                    # 使用账号的 current_family_id 发送消息
-                    if account.current_family_id is not None:
-                        await websocket_tool.send_family_message_by_id(
-                            family_id=account.current_family_id,
-                            message_type="force.logout",
-                            data={
+                    # 生成消息ID和时间戳
+                    message_id = f"fam_{uuid.uuid4().hex[:8]}"
+                    timestamp = int(datetime.now().timestamp() * 1000)
+                    
+                    # 构建family消息
+                    family_message = {
+                        "id": message_id,
+                        "method": "family.message",
+                        "params": {
+                            "type": "force.logout",
+                            "data": {
                                 "senderId": account_id,
                                 "senderRole": role,
                                 "title": "强制退出",
@@ -76,11 +81,16 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                                 "level": "warning",
                                 "reason": "新设备登录，当前连接被强制退出"
                             }
-                        )
-                        # 等待一小段时间确保消息发送完成
-                        await asyncio.sleep(0.1)
+                        },
+                        "timestamp": timestamp
+                    }
+                    
+                    # 直接调用 send_message 发送给旧连接
+                    await websocket_tool.send_message(client_id, family_message)
+                    # 等待一小段时间确保消息发送完成
+                    await asyncio.sleep(0.1)
                 except Exception as e:
-                    print(f"⚠️ [WebSocket] 发送强制退出family消息失败: {e}")
+                    print(f"⚠️ [WebSocket] 发送强制退出消息失败: {e}")
                 
                 # 断开旧连接
                 await websocket_tool._force_disconnect(client_id)

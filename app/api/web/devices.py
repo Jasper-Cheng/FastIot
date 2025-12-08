@@ -123,7 +123,7 @@ async def bind_device_by_sn(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
     payload: DeviceBindBySNRequest = Body(...),
-    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则将该设备添加到该家庭并发送消息；如果不提供则不发送消息")
 ):
     """通过序列号绑定设备到当前账号
     
@@ -151,6 +151,23 @@ async def bind_device_by_sn(
     await db.commit()
     await db.refresh(device)
 
+    # 如果提供了 family_id，将设备添加到该家庭
+    if family_id is not None:
+        # 检查是否是家庭成员
+        from app.crud.family_member import get_family_member_by_family_and_account
+        family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
+        if not family_member:
+            raise HTTPException(status_code=403, detail="无权访问此家庭")
+        
+        # 检查设备是否已在家庭中
+        from app.crud.family_device import check_device_in_family, create_family_device
+        if not await check_device_in_family(db, device.id, family_id):
+            # 设备不在家庭中，添加到家庭
+            family_device = await create_family_device(db, family_id, device.id)
+            if not family_device:
+                # 如果创建失败（可能已存在），不影响绑定流程
+                print(f"设备 {device.id} 添加到家庭 {family_id} 失败或已存在")
+
     # 记录设备绑定操作
     try:
         await user_operation_log.create(
@@ -175,27 +192,21 @@ async def bind_device_by_sn(
     # 发送websocket消息通知设备绑定
     try:
         role = token_info.get("role")
-        if account_id is not None:
-            # 获取当前账号的 current_family_id
-            from app.crud.account import get_account
-            account = await get_account(db, account_id)
-            target_family_id = family_id if family_id is not None else (account.current_family_id if account else None)
-            
-            if target_family_id is not None:
-                await websocket_tool.send_family_message_by_id(
-                    family_id=target_family_id,
-                    message_type="device.bind",
-                    data={
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "设备绑定",
-                        "message": f"设备 {device.name} 已绑定",
-                        "level": "normal",
-                        "deviceId": device.id,
-                        "deviceName": device.name,
-                        "deviceSn": device.sn
-                    }
-                )
+        if account_id is not None and family_id is not None:
+            await websocket_tool.send_family_message_by_id(
+                family_id=family_id,
+                message_type="device.bind",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "设备绑定",
+                    "message": f"设备 {device.name} 已绑定",
+                    "level": "normal",
+                    "deviceId": device.id,
+                    "deviceName": device.name,
+                    "deviceSn": device.sn
+                }
+            )
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送设备绑定通知失败: {e}")
@@ -208,8 +219,7 @@ async def bind_device_by_sn(
 async def unbind_device_by_sn(
     sn: str, 
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token),
-    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
+    token_info: dict = Depends(get_current_token)
 ):
     """通过序列号解绑设备，将设备从账号中移除
     
@@ -268,26 +278,29 @@ async def unbind_device_by_sn(
     try:
         role = token_info.get("role")
         if account_id is not None:
-            # 获取当前账号的 current_family_id
-            from app.crud.account import get_account
-            account = await get_account(db, account_id)
-            target_family_id = family_id if family_id is not None else (account.current_family_id if account else None)
+            # 查询该用户的所有家庭，然后为每个家庭发送消息
+            from app.crud.family import get_families_by_account
+            families = await get_families_by_account(db, account_id)
             
-            if target_family_id is not None:
-                await websocket_tool.send_family_message_by_id(
-                    family_id=target_family_id,
-                    message_type="device.unbind",
-                    data={
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "设备解绑",
-                        "message": f"设备 {device_name} 已解绑",
-                        "level": "normal",
-                        "deviceId": device.id,
-                        "deviceName": device_name,
-                        "deviceSn": sn
-                    }
-                )
+            for family in families:
+                if family.id is not None:
+                    try:
+                        await websocket_tool.send_family_message_by_id(
+                            family_id=family.id,
+                message_type="device.unbind",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "设备解绑",
+                    "message": f"设备 {device_name} 已解绑",
+                    "level": "normal",
+                    "deviceId": device.id,
+                    "deviceName": device_name,
+                    "deviceSn": sn
+                            }
+            )
+                    except Exception as e:
+                        print(f"发送设备解绑消息失败 (family_id={family.id}): {e}")
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送设备解绑通知失败: {e}")

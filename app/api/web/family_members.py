@@ -4,7 +4,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from typing import List, Optional
 
-from app.crud.family import get_family, get_family_by_invite_code
+from app.crud.family import get_family, get_family_by_invite_code, delete_family
 from app.crud.family_member import (
     get_family_member,
     get_family_member_by_family_and_account,
@@ -28,6 +28,7 @@ from app.models.family_member import (
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
+from app.services.websocket_tool import websocket_tool
 
 router = APIRouter()
 
@@ -89,6 +90,34 @@ async def join_family_by_invite_code(
         ),
         account_id=account_id
     )
+    
+    # 发送家庭消息通知有新成员加入
+    try:
+        role = token_info.get("role")
+        # 获取账号信息用于消息
+        account = await get_account(db, account_id)
+        member_name = nickname or (account.nickname if account and account.nickname else account.phone if account else "新成员")
+        
+        if family.id is not None:
+            await websocket_tool.send_family_message_by_id(
+                family_id=family.id,
+                message_type="member.join",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "新成员加入",
+                    "message": f"{member_name} 已加入家庭 {family.name}",
+                    "level": "normal",
+                    "familyId": family.id,
+                    "familyName": family.name,
+                    "memberId": account_id,
+                    "memberName": member_name,
+                    "memberRole": FamilyMemberRole.member.value
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响加入流程
+        print(f"发送新成员加入消息失败: {e}")
     
     return family_member
 
@@ -153,10 +182,70 @@ async def update_family_member(
         if not current_member or current_member.role != FamilyMemberRole.creator:
             raise HTTPException(status_code=403, detail="无权修改其他成员的昵称")
     
+    # 记录更新前的昵称
+    old_nickname = db_family_member.nickname
+    
     # 只允许更新nickname（nickname可以为None，表示清空昵称）
     updated = await crud_update_family_member(db, family_member_id, family_member)
     if not updated:
         raise HTTPException(status_code=404, detail="更新家庭成员信息失败")
+    
+    # 获取家庭信息用于消息和日志
+    family = await get_family(db, db_family_member.family_id)
+    family_name = family.name if family else None
+    
+    # 获取被更新成员的账号信息
+    target_account = await get_account(db, db_family_member.account_id)
+    target_account_name = target_account.nickname if target_account and target_account.nickname else target_account.phone if target_account else "成员"
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.family_member_update,
+                description=f"更新家庭成员昵称：{old_nickname or '未设置'} -> {family_member.nickname or '未设置'}",
+                extra={
+                    "family_id": db_family_member.family_id,
+                    "family_name": family_name,
+                    "member_id": db_family_member.account_id,
+                    "member_name": target_account_name,
+                    "old_nickname": old_nickname,
+                    "new_nickname": family_member.nickname
+                }
+            ),
+            account_id=account_id
+        )
+    except Exception as e:
+        # 记录操作失败不影响更新流程
+        print(f"记录更新家庭成员操作日志失败: {e}")
+    
+    # 发送家庭消息通知成员信息更新
+    try:
+        role = token_info.get("role")
+        if db_family_member.family_id is not None:
+            new_nickname = family_member.nickname or "未设置"
+            old_nickname_display = old_nickname or "未设置"
+            await websocket_tool.send_family_message_by_id(
+                family_id=db_family_member.family_id,
+                message_type="member.update",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "成员信息更新",
+                    "message": f"{target_account_name} 的昵称已更新：{old_nickname_display} -> {new_nickname}",
+                    "level": "normal",
+                    "familyId": db_family_member.family_id,
+                    "familyName": family_name,
+                    "memberId": db_family_member.account_id,
+                    "memberName": target_account_name,
+                    "oldNickname": old_nickname,
+                    "newNickname": family_member.nickname
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响更新流程
+        print(f"发送成员信息更新消息失败: {e}")
     
     # 重新加载以获取关联的account信息
     result = await db.execute(
@@ -187,9 +276,10 @@ async def remove_family_member(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
-    """移除家庭成员（创建者可以移除任何人，成员只能移除自己）
+    """移除家庭成员
     
-    如果移除的是创建者，则删除整个家庭。
+    - 成员只能移除自己
+    - 创建者则删除整个家庭（调用删除家庭的逻辑）
     """
     account_id = token_info["account_id"]
     
@@ -197,55 +287,61 @@ async def remove_family_member(
     if not db_family_member:
         raise HTTPException(status_code=404, detail="家庭成员不存在")
     
-    # 如果移除的是创建者，删除整个家庭
+    # 检查当前用户是否有权限访问此家庭
+    if db_family_member.account_id != account_id:
+        raise HTTPException(status_code=403, detail="只能移除自己")
+    
+    # 如果是创建者，删除整个家庭（调用删除家庭的逻辑）
     if db_family_member.role == FamilyMemberRole.creator:
-        family = await get_family(db, db_family_member.family_id)
+        family_id = db_family_member.family_id
+        family = await get_family(db, family_id)
         if not family:
             raise HTTPException(status_code=404, detail="家庭不存在")
         
-        # 检查权限：只有创建者自己可以删除家庭
-        if db_family_member.account_id != account_id:
-            raise HTTPException(status_code=403, detail="无权删除此家庭")
-        
         family_name = family.name
+        success = await delete_family(db, family_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="删除家庭失败")
         
-        # 记录删除家庭的操作日志
+        # 记录操作日志
         await user_operation_log.create(
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.family_delete,
-                description=f"删除家庭: {family_name}（移除创建者时自动删除）",
-                extra={
-                    "family_id": family.id,
-                    "family_name": family_name,
-                    "reason": "creator_removed"
-                }
+                description=f"删除家庭: {family_name}",
+                extra={"family_id": family_id, "family_name": family_name}
             ),
             account_id=account_id
         )
         
-        # 删除家庭（会级联删除所有家庭成员和设备关联）
-        from app.crud.family import delete_family
-        success = await delete_family(db, family.id)
-        if not success:
-            raise HTTPException(status_code=404, detail="删除家庭失败")
+        # 发送家庭消息通知
+        try:
+            role = token_info.get("role")
+            if family_id is not None:
+                await websocket_tool.send_family_message_by_id(
+                    family_id=family_id,
+                    message_type="family.delete",
+                    data={
+                        "senderId": account_id,
+                        "senderRole": role,
+                        "title": "家庭删除",
+                        "message": f"家庭 {family_name} 已删除",
+                        "level": "warning",
+                        "familyId": family_id,
+                        "familyName": family_name
+                    }
+                )
+        except Exception as e:
+            # 发送消息失败不影响删除流程
+            print(f"发送删除家庭消息失败: {e}")
         
-        return {"message": "家庭已删除（创建者已移除）"}
+        return {"message": "家庭已删除"}
     
-    # 移除普通成员
-    # 检查权限
-    family_creator = await get_family_member_by_family_and_account(
-        db, db_family_member.family_id, account_id
-    )
+    # 普通成员只能移除自己
+    if db_family_member.account_id != account_id:
+        raise HTTPException(status_code=403, detail="成员只能移除自己")
     
-    # 如果是创建者，可以移除任何人（但不能移除自己）
-    if family_creator and family_creator.role == FamilyMemberRole.creator:
-        if db_family_member.account_id == account_id:
-            raise HTTPException(status_code=400, detail="创建者不能移除自己，请先转让创建者权限")
-    # 如果是成员，只能移除自己
-    elif db_family_member.account_id != account_id:
-        raise HTTPException(status_code=403, detail="无权移除其他成员")
-    
+    # 移除自己
     family = await get_family(db, db_family_member.family_id)
     removed_account = await get_account(db, db_family_member.account_id)
     
@@ -267,6 +363,32 @@ async def remove_family_member(
         ),
         account_id=account_id
     )
+    
+    # 发送家庭消息通知成员已移除
+    try:
+        role = token_info.get("role")
+        family_name = family.name if family else None
+        removed_member_name = removed_account.nickname if removed_account and removed_account.nickname else removed_account.phone if removed_account else "成员"
+        
+        if db_family_member.family_id is not None:
+            await websocket_tool.send_family_message_by_id(
+                family_id=db_family_member.family_id,
+                message_type="member.remove",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "成员已移除",
+                    "message": f"{removed_member_name} 已从家庭 {family_name or db_family_member.family_id} 中移除",
+                    "level": "warning",
+                    "familyId": db_family_member.family_id,
+                    "familyName": family_name,
+                    "memberId": db_family_member.account_id,
+                    "memberName": removed_member_name
+                }
+            )
+    except Exception as e:
+        # 发送消息失败不影响移除流程
+        print(f"发送成员移除消息失败: {e}")
     
     return {"message": "成员已移除"}
 

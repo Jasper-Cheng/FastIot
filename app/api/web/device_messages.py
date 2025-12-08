@@ -87,7 +87,7 @@ async def make_device_message_read(
     message_id: int,
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则不发送消息")
 ):
     """标记设备消息为已读状态"""
     account_id = token_info["account_id"]
@@ -110,27 +110,21 @@ async def make_device_message_read(
     # 发送websocket消息通知设备消息已读
     try:
         role = token_info.get("role")
-        if account_id is not None:
-            # 获取当前账号的 current_family_id
-            from app.crud.account import get_account
-            account = await get_account(db, account_id)
-            target_family_id = family_id if family_id is not None else (account.current_family_id if account else None)
-            
-            if target_family_id is not None:
-                await websocket_tool.send_family_message_by_id(
-                    family_id=target_family_id,
-                    message_type="device.message.read",
-                    data={
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "设备消息已读",
-                        "message": f"设备 {device_name or device_id} 的消息已标记为已读",
-                        "level": "normal",
-                        "deviceId": device_id,
-                        "deviceName": device_name,
-                        "messageId": message_id
-                    }
-                )
+        if account_id is not None and family_id is not None:
+            await websocket_tool.send_family_message_by_id(
+                family_id=family_id,
+                message_type="device.message.read",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "设备消息已读",
+                    "message": f"设备 {device_name or device_id} 的消息已标记为已读",
+                    "level": "normal",
+                    "deviceId": device_id,
+                    "deviceName": device_name,
+                    "messageId": message_id
+                }
+            )
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送设备消息已读通知失败: {e}")
@@ -142,7 +136,7 @@ async def make_device_message_read(
 async def mark_all_device_messages_read(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则标记该家庭中所有设备的消息为已读；如果不提供则标记个人所有设备的消息为已读")
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则标记该家庭中所有设备的消息为已读并发送消息；如果不提供则标记个人所有设备的消息为已读但不发送消息")
 ):
     """标记设备消息为已读
     
@@ -165,28 +159,19 @@ async def mark_all_device_messages_read(
     # 发送websocket消息通知所有设备消息已读
     try:
         role = token_info.get("role")
-        if account_id is not None:
-            # 确定要发送的家庭ID
-            target_family_id = family_id
-            if target_family_id is None:
-                # 如果没有提供 family_id，使用当前账号的 current_family_id
-                from app.crud.account import get_account
-                account = await get_account(db, account_id)
-                target_family_id = account.current_family_id if account else None
-            
-            if target_family_id is not None:
-                await websocket_tool.send_family_message_by_id(
-                    family_id=target_family_id,
-                    message_type="device.message.mark_all_read",
-                    data={
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "所有设备消息已读",
-                        "message": f"{count} 条设备消息已标记为已读",
-                        "level": "normal",
-                        "count": count
-                    }
-                )
+        if account_id is not None and family_id is not None:
+            await websocket_tool.send_family_message_by_id(
+                family_id=family_id,
+                message_type="device.message.mark_all_read",
+                data={
+                    "senderId": account_id,
+                    "senderRole": role,
+                    "title": "所有设备消息已读",
+                    "message": f"{count} 条设备消息已标记为已读",
+                    "level": "normal",
+                    "count": count
+                }
+            )
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送所有设备消息已读通知失败: {e}")
