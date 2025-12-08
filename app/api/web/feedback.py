@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from app.api.dependencies import get_current_token, get_family_clients
+from app.api.dependencies import get_current_token
 from app.db.session import get_db
 from app.crud.feedback import feedback
 from app.models.feedback import Feedback, FeedbackCreate, SourceEnum
@@ -16,8 +16,8 @@ async def create_feedback(
     *,
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_clients: list[str] = Depends(get_family_clients),
-    feedback_in: FeedbackCreate = Body(...)
+    feedback_in: FeedbackCreate = Body(...),
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
 ):
     """创建意见反馈
     
@@ -62,20 +62,26 @@ async def create_feedback(
         role = token_info.get("role")
         account_id = token_info.get("account_id")
         if account_id is not None:
-            await websocket_tool.send_family_message(
-                message_type="feedback.create",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "意见反馈",
-                    "message": f"用户 {feedback_in.name} 创建了意见反馈",
-                    "level": "normal",
-                    "feedbackId": created_feedback.id,
-                    "feedbackType": feedback_in.type if hasattr(feedback_in, 'type') else None,
-                    "feedbackContent": feedback_in.content[:100] if len(feedback_in.content) > 100 else feedback_in.content
-                },
-                family_clients=family_clients
-            )
+            # 获取当前账号的 current_family_id
+            from app.crud.account import get_account
+            account = await get_account(db, account_id)
+            target_family_id = family_id if family_id is not None else (account.current_family_id if account else None)
+            
+            if target_family_id is not None:
+                await websocket_tool.send_family_message_by_id(
+                    family_id=target_family_id,
+                    message_type="feedback.create",
+                    data={
+                        "senderId": account_id,
+                        "senderRole": role,
+                        "title": "意见反馈",
+                        "message": f"用户 {feedback_in.name} 创建了意见反馈",
+                        "level": "normal",
+                        "feedbackId": created_feedback.id,
+                        "feedbackType": feedback_in.type if hasattr(feedback_in, 'type') else None,
+                        "feedbackContent": feedback_in.content[:100] if len(feedback_in.content) > 100 else feedback_in.content
+                    }
+                )
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送意见反馈创建通知失败: {e}")

@@ -12,7 +12,7 @@ from app.crud.user_operation_log import user_operation_log
 from app.models.device import DeviceUpdate, DeviceInDB, DeviceStatus, DeviceNameUpdate, DeviceBindBySNRequest
 from app.models.account import AccountRole
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_token, get_family_clients
+from app.api.dependencies import get_current_token
 from app.db.session import get_db
 from app.services.websocket_tool import websocket_tool
 
@@ -122,8 +122,8 @@ async def update_device_name(
 async def bind_device_by_sn(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_clients: list[str] = Depends(get_family_clients),
-    payload: DeviceBindBySNRequest = Body(...)
+    payload: DeviceBindBySNRequest = Body(...),
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
 ):
     """通过序列号绑定设备到当前账号
     
@@ -176,20 +176,26 @@ async def bind_device_by_sn(
     try:
         role = token_info.get("role")
         if account_id is not None:
-            await websocket_tool.send_family_message(
-                message_type="device.bind",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "设备绑定",
-                    "message": f"设备 {device.name} 已绑定",
-                    "level": "normal",
-                    "deviceId": device.id,
-                    "deviceName": device.name,
-                    "deviceSn": device.sn
-                },
-                family_clients=family_clients
-            )
+            # 获取当前账号的 current_family_id
+            from app.crud.account import get_account
+            account = await get_account(db, account_id)
+            target_family_id = family_id if family_id is not None else (account.current_family_id if account else None)
+            
+            if target_family_id is not None:
+                await websocket_tool.send_family_message_by_id(
+                    family_id=target_family_id,
+                    message_type="device.bind",
+                    data={
+                        "senderId": account_id,
+                        "senderRole": role,
+                        "title": "设备绑定",
+                        "message": f"设备 {device.name} 已绑定",
+                        "level": "normal",
+                        "deviceId": device.id,
+                        "deviceName": device.name,
+                        "deviceSn": device.sn
+                    }
+                )
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送设备绑定通知失败: {e}")
@@ -203,7 +209,7 @@ async def unbind_device_by_sn(
     sn: str, 
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    family_clients: list[str] = Depends(get_family_clients)
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
 ):
     """通过序列号解绑设备，将设备从账号中移除
     
@@ -262,20 +268,26 @@ async def unbind_device_by_sn(
     try:
         role = token_info.get("role")
         if account_id is not None:
-            await websocket_tool.send_family_message(
-                message_type="device.unbind",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "设备解绑",
-                    "message": f"设备 {device_name} 已解绑",
-                    "level": "normal",
-                    "deviceId": device.id,
-                    "deviceName": device_name,
-                    "deviceSn": sn
-                },
-                family_clients=family_clients
-            )
+            # 获取当前账号的 current_family_id
+            from app.crud.account import get_account
+            account = await get_account(db, account_id)
+            target_family_id = family_id if family_id is not None else (account.current_family_id if account else None)
+            
+            if target_family_id is not None:
+                await websocket_tool.send_family_message_by_id(
+                    family_id=target_family_id,
+                    message_type="device.unbind",
+                    data={
+                        "senderId": account_id,
+                        "senderRole": role,
+                        "title": "设备解绑",
+                        "message": f"设备 {device_name} 已解绑",
+                        "level": "normal",
+                        "deviceId": device.id,
+                        "deviceName": device_name,
+                        "deviceSn": sn
+                    }
+                )
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送设备解绑通知失败: {e}")

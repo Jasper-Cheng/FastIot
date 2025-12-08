@@ -63,20 +63,22 @@ async def user_websocket_endpoint(websocket: WebSocket, token: str = Query(...))
                 
                 # 发送family消息给所有family成员（包括旧连接）
                 try:
-                    await websocket_tool.send_family_message(
-                        message_type="force.logout",
-                        data={
-                            "senderId": account_id,
-                            "senderRole": role,
-                            "title": "强制退出",
-                            "message": f"{account.nickname or account.phone} 的账号登录，当前将被强制退出",
-                            "level": "warning",
-                            "reason": "新设备登录，当前连接被强制退出"
-                        },
-                        family_clients=[client_id]
-                    )
-                    # 等待一小段时间确保消息发送完成
-                    await asyncio.sleep(0.1)
+                    # 使用账号的 current_family_id 发送消息
+                    if account.current_family_id is not None:
+                        await websocket_tool.send_family_message_by_id(
+                            family_id=account.current_family_id,
+                            message_type="force.logout",
+                            data={
+                                "senderId": account_id,
+                                "senderRole": role,
+                                "title": "强制退出",
+                                "message": f"{account.nickname or account.phone} 的账号登录，当前将被强制退出",
+                                "level": "warning",
+                                "reason": "新设备登录，当前连接被强制退出"
+                            }
+                        )
+                        # 等待一小段时间确保消息发送完成
+                        await asyncio.sleep(0.1)
                 except Exception as e:
                     print(f"⚠️ [WebSocket] 发送强制退出family消息失败: {e}")
                 

@@ -28,13 +28,13 @@ from app.models.account import (
     SetPasswordRequest
 )
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.api.dependencies import get_current_account, get_current_token, get_family_clients
+from app.api.dependencies import get_current_account, get_current_token
 from app.db.session import get_db
 from app.services.websocket_tool import websocket_tool
 from app.services.wechat_service import wechat_service, QRCodeStatus
 from app.core.rsa_crypto import rsa_crypto
 from fastapi import Query
-from typing import Dict
+from typing import Dict, Optional
 import httpx
 import hashlib
 
@@ -681,8 +681,8 @@ async def update_profile(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
     current_account: Account = Depends(get_current_account),
-    family_clients: list[str] = Depends(get_family_clients),
-    account_update: AccountUpdate = Body(...)
+    account_update: AccountUpdate = Body(...),
+    family_id: Optional[int] = Query(None, description="家庭ID，如果提供则发送给该家庭；如果不提供则使用当前账号的current_family_id")
 ):
     """更新当前用户信息
     
@@ -788,19 +788,23 @@ async def update_profile(
             else:
                 message_text = "用户信息已更新"
             
-            await websocket_tool.send_family_message(
-                message_type="account.update",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "用户信息更新",
-                    "message": message_text,
-                    "level": "normal",
-                    "accountId": account_id,
-                    "updatedFields": updated_fields
-                },
-                family_clients=family_clients
-            )
+            # 确定要发送的家庭ID
+            target_family_id = family_id if family_id is not None else current_account.current_family_id
+            
+            if target_family_id is not None:
+                await websocket_tool.send_family_message_by_id(
+                    family_id=target_family_id,
+                    message_type="account.update",
+                    data={
+                        "senderId": account_id,
+                        "senderRole": role,
+                        "title": "用户信息更新",
+                        "message": message_text,
+                        "level": "normal",
+                        "accountId": account_id,
+                        "updatedFields": updated_fields
+                    }
+                )
     except Exception as e:
         # 发送消息失败不影响更新流程
         print(f"发送用户信息更新消息失败: {e}")
@@ -812,8 +816,7 @@ async def update_profile(
 async def delete_account(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    current_account: Account = Depends(get_current_account),
-    family_clients: list[str] = Depends(get_family_clients)
+    current_account: Account = Depends(get_current_account)
 ):
     """注销账号（删除当前登录用户的账号）
     
@@ -892,28 +895,28 @@ async def delete_account(
         except Exception as e:
             print(f"记录删除家庭操作日志失败: {e}")
             
-        # 发送一条删除家庭的消息
+        # 为每个删除的家庭发送消息
         try:
             role = token_info.get("role")
-            # 构建消息内容
-            if len(deleted_families) == 1:
-                message_text = f"家庭 {deleted_families[0]['familyName']} 已删除"
-            else:
-                family_names = [f["familyName"] for f in deleted_families]
-                message_text = f"{len(deleted_families)} 个家庭已删除：{', '.join(family_names)}"
-            
-            await websocket_tool.send_family_message(
-                message_type="family.delete",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "家庭删除",
-                    "message": message_text,
-                    "level": "warning",
-                    "families": deleted_families
-                },
-                family_clients=family_clients
-            )
+            for deleted_family in deleted_families:
+                deleted_family_id = deleted_family.get("familyId")
+                if deleted_family_id is not None:
+                    try:
+                        await websocket_tool.send_family_message_by_id(
+                            family_id=deleted_family_id,
+                            message_type="family.delete",
+                            data={
+                                "senderId": account_id,
+                                "senderRole": role,
+                                "title": "家庭删除",
+                                "message": f"家庭 {deleted_family['familyName']} 已删除",
+                                "level": "warning",
+                                "familyId": deleted_family_id,
+                                "familyName": deleted_family["familyName"]
+                            }
+                        )
+                    except Exception as e:
+                        print(f"发送删除家庭消息失败 (family_id={deleted_family_id}): {e}")
         except Exception as e:
             # 发送消息失败不影响删除流程
             print(f"发送删除家庭消息失败: {e}")
