@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.api.dependencies import get_current_token, get_family_clients
+from app.api.dependencies import get_current_token
 from app.db.session import get_db
 
 api_router = APIRouter()
@@ -21,17 +21,17 @@ from app.api.web import feedback as feedback_endpoints
 from app.api.web import websocket as websocket_endpoints
 
 # 将所有路由添加到 web_router
-# 统一管理依赖：get_db（数据库会话）、get_current_token（认证）、get_family_clients（家庭客户端列表）
-web_router.include_router(auth_endpoints.router, prefix="/auth", dependencies=[Depends(get_db), Depends(get_family_clients)])
-web_router.include_router(families_endpoints.router, prefix="/families", dependencies=[Depends(get_db), Depends(get_current_token), Depends(get_family_clients)])
+# 统一管理依赖：get_db（数据库会话）、get_current_token（认证）
+web_router.include_router(auth_endpoints.router, prefix="/auth", dependencies=[Depends(get_db)])
+web_router.include_router(families_endpoints.router, prefix="/families", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(family_members_endpoints.router, prefix="/family-members", dependencies=[Depends(get_db), Depends(get_current_token)])
-web_router.include_router(devices_endpoints.router, prefix="/devices", dependencies=[Depends(get_db), Depends(get_current_token), Depends(get_family_clients)])
-web_router.include_router(device_messages_endpoints.router, prefix="/device-messages", dependencies=[Depends(get_db), Depends(get_current_token), Depends(get_family_clients)])
+web_router.include_router(devices_endpoints.router, prefix="/devices", dependencies=[Depends(get_db), Depends(get_current_token)])
+web_router.include_router(device_messages_endpoints.router, prefix="/device-messages", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(check_in_endpoints.router, prefix="/check-in", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(points_endpoints.router, prefix="/points", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(system_message_endpoints.router, prefix="/system-messages", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(version_info_endpoints.router, prefix="/version-info", dependencies=[Depends(get_db), Depends(get_current_token)])
-web_router.include_router(feedback_endpoints.router, prefix="/feedback", dependencies=[Depends(get_db), Depends(get_current_token), Depends(get_family_clients)])
+web_router.include_router(feedback_endpoints.router, prefix="/feedback", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(websocket_endpoints.router, prefix="/ws")
 
 # 将 web_router 添加到 api_router，添加 /web 前缀

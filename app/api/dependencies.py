@@ -65,66 +65,9 @@ async def get_current_account(
     except JWTError:
         raise credentials_exception
 
-#获取所有包含当前用户且正在使用当前家庭组的家庭客户端列表
-async def get_family_clients(
-    db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
-) -> list[str]:
-    """获取当前成员的所有family_client列表
-    
-    先获取该用户的所有family，然后查询account表根据current_family_id匹配所有的用户。
-    构建所有用户的web/app clients。
-    当前用户应该始终包含在返回列表。
-    
-    返回格式: ["web_{account_id}", "app_{account_id}", ...]
-    """
-    from sqlalchemy import select
-    from app.db.models.account import Account
-    
-    account_id = token_info["account_id"]
-    
-    # 获取账号信息
-    account = await get_account(db, account_id)
-    if not account:
-        # 如果账号不存在，抛出异常
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Account not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # 获取该用户的所有 family
-    from app.crud.family import get_families_by_account
-    families = await get_families_by_account(db, account_id)
-    
-    # 收集所有相关的账户ID（使用集合去重）
-    account_ids = set()
-    # 当前用户始终包含在列表中
-    account_ids.add(account_id)
-    
-    # 对于每个家庭，查询 account 表中 current_family_id 等于该家庭 ID 的所有账户
-    for family in families:
-        result = await db.execute(
-            select(Account.id).filter(Account.current_family_id == family.id)
-        )
-        family_account_ids = result.scalars().all()
-        account_ids.update(family_account_ids)
-    
-    # 构建 web 和 app 两个平台的 family_clients
-    family_clients = []
-    platforms = ["web", "app"]
-    
-    for acc_id in account_ids:
-        for platform in platforms:
-            client_id = f"{platform}_{acc_id}"
-            family_clients.append(client_id)
-    
-    return family_clients
-
 # 重新导出数据库会话依赖和认证依赖
 __all__ = [
     "get_db",
     "get_current_token",
     "get_current_account",
-    "get_family_clients",
 ]
