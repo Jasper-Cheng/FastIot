@@ -65,42 +65,59 @@ async def get_current_account(
     except JWTError:
         raise credentials_exception
 
+#获取所有包含当前用户且正在使用当前家庭组的家庭客户端列表
 async def get_family_clients(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ) -> list[str]:
     """获取当前成员的所有family_client列表
     
-    根据账号的 current_family_id 判断：
-    - 如果为 null，返回空列表 []
-    - 如果有值，查询该家庭的所有成员，构建 web 和 app 两个平台的 family_clients
+    先获取该用户的所有family，然后查询account表根据current_family_id匹配所有的用户。
+    构建所有用户的web/app clients。
+    当前用户应该始终包含在返回列表。
     
     返回格式: ["web_{account_id}", "app_{account_id}", ...]
     """
+    from sqlalchemy import select
+    from app.db.models.account import Account
+    
     account_id = token_info["account_id"]
     
-    # 获取账号信息，检查 current_family_id
+    # 获取账号信息
     account = await get_account(db, account_id)
     if not account:
-        return []
+        # 如果账号不存在，抛出异常
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
-    # 如果 current_family_id 为 null，返回空列表
-    if account.current_family_id is None:
-        return []
+    # 获取该用户的所有 family
+    from app.crud.family import get_families_by_account
+    families = await get_families_by_account(db, account_id)
     
-    # 根据 current_family_id 查询该家庭的所有成员
-    from app.crud.family_member import get_family_members_by_family
-    members = await get_family_members_by_family(db, account.current_family_id)
+    # 收集所有相关的账户ID（使用集合去重）
+    account_ids = set()
+    # 当前用户始终包含在列表中
+    account_ids.add(account_id)
+    
+    # 对于每个家庭，查询 account 表中 current_family_id 等于该家庭 ID 的所有账户
+    for family in families:
+        result = await db.execute(
+            select(Account.id).filter(Account.current_family_id == family.id)
+        )
+        family_account_ids = result.scalars().all()
+        account_ids.update(family_account_ids)
     
     # 构建 web 和 app 两个平台的 family_clients
     family_clients = []
     platforms = ["web", "app"]
     
-    for member in members:
+    for acc_id in account_ids:
         for platform in platforms:
-            member_client_id = f"{platform}_{member.account_id}"
-            if member_client_id not in family_clients:
-                family_clients.append(member_client_id)
+            client_id = f"{platform}_{acc_id}"
+            family_clients.append(client_id)
     
     return family_clients
 

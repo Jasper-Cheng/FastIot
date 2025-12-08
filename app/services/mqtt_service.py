@@ -394,56 +394,21 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
                 created_message = await create_device_message(db, device_message)
                 print(f"✅ [M701001] 告警消息已插入数据库，消息ID: {created_message.id}")
                 
-                # 发送 websocket message（根据设备拥有者的 current_family_id 判断发送目标）
-                family_client_ids = []
-                platforms = ["web", "app"]  # 尝试所有可能的平台
-                
-                # 先根据 device.account_id 查询 account 表
-                if not device.account_id:
-                    print(f"⚠️ [M701001] 设备 {sn} 未绑定账号，无法发送 websocket message")
-                    return
-                
-                from app.crud.account import get_account
-                from app.crud.family_member import get_family_members_by_family
-                
-                account = await get_account(db, device.account_id)
-                if not account:
-                    print(f"⚠️ [M701001] 账号 {device.account_id} 不存在，无法发送 websocket message")
-                    return
-                
-                # 根据 current_family_id 判断是个人还是家庭
-                if account.current_family_id is None:
-                    # 个人模式：发送给设备拥有者
-                    for platform in platforms:
-                        client_id = f"{platform}_{device.account_id}"
-                        family_client_ids.append(client_id)
-                else:
-                    # 家庭模式：查询该家庭所有成员
-                    family_members = await get_family_members_by_family(db, account.current_family_id)
-                    for member in family_members:
-                        for platform in platforms:
-                            client_id = f"{platform}_{member.account_id}"
-                            if client_id not in family_client_ids:
-                                family_client_ids.append(client_id)
-                
-                # 调用发送方法
-                if family_client_ids:
-                    await websocket_tool.send_family_message(
-                            message_type="device.alert",
-                            data={
-                                "title": "设备告警",
-                                "message": alert_message,
-                                "level": "error",
-                                "deviceId": device.id,
-                                "deviceSn": sn,
-                                "deviceName": device.name,
-                                "messageId": created_message.id,
-                                "alerts": alert_details
-                            },
-                            family_clients=family_client_ids
-                        )
-                else:
-                    print(f"⚠️ [M701001] 未找到可发送的客户端")
+                # 发送 websocket message 给所有订阅了该设备的客户端，此消息为家庭消息
+                await websocket_tool.send_device_alert_message(
+                    device_sn=sn,
+                    message_type="device.alert",
+                    data={
+                        "title": "设备告警",
+                        "message": alert_message,
+                        "level": "error",
+                        "deviceId": device.id,
+                        "deviceSn": sn,
+                        "deviceName": device.name,
+                        "messageId": created_message.id,
+                        "alerts": alert_details
+                    }
+                )
                     
         except Exception as e:
             print(f"❌ [M701001] 处理告警失败 ({sn}): {e}")

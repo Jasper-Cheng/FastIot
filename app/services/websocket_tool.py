@@ -383,6 +383,51 @@ class WebSocketTool:
                 print(f"📤 [WebSocket] 系统消息已发送给 {target_client_id}")
             except Exception as e:
                 print(f"❌ [WebSocket] 发送系统消息给 {target_client_id} 失败: {e}")
+    
+    async def send_device_alert_message(
+        self,
+        device_sn: str,
+        message_type: str,
+        data: Dict[str, Any]
+    ):
+        """
+        发送设备告警消息给所有订阅了该设备的客户端，此消息为家庭消息
+        
+        Args:
+            device_sn: 设备序列号
+            message_type: 消息类型，例如：device.alert
+            data: 消息数据
+        """
+        # 获取订阅了该设备的所有客户端
+        subscribed_clients = self.event_subscriptions.get(device_sn, set())
+        
+        if not subscribed_clients:
+            print(f"⚠️ [WebSocket] 没有客户端订阅设备 {device_sn}，无法发送告警消息")
+            return
+        
+        # 生成消息ID和时间戳
+        message_id = f"fam_{uuid.uuid4().hex[:8]}"
+        timestamp = int(datetime.now().timestamp() * 1000)
+        
+        # 构建family消息
+        family_message = {
+            "id": message_id,
+            "method": "family.message",
+            "params": {
+                "type": message_type,
+                "data": data
+            },
+            "timestamp": timestamp
+        }
+        
+        # 发送给所有订阅了该设备的客户端
+        for client_id in subscribed_clients:
+            try:
+                await self.send_message(client_id, family_message)
+            except Exception as e:
+                print(f"❌ [WebSocket] 发送设备告警消息给 {client_id} 失败: {e}")
+        
+        print(f"✅ [WebSocket] 设备 {device_sn} 告警消息已发送给 {len(subscribed_clients)} 个订阅客户端")
 
 
 # 全局WebSocket工具实例
