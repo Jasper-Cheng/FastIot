@@ -97,7 +97,6 @@ async def _generate_login_token_and_notify(
             try:
                 role_str = acc.role.value if hasattr(acc.role, 'value') else str(acc.role)
                 account_id = acc.id
-                client_id = f"{platform}_{account_id}"
                 
                 # 获取 family_clients
                 family_clients = []
@@ -118,7 +117,6 @@ async def _generate_login_token_and_notify(
                     message_text = f"{acc.nickname or acc.phone} 已登录"
                 
                 await websocket_tool.send_family_message(
-                    client_id=client_id,
                     message_type="login",
                     data={
                         "senderId": account_id,
@@ -328,15 +326,12 @@ async def logout(
     
     # 构建 client_id
     account_id = token_info["account_id"] if "account_id" in token_info else None
-    platform = token_info.get("platform", "web")
     role = token_info.get("role")
     if account_id:
-        client_id = f"{platform}_{account_id}"
         
         # 发送websocket消息通知登出
         try:
             await websocket_tool.send_family_message(
-                client_id=client_id,
                 message_type="logout",
                 data={
                     "senderId": account_id,
@@ -926,12 +921,9 @@ async def delete_account(
     
     # 发送 WebSocket 通知（在删除前发送）
     try:
-        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         if account_id is not None:
-            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
-                client_id=client_id,
                 message_type="account.delete",
                 data={
                     "senderId": account_id,

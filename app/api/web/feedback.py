@@ -59,13 +59,10 @@ async def create_feedback(
     
     # 发送family消息通知创建意见反馈
     try:
-        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         account_id = token_info.get("account_id")
         if account_id is not None:
-            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
-                client_id=client_id,
                 message_type="feedback.create",
                 data={
                     "senderId": account_id,

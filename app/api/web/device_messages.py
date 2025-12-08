@@ -109,12 +109,9 @@ async def make_device_message_read(
     
     # 发送websocket消息通知设备消息已读
     try:
-        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         if account_id is not None:
-            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
-                client_id=client_id,
                 message_type="device.message.read",
                 data={
                     "senderId": account_id,
@@ -162,12 +159,9 @@ async def mark_all_device_messages_read(
     
     # 发送websocket消息通知所有设备消息已读
     try:
-        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         if account_id is not None:
-            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
-                client_id=client_id,
                 message_type="device.message.mark_all_read",
                 data={
                     "senderId": account_id,

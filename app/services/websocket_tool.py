@@ -300,16 +300,14 @@ class WebSocketTool:
     
     async def send_family_message(
         self,
-        client_id: str,
         message_type: str,
         data: Dict[str, Any],
         family_clients: Optional[list[str]] = None
     ):
         """
-        发送family消息给指定发送者的family成员
+        发送family消息给指定的family成员
         
         Args:
-            client_id: 发送者客户端ID
             message_type: 消息类型，例如：delete.member
             data: 消息数据
             family_clients: family客户端ID列表，如果未提供或为空则不发送消息
@@ -335,7 +333,6 @@ class WebSocketTool:
         }
         
         # 发送给family中的所有客户端
-        # print(f"👨‍👩‍👧‍👦 [WebSocket] 客户端 {client_id} 发送消息给客户端 {family_clients}，消息数据: {family_message}")
         for family_client_id in family_clients:
             if family_client_id in self.active_connections:
                 try:

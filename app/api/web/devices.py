@@ -95,13 +95,10 @@ async def update_device_name(
     
     # 发送websocket消息通知设备名称修改
     try:
-        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         account_id = token_info.get("account_id")
         if account_id is not None:
-            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
-                client_id=client_id,
                 message_type="device.name.update",
                 data={
                     "senderId": account_id,
@@ -178,12 +175,9 @@ async def bind_device_by_sn(
 
     # 发送websocket消息通知设备绑定
     try:
-        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         if account_id is not None:
-            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
-                client_id=client_id,
                 message_type="device.bind",
                 data={
                     "senderId": account_id,
@@ -267,12 +261,9 @@ async def unbind_device_by_sn(
     
     # 发送websocket消息通知设备解绑
     try:
-        platform = token_info.get("platform", "web")
         role = token_info.get("role")
         if account_id is not None:
-            client_id = f"{platform}_{account_id}"
             await websocket_tool.send_family_message(
-                client_id=client_id,
                 message_type="device.unbind",
                 data={
                     "senderId": account_id,
