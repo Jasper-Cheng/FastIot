@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Form, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 import re
@@ -155,7 +155,7 @@ async def login(db: AsyncSession = Depends(get_db), payload: LoginRequest = Body
     # 使用共用函数生成token并发送通知（web平台）
     return await _generate_login_token_and_notify(acc, db, login_type="normal", platform="web")
 
-#最后记得移除这个方法
+
 @router.post("/login/form", response_model=TokenResponse, include_in_schema=False)
 async def login_form(
     db: AsyncSession = Depends(get_db),

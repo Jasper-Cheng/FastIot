@@ -6,9 +6,7 @@ from app.crud.family import (
     get_family,
     get_families_by_account,
     create_family,
-    update_family,
-    delete_family,
-    regenerate_invite_code
+    delete_family
 )
 from app.crud.user_operation_log import user_operation_log
 from app.models.family import FamilyCreate, FamilyUpdate, FamilyInDB
@@ -62,52 +60,6 @@ async def list_families(
     """获取当前账号所在的所有家庭"""
     account_id = token_info["account_id"]
     return await get_families_by_account(db, account_id, skip=skip, limit=limit)
-
-
-@router.get("/{family_id}", response_model=FamilyInDB)
-async def get_family_endpoint(
-    family_id: int,
-    db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
-):
-    """获取家庭详情"""
-    account_id = token_info["account_id"]
-    
-    family = await get_family(db, family_id)
-    if not family:
-        raise HTTPException(status_code=404, detail="家庭不存在")
-    
-    # 检查是否是家庭成员
-    from app.crud.family_member import get_family_member_by_family_and_account
-    family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
-    if not family_member:
-        raise HTTPException(status_code=403, detail="无权访问此家庭")
-    
-    return family
-
-
-@router.patch("/{family_id}", response_model=FamilyInDB)
-async def update_family_endpoint(
-    family_id: int,
-    db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token),
-    family: FamilyUpdate = Body(...)
-):
-    """更新家庭信息（家庭成员）"""
-    account_id = token_info["account_id"]
-    
-    # 检查是否是家庭成员
-    from app.crud.family_member import get_family_member_by_family_and_account
-    
-    family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
-    if not family_member:
-        raise HTTPException(status_code=403, detail="无权修改此家庭信息")
-    
-    updated = await update_family(db, family_id, family)
-    if not updated:
-        raise HTTPException(status_code=404, detail="家庭不存在")
-    
-    return updated
 
 
 @router.delete("/{family_id}")
@@ -169,30 +121,6 @@ async def delete_family_endpoint(
         print(f"发送删除家庭消息失败: {e}")
     
     return {"message": "家庭已删除"}
-
-
-@router.post("/{family_id}/regenerate-invite-code")
-async def regenerate_invite_code_endpoint(
-    family_id: int,
-    db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
-):
-    """重新生成家庭邀请码（仅创建者）"""
-    account_id = token_info["account_id"]
-    
-    # 检查是否是家庭创建者
-    from app.crud.family_member import get_family_member_by_family_and_account
-    from app.models.family_member import FamilyMemberRole
-    
-    family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
-    if not family_member or family_member.role != FamilyMemberRole.creator:
-        raise HTTPException(status_code=403, detail="只有家庭创建者可以重新生成邀请码")
-    
-    invite_code = await regenerate_invite_code(db, family_id)
-    if not invite_code:
-        raise HTTPException(status_code=404, detail="重新生成邀请码失败")
-    
-    return {"invite_code": invite_code}
 
 
 @router.post("/{family_id}/devices/{device_id}")
