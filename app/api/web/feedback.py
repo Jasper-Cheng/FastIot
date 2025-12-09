@@ -6,7 +6,6 @@ from app.db.session import get_db
 from app.crud.feedback import feedback
 from app.crud.user_operation_log import user_operation_log
 from app.models.feedback import Feedback, FeedbackCreate, SourceEnum
-from app.models.account import AccountRole
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 
 router = APIRouter()
