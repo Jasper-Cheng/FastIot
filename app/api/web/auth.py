@@ -810,7 +810,7 @@ async def update_profile(
                             data={
                                 "senderId": account_id,
                                 "senderRole": role,
-                                "title": "用户信息更新",
+                                "title": f"{current_account.nickname} 用户信息更新",
                                 "message": message_text,
                                 "level": "normal",
                                 "accountId": account_id,
