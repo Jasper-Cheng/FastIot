@@ -124,21 +124,31 @@ async def update_device_name(
     try:
         role = token_info.get("role")
         account_id = token_info.get("account_id")
-        if account_id is not None and device.sn:
-            await websocket_tool.send_device_family_message(
-                device_sn=device.sn,
-                message_type="device.name.update",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "设备名称修改",
-                    "message": f"设备 {old_name} 已更名为 {payload.name}",
-                    "level": "normal",
-                    "deviceId": device.id,
-                    "deviceName": payload.name,
-                    "oldName": old_name
-                }
-            )
+        if account_id is not None:
+            # 查询所有拥有该设备的家庭
+            from app.crud.family_device import get_device_families
+            device_families = await get_device_families(db, device_id)
+            
+            # 为每个家庭发送消息
+            for family in device_families:
+                if family.id is not None:
+                    try:
+                        await websocket_tool.send_family_message_by_id(
+                            family_id=family.id,
+                            message_type="device.name.update",
+                            data={
+                                "senderId": account_id,
+                                "senderRole": role,
+                                "title": "设备名称修改",
+                                "message": f"设备 {old_name} 已更名为 {payload.name}",
+                                "level": "normal",
+                                "deviceId": device.id,
+                                "deviceName": payload.name,
+                                "oldName": old_name
+                            }
+                        )
+                    except Exception as e:
+                        print(f"发送设备名称修改通知失败 (family_id={family.id}): {e}")
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送设备名称修改通知失败: {e}")
