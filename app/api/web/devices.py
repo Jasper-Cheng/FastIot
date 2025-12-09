@@ -91,6 +91,8 @@ async def update_device_name(
     # 更新设备名称
     old_name = device.name
     updated = await update_device(db, device_id, DeviceUpdate(name=payload.name))
+    if not updated:
+        raise HTTPException(status_code=500, detail="更新设备失败")
     
     # 记录操作日志
     try:
@@ -110,8 +112,13 @@ async def update_device_name(
             account_id=account_id
         )
     except Exception as e:
-        # 记录操作失败不影响更新流程
+        # 记录操作失败不影响更新流程，回滚以清除错误状态
+        await db.rollback()
         print(f"记录设备名称修改操作日志失败: {e}")
+        # 重新获取设备对象以确保可以访问（因为会话已回滚）
+        updated = await get_device(db, device_id)
+        if not updated:
+            raise HTTPException(status_code=500, detail="更新设备后无法获取设备信息")
     
     # 发送websocket消息通知设备名称修改
     try:
@@ -136,7 +143,7 @@ async def update_device_name(
         # 发送消息失败不影响业务流程
         print(f"发送设备名称修改通知失败: {e}")
     
-    return updated
+    return DeviceInDB.model_validate(updated)
 
 
 @router.post("/bind-by-sn/", response_model=DeviceInDB)

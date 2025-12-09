@@ -1409,9 +1409,10 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
 
     operation_types = [
         'login', 'logout', 'register', 'account_delete', 'account_update',
-        'device_bind', 'device_unbind', 'family_create', 'family_delete',
+        'device_bind', 'device_unbind', 'device_name_update', 'device_add_to_family', 'device_remove_from_family',
+        'family_create', 'family_delete',
         'family_member_add', 'family_member_remove', 'family_member_update',
-        'permission_update', 'quick_control'
+        'permission_update', 'quick_control', 'feedback_create'
     ]
 
     operation_descriptions = {
@@ -1422,13 +1423,17 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
         'account_update': '更新账号信息',
         'device_bind': '绑定设备',
         'device_unbind': '解绑设备',
+        'device_name_update': '修改设备名称',
+        'device_add_to_family': '添加设备到家庭',
+        'device_remove_from_family': '从家庭移除设备',
         'family_create': '创建家庭',
         'family_delete': '删除家庭',
         'family_member_add': '添加家庭成员',
         'family_member_remove': '移除家庭成员',
         'family_member_update': '更新家庭成员信息',
         'permission_update': '更新权限设置',
-        'quick_control': '快捷控制操作'
+        'quick_control': '快捷控制操作',
+        'feedback_create': '提交意见反馈'
     }
 
     quick_control_types = [
@@ -1451,6 +1456,21 @@ async def create_user_operation_logs(session: AsyncSession, accounts):
                 device_names = ['温度传感器', '湿度传感器', '智能开关', '智能灯泡', '门锁']
                 device_name = random.choice(device_names)
                 description = f"绑定设备：{device_name}-{random.randint(1, 99):02d}"
+            elif operation_type == 'device_name_update':
+                device_names = ['温度传感器', '湿度传感器', '智能开关', '智能灯泡', '门锁', '空调', '摄像头']
+                old_name = random.choice(device_names)
+                new_name = random.choice(device_names)
+                description = f"修改设备名称：{old_name} -> {new_name}"
+            elif operation_type == 'device_add_to_family':
+                device_names = ['温度传感器', '湿度传感器', '智能开关', '智能灯泡']
+                device_name = random.choice(device_names)
+                family_names = ['我的家庭', '温馨之家', '智能家居']
+                family_name = random.choice(family_names)
+                description = f"添加设备 {device_name} 到家庭 {family_name}"
+            elif operation_type == 'device_remove_from_family':
+                device_names = ['温度传感器', '湿度传感器', '智能开关', '智能灯泡']
+                device_name = random.choice(device_names)
+                description = f"从家庭移除设备 {device_name}"
             elif operation_type == 'family_create':
                 family_names = ['我的家庭', '温馨之家', '智能家居', '幸福家庭']
                 family_name = random.choice(family_names)
