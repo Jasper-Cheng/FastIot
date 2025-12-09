@@ -230,21 +230,31 @@ async def bind_device_by_sn(
     # 发送websocket消息通知设备绑定
     try:
         role = token_info.get("role")
-        if account_id is not None and family_id is not None:
-            await websocket_tool.send_family_message_by_id(
-                family_id=family_id,
-                message_type="device.bind",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "设备绑定",
-                    "message": f"设备 {device.name} 已绑定",
-                    "level": "normal",
-                    "deviceId": device.id,
-                    "deviceName": device.name,
-                    "deviceSn": device.sn
-                }
-            )
+        if account_id is not None:
+            # 查询所有拥有该设备的家庭
+            from app.crud.family_device import get_device_families
+            device_families = await get_device_families(db, device.id)
+            
+            # 为每个家庭发送消息
+            for family in device_families:
+                if family.id is not None:
+                    try:
+                        await websocket_tool.send_family_message_by_id(
+                            family_id=family.id,
+                            message_type="device.bind",
+                            data={
+                                "senderId": account_id,
+                                "senderRole": role,
+                                "title": "设备绑定",
+                                "message": f"设备 {device.name} 已绑定",
+                                "level": "normal",
+                                "deviceId": device.id,
+                                "deviceName": device.name,
+                                "deviceSn": device.sn
+                            }
+                        )
+                    except Exception as e:
+                        print(f"发送设备绑定通知失败 (family_id={family.id}): {e}")
     except Exception as e:
         # 发送消息失败不影响业务流程
         print(f"发送设备绑定通知失败: {e}")
@@ -282,8 +292,11 @@ async def unbind_device_by_sn(
     # 记录解绑前的设备信息
     device_name = device.name
     
+    # 在从家庭中移除设备前，先查询所有拥有该设备的家庭（用于发送消息）
+    from app.crud.family_device import get_device_families, delete_all_family_devices_by_device
+    device_families = await get_device_families(db, device.id)
+    
     # 从所有家庭中移除设备
-    from app.crud.family_device import delete_all_family_devices_by_device
     removed_count = await delete_all_family_devices_by_device(db, device.id)
     if removed_count > 0:
         print(f"设备 {device_name} 已从 {removed_count} 个家庭中移除")
@@ -316,27 +329,24 @@ async def unbind_device_by_sn(
     try:
         role = token_info.get("role")
         if account_id is not None:
-            # 查询该用户的所有家庭，然后为每个家庭发送消息
-            from app.crud.family import get_families_by_account
-            families = await get_families_by_account(db, account_id)
-            
-            for family in families:
+            # 为每个拥有该设备的家庭发送消息（在移除前已查询）
+            for family in device_families:
                 if family.id is not None:
                     try:
                         await websocket_tool.send_family_message_by_id(
                             family_id=family.id,
-                message_type="device.unbind",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "设备解绑",
-                    "message": f"设备 {device_name} 已解绑",
-                    "level": "normal",
-                    "deviceId": device.id,
-                    "deviceName": device_name,
-                    "deviceSn": sn
+                            message_type="device.unbind",
+                            data={
+                                "senderId": account_id,
+                                "senderRole": role,
+                                "title": "设备解绑",
+                                "message": f"设备 {device_name} 已解绑",
+                                "level": "normal",
+                                "deviceId": device.id,
+                                "deviceName": device_name,
+                                "deviceSn": sn
                             }
-            )
+                        )
                     except Exception as e:
                         print(f"发送设备解绑消息失败 (family_id={family.id}): {e}")
     except Exception as e:
