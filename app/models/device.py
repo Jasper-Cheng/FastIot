@@ -4,18 +4,16 @@ from datetime import datetime
 from enum import Enum
 
 class DeviceStatus(str, Enum):
-    unconfigured = "unconfigured"  # 未配网
-    configured = "configured"      # 已配网
     unbound = "unbound"            # 未绑定
     bound = "bound"                # 已绑定
     offline = "offline"            # 离线
     online = "online"              # 在线
-    fault = "fault"                # 故障
+    fatal = "fatal"                # 致命错误
 
 class DeviceBase(BaseModel):
     name: str
     sn: str
-    status: DeviceStatus = DeviceStatus.unconfigured
+    status: DeviceStatus = DeviceStatus.unbound
 
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
