@@ -91,25 +91,13 @@ async def get_feedbacks(
     type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
 ):
-    """获取意见反馈列表"""
-    # 根据用户角色决定返回的数据
-    if token_info["role"] == AccountRole.admin:
-        # 管理员可以看到所有反馈
-        return await feedback.get_multi(
-            db=db,
-            skip=skip,
-            limit=limit,
-            type=type,
-            status=status
-        )
-    else:
-        # 普通用户可以看到自己和所在家庭所有成员的反馈
-        return await feedback.get_by_family_members(
-            db=db,
-            account_id=token_info["account_id"],
-            skip=skip,
-            limit=limit,
-            type=type,
-            status=status
-        )
+    """获取意见反馈列表（用户只能看到自己的反馈）"""
+    return await feedback.get_multi(
+        db=db,
+        skip=skip,
+        limit=limit,
+        account_id=token_info["account_id"],
+        type=type,
+        status=status
+    )
 
