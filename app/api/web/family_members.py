@@ -347,6 +347,14 @@ async def remove_family_member(
         
         return {"message": "家庭已删除"}
     
+    # 移除普通成员前，先移除该成员在该家庭中的所有设备
+    from app.crud.family_device import delete_account_devices_from_family
+    removed_device_count = await delete_account_devices_from_family(
+        db, db_family_member.account_id, family_id
+    )
+    if removed_device_count > 0:
+        print(f"已从家庭 {family_name} 中移除成员 {db_family_member.account_id} 的 {removed_device_count} 个设备")
+    
     # 移除普通成员
     success = await delete_family_member(db, family_member_id)
     if not success:

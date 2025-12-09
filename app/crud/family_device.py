@@ -135,3 +135,33 @@ async def add_account_devices_to_family(
     
     return len(new_devices)
 
+async def delete_account_devices_from_family(
+    db: AsyncSession, account_id: int, family_id: int
+) -> int:
+    """从家庭中移除账号的所有设备
+    
+    返回成功移除的设备数量
+    """
+    from sqlalchemy import delete
+    from app.crud.device import get_devices_by_account
+    
+    # 获取账号的所有个人设备
+    devices = await get_devices_by_account(db, account_id, skip=0, limit=1000)
+    
+    if not devices:
+        return 0
+    
+    device_ids = [device.id for device in devices]
+    
+    # 批量删除该账号在该家庭中的设备关联
+    result = await db.execute(
+        delete(FamilyDevice).filter(
+            and_(
+                FamilyDevice.family_id == family_id,
+                FamilyDevice.device_id.in_(device_ids)
+            )
+        )
+    )
+    await db.commit()
+    return result.rowcount
+
