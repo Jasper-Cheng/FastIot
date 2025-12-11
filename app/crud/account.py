@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from app.db.models.account import Account
 from app.models.account import AccountCreate, AccountUpdate
 from app.core.security import get_password_hash
-from typing import Optional
+from typing import Optional, List, Tuple
 
 async def get_account(db: AsyncSession, account_id: int) -> Optional[Account]:
     """根据ID获取账号"""
@@ -72,5 +72,43 @@ async def delete_account(db: AsyncSession, account_id: int) -> bool:
         return False
     
     await db.delete(db_account)
-    # 不在这里commit，让调用方管理事务
+    await db.commit()
     return True
+
+async def get_accounts_with_pagination(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 10,
+    nickname: Optional[str] = None,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+    role: Optional[str] = None
+) -> Tuple[List[Account], int]:
+    """获取管理员列表（支持分页和搜索）"""
+    query = select(Account)
+    count_query = select(func.count(Account.id))
+    
+    # 构建搜索条件
+    conditions = []
+    if nickname:
+        conditions.append(Account.nickname.like(f"%{nickname}%"))
+    if phone:
+        conditions.append(Account.phone.like(f"%{phone}%"))
+    if email:
+        conditions.append(Account.email.like(f"%{email}%"))
+    if role:
+        conditions.append(Account.role == role)
+    
+    if conditions:
+        query = query.filter(or_(*conditions))
+        count_query = count_query.filter(or_(*conditions))
+    
+    # 获取总数
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # 获取分页数据
+    result = await db.execute(query.offset(skip).limit(limit))
+    accounts = result.scalars().all()
+    
+    return accounts, total

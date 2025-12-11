@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from app.db.models.device import Device
 from app.models.device import DeviceUpdate
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 async def get_device(db: AsyncSession, device_id: int) -> Optional[Device]:
     """根据ID获取设备"""
@@ -79,3 +79,51 @@ async def get_devices_by_account(
 
     result = await db.execute(query)
     return result.scalars().all()
+
+async def get_devices_with_pagination(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 10,
+    sn: Optional[str] = None,
+    name: Optional[str] = None,
+    model_id: Optional[int] = None,
+    status: Optional[str] = None
+) -> Tuple[List[Device], int]:
+    """获取设备列表（支持分页和搜索）"""
+    query = select(Device)
+    count_query = select(func.count(Device.id))
+    
+    # 构建搜索条件
+    conditions = []
+    if sn:
+        conditions.append(Device.sn.like(f"%{sn}%"))
+    if name:
+        conditions.append(Device.name.like(f"%{name}%"))
+    if model_id:
+        conditions.append(Device.model_id == model_id)
+    if status:
+        conditions.append(Device.status == status)
+    
+    if conditions:
+        query = query.filter(or_(*conditions))
+        count_query = count_query.filter(or_(*conditions))
+    
+    # 获取总数
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # 获取分页数据
+    result = await db.execute(query.offset(skip).limit(limit))
+    devices = result.scalars().all()
+    
+    return devices, total
+
+async def delete_device(db: AsyncSession, device_id: int) -> bool:
+    """删除设备"""
+    db_device = await get_device(db, device_id)
+    if not db_device:
+        return False
+    
+    await db.delete(db_device)
+    await db.commit()
+    return True

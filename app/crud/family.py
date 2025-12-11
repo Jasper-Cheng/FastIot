@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import Optional, List
+from sqlalchemy import select, func, or_
+from typing import Optional, List, Tuple
 from app.db.models.family import Family
 from app.models.family import FamilyCreate, FamilyUpdate
 import secrets
@@ -126,4 +126,58 @@ async def regenerate_invite_code(db: AsyncSession, family_id: int) -> Optional[s
     await db.commit()
     await db.refresh(db_family)
     return invite_code
+
+async def get_families_with_pagination(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 10,
+    name: Optional[str] = None,
+    invite_code: Optional[str] = None,
+    member_id: Optional[int] = None,
+    device_id: Optional[int] = None
+) -> Tuple[List[Family], int]:
+    """获取家庭列表（支持分页和搜索）"""
+    from app.db.models.family_member import FamilyMember
+    from app.db.models.family_device import FamilyDevice
+    
+    query = select(Family)
+    count_query = select(func.count(Family.id))
+    
+    # 构建搜索条件
+    conditions = []
+    if name:
+        conditions.append(Family.name.like(f"%{name}%"))
+    if invite_code:
+        conditions.append(Family.invite_code.like(f"%{invite_code}%"))
+    
+    # 如果提供了 member_id，需要 JOIN family_member 表
+    if member_id:
+        query = query.join(FamilyMember, Family.id == FamilyMember.family_id)
+        count_query = count_query.join(FamilyMember, Family.id == FamilyMember.family_id)
+        conditions.append(FamilyMember.account_id == member_id)
+    
+    # 如果提供了 device_id，需要 JOIN family_device 表
+    if device_id:
+        query = query.join(FamilyDevice, Family.id == FamilyDevice.family_id)
+        count_query = count_query.join(FamilyDevice, Family.id == FamilyDevice.family_id)
+        conditions.append(FamilyDevice.device_id == device_id)
+    
+    if conditions:
+        query = query.filter(or_(*conditions))
+        count_query = count_query.filter(or_(*conditions))
+    
+    # 去重（如果使用了 JOIN）
+    if member_id or device_id:
+        query = query.distinct()
+        count_query = count_query.distinct()
+    
+    # 获取总数
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # 获取分页数据
+    result = await db.execute(query.offset(skip).limit(limit))
+    families = result.scalars().all()
+    
+    return families, total
 

@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, func
-from typing import List, Optional
+from sqlalchemy import select, update, func, or_
+from typing import List, Optional, Tuple
 from app.db.models.device_message import DeviceMessage
 from app.models.device_message import DeviceMessageCreate, DeviceMessageStatus
 from app.utils.time_utils import get_local_time
@@ -145,4 +145,42 @@ async def mark_all_account_device_messages_read(
     
     # 返回更新的记录数
     return result.rowcount
+
+async def get_device_messages_with_pagination(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 10,
+    device_id: Optional[int] = None,
+    level: Optional[str] = None,
+    type: Optional[str] = None
+) -> Tuple[List[DeviceMessage], int]:
+    """获取设备消息列表（支持分页和搜索）"""
+    query = select(DeviceMessage)
+    count_query = select(func.count(DeviceMessage.id))
+    
+    # 构建搜索条件
+    conditions = []
+    if device_id:
+        conditions.append(DeviceMessage.device_id == device_id)
+    if level:
+        conditions.append(DeviceMessage.level == level)
+    # type 参数暂时不使用，因为数据库中没有 type 字段
+    
+    if conditions:
+        query = query.filter(or_(*conditions))
+        count_query = count_query.filter(or_(*conditions))
+    
+    # 获取总数
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # 获取分页数据，按创建时间倒序
+    result = await db.execute(
+        query.order_by(DeviceMessage.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    messages = result.scalars().all()
+    
+    return messages, total
 

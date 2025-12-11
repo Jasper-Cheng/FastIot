@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, desc, asc, select, func
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from app.db.models.feedback import Feedback
 from app.models.feedback import FeedbackCreate, FeedbackUpdate
 
@@ -216,6 +216,66 @@ class CRUDFeedback:
             "source_statistics": source_stats,
             "total_count": total_count
         }
+
+    async def get_feedbacks_with_pagination(
+        self,
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 10,
+        account_name: Optional[str] = None,
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        status: Optional[str] = None,
+        source: Optional[str] = None,
+        has_reply: Optional[bool] = None
+    ) -> Tuple[List[Feedback], int]:
+        """获取反馈列表（支持分页和搜索）"""
+        from app.db.models.account import Account
+        
+        query = select(Feedback)
+        count_query = select(func.count(Feedback.id))
+        
+        # 如果按 account_name 搜索，需要 JOIN account 表
+        if account_name:
+            query = query.join(Account, Feedback.account_id == Account.id)
+            count_query = count_query.join(Account, Feedback.account_id == Account.id)
+            query = query.filter(Account.nickname.like(f"%{account_name}%"))
+            count_query = count_query.filter(Account.nickname.like(f"%{account_name}%"))
+        
+        # 构建搜索条件
+        conditions = []
+        if name:
+            conditions.append(Feedback.name.like(f"%{name}%"))
+        if type:
+            conditions.append(Feedback.type == type)
+        if status:
+            conditions.append(Feedback.status == status)
+        if source:
+            conditions.append(Feedback.source == source)
+        if has_reply is not None:
+            if has_reply:
+                conditions.append(Feedback.replay.isnot(None))
+                conditions.append(Feedback.replay != "")
+            else:
+                conditions.append(or_(Feedback.replay.is_(None), Feedback.replay == ""))
+        
+        if conditions:
+            query = query.filter(or_(*conditions))
+            count_query = count_query.filter(or_(*conditions))
+        
+        # 获取总数
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+        
+        # 获取分页数据，按创建时间倒序
+        result = await db.execute(
+            query.order_by(desc(Feedback.created_at))
+            .offset(skip)
+            .limit(limit)
+        )
+        feedbacks = result.scalars().all()
+        
+        return feedbacks, total
 
 
 feedback = CRUDFeedback()

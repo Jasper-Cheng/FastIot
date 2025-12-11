@@ -1,8 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, desc, asc, select, func
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from app.db.models.user_operation_log import UserOperationLog
 from app.models.user_operation_log import UserOperationLogCreate, UserOperationLogUpdate
+from datetime import datetime
 
 class CRUDUserOperationLog:
     async def create(self, db: AsyncSession, *, obj_in: UserOperationLogCreate, account_id: int) -> UserOperationLog:
@@ -151,5 +152,56 @@ class CRUDUserOperationLog:
             .limit(limit)
         )
         return result.scalars().all()
+
+    async def get_logs_with_pagination(
+        self,
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 10,
+        account_id: Optional[int] = None,
+        operation_type: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None
+    ) -> Tuple[List[UserOperationLog], int]:
+        """获取操作日志列表（支持分页和搜索）"""
+        query = select(UserOperationLog)
+        count_query = select(func.count(UserOperationLog.id))
+        
+        # 构建搜索条件
+        conditions = []
+        if account_id:
+            conditions.append(UserOperationLog.account_id == account_id)
+        if operation_type:
+            conditions.append(UserOperationLog.operation_type == operation_type)
+        if start_time:
+            try:
+                start_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+                conditions.append(UserOperationLog.created_at >= start_dt)
+            except ValueError:
+                pass
+        if end_time:
+            try:
+                end_dt = datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
+                conditions.append(UserOperationLog.created_at <= end_dt)
+            except ValueError:
+                pass
+        
+        if conditions:
+            query = query.filter(and_(*conditions))
+            count_query = count_query.filter(and_(*conditions))
+        
+        # 获取总数
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+        
+        # 获取分页数据，按创建时间倒序
+        result = await db.execute(
+            query.order_by(desc(UserOperationLog.created_at))
+            .offset(skip)
+            .limit(limit)
+        )
+        logs = result.scalars().all()
+        
+        return logs, total
 
 user_operation_log = CRUDUserOperationLog()

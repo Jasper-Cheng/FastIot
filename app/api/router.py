@@ -36,3 +36,38 @@ web_router.include_router(websocket_endpoints.router, prefix="/ws")
 
 # 将 web_router 添加到 api_router，添加 /web 前缀
 api_router.include_router(web_router, prefix="/web")
+
+# 创建 iot 路由器，用于统一管理所有 IoT 管理接口
+iot_router = APIRouter(tags=["iot"])
+
+# 注册 IoT 端点路由
+from app.api.iot import account as iot_account
+from app.api.iot import device as iot_device
+from app.api.iot import network as iot_network
+from app.api.iot import device_message as iot_device_message
+from app.api.iot import user as iot_user
+from app.api.iot import family as iot_family
+from app.api.iot import feedback as iot_feedback
+from app.api.iot import log as iot_log
+from app.api.iot import notice as iot_notice
+from app.api.iot import version as iot_version
+from app.api.iot import device_model as iot_device_model
+from app.api.iot import thing_model as iot_thing_model
+
+# 将所有 IoT 路由添加到 iot_router
+# 统一管理依赖：get_db（数据库会话）、get_current_token（认证）
+iot_router.include_router(iot_account.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_device.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_network.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_device_message.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_user.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_family.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_feedback.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_log.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_notice.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_version.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_device_model.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_thing_model.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+
+# 将 iot_router 添加到 api_router，添加 /iot 前缀
+api_router.include_router(iot_router, prefix="/iot")
