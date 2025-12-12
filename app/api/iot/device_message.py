@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from sqlalchemy import select, func, and_, or_
@@ -21,11 +21,27 @@ async def get_device_message_list(
     level: Optional[str] = Query(None, description="消息级别筛选"),
     type: Optional[str] = Query(None, description="消息类型筛选"),
     status: Optional[str] = Query(None, description="消息状态筛选"),
+    startDate: Optional[str] = Query(None, description="开始日期（格式：YYYY-MM-DD）"),
+    endDate: Optional[str] = Query(None, description="结束日期（格式：YYYY-MM-DD）"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
     """获取设备消息列表"""
     skip = (page - 1) * pageSize
+    
+    # 处理日期参数
+    start_date = None
+    end_date = None
+    if startDate:
+        try:
+            start_date = datetime.strptime(startDate, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="开始日期格式不正确，应为 YYYY-MM-DD")
+    if endDate:
+        try:
+            end_date = datetime.strptime(endDate, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="结束日期格式不正确，应为 YYYY-MM-DD")
     
     messages, total = await get_device_messages_with_pagination(
         db=db,
@@ -34,7 +50,9 @@ async def get_device_message_list(
         device_id=deviceId,
         level=level,
         type=type,
-        status=status
+        status=status,
+        start_date=start_date,
+        end_date=end_date
     )
     
     items = []

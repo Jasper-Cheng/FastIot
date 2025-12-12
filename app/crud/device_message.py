@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, func, or_
+from sqlalchemy import select, update, func, or_, and_
 from typing import List, Optional, Tuple
+from datetime import datetime
 from app.db.models.device_message import DeviceMessage
 from app.models.device_message import DeviceMessageCreate, DeviceMessageStatus
 from app.utils.time_utils import get_local_time
@@ -153,13 +154,15 @@ async def get_device_messages_with_pagination(
     device_id: Optional[int] = None,
     level: Optional[str] = None,
     type: Optional[str] = None,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None
 ) -> Tuple[List[DeviceMessage], int]:
     """获取设备消息列表（支持分页和搜索）"""
     query = select(DeviceMessage)
     count_query = select(func.count(DeviceMessage.id))
     
-    # 构建搜索条件
+    # 构建搜索条件（使用 AND 组合，因为这些都是筛选条件）
     conditions = []
     if device_id:
         conditions.append(DeviceMessage.device_id == device_id)
@@ -167,11 +170,15 @@ async def get_device_messages_with_pagination(
         conditions.append(DeviceMessage.level == level)
     if status:
         conditions.append(DeviceMessage.status == status)
+    if start_date:
+        conditions.append(DeviceMessage.created_at >= start_date)
+    if end_date:
+        conditions.append(DeviceMessage.created_at <= end_date)
     # type 参数暂时不使用，因为数据库中没有 type 字段
     
     if conditions:
-        query = query.filter(or_(*conditions))
-        count_query = count_query.filter(or_(*conditions))
+        query = query.filter(and_(*conditions))
+        count_query = count_query.filter(and_(*conditions))
     
     # 获取总数
     total_result = await db.execute(count_query)
