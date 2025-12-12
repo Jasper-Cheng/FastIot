@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, and_
+from datetime import datetime, date
 import re
 
 from app.db.session import get_db
@@ -47,6 +48,98 @@ async def get_user_info(
         "gender": current_account.gender,
         "role": current_account.role,
         "createdAt": current_account.created_at.strftime("%Y-%m-%d %H:%M:%S") if current_account.created_at else None
+    }
+
+
+@router.get("/user/today")
+async def get_today_new_users(
+    page: int = Query(1, ge=1, description="页码，从1开始"),
+    pageSize: int = Query(10, ge=1, le=100, description="每页数量"),
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+):
+    """获取今日新增用户列表
+    
+    返回今日（当天）创建的用户账号（role='user'）
+    """
+    skip = (page - 1) * pageSize
+    
+    # 查询今日创建的用户（role='user'）
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    query = select(DBAccount).where(
+        and_(
+            DBAccount.role == AccountRole.user,
+            DBAccount.created_at >= today_start,
+            DBAccount.created_at <= today_end
+        )
+    )
+    count_query = select(func.count(DBAccount.id)).where(
+        and_(
+            DBAccount.role == AccountRole.user,
+            DBAccount.created_at >= today_start,
+            DBAccount.created_at <= today_end
+        )
+    )
+    
+    # 获取总数
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # 获取分页数据，按创建时间倒序
+    result = await db.execute(
+        query.order_by(DBAccount.created_at.desc())
+        .offset(skip)
+        .limit(pageSize)
+    )
+    accounts = result.scalars().all()
+    
+    items = []
+    for account in accounts:
+        # 获取当前家庭名称
+        current_family_name = None
+        if account.current_family_id:
+            family_result = await db.execute(
+                select(Family).filter(Family.id == account.current_family_id)
+            )
+            family = family_result.scalar_one_or_none()
+            if family:
+                current_family_name = family.name
+        
+        # 统计设备数
+        device_count_result = await db.execute(
+            select(func.count(Device.id)).filter(Device.account_id == account.id)
+        )
+        device_count = device_count_result.scalar() or 0
+        
+        # 统计家庭数
+        family_count_result = await db.execute(
+            select(func.count(FamilyMember.id)).filter(FamilyMember.account_id == account.id)
+        )
+        family_count = family_count_result.scalar() or 0
+        
+        items.append({
+            "id": account.id,
+            "nickname": account.nickname,
+            "phone": account.phone,
+            "email": account.email,
+            "avatar": account.avatar,
+            "password": account.password,  # 前端需要显示密码
+            "unionid": account.unionid,
+            "gender": account.gender,
+            "role": account.role,
+            "currentFamilyId": account.current_family_id,
+            "currentFamilyName": current_family_name,
+            "deviceCount": device_count,
+            "familyCount": family_count,
+            "createdAt": account.created_at.strftime("%Y-%m-%d %H:%M:%S") if account.created_at else None
+        })
+    
+    return {
+        "items": items,
+        "total": total,
+        "date": datetime.now().strftime("%Y-%m-%d")
     }
 
 
