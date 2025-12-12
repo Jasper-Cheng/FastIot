@@ -4,6 +4,7 @@ from app.db.models.account import Account
 from app.models.account import AccountCreate, AccountUpdate
 from app.core.security import get_password_hash
 from typing import Optional, List, Tuple
+from datetime import datetime
 
 async def get_account(db: AsyncSession, account_id: int) -> Optional[Account]:
     """根据ID获取账号"""
@@ -82,26 +83,40 @@ async def get_accounts_with_pagination(
     nickname: Optional[str] = None,
     phone: Optional[str] = None,
     email: Optional[str] = None,
-    role: Optional[str] = None
+    role: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None
 ) -> Tuple[List[Account], int]:
     """获取管理员列表（支持分页和搜索）"""
+    from sqlalchemy import and_
+    
     query = select(Account)
     count_query = select(func.count(Account.id))
     
     # 构建搜索条件
-    conditions = []
+    # nickname、phone、email 之间使用 OR（匹配任意一个）
+    search_conditions = []
     if nickname:
-        conditions.append(Account.nickname.like(f"%{nickname}%"))
+        search_conditions.append(Account.nickname.like(f"%{nickname}%"))
     if phone:
-        conditions.append(Account.phone.like(f"%{phone}%"))
+        search_conditions.append(Account.phone.like(f"%{phone}%"))
     if email:
-        conditions.append(Account.email.like(f"%{email}%"))
-    if role:
-        conditions.append(Account.role == role)
+        search_conditions.append(Account.email.like(f"%{email}%"))
     
-    if conditions:
-        query = query.filter(or_(*conditions))
-        count_query = count_query.filter(or_(*conditions))
+    # 其他条件使用 AND
+    filter_conditions = []
+    if search_conditions:
+        filter_conditions.append(or_(*search_conditions))
+    if role:
+        filter_conditions.append(Account.role == role)
+    if start_date:
+        filter_conditions.append(Account.created_at >= start_date)
+    if end_date:
+        filter_conditions.append(Account.created_at <= end_date)
+    
+    if filter_conditions:
+        query = query.filter(and_(*filter_conditions))
+        count_query = count_query.filter(and_(*filter_conditions))
     
     # 获取总数
     total_result = await db.execute(count_query)

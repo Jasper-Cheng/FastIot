@@ -163,11 +163,27 @@ async def get_user_list(
     phone: Optional[str] = Query(None, description="手机号搜索（模糊匹配）"),
     email: Optional[str] = Query(None, description="邮箱搜索（模糊匹配）"),
     gender: Optional[str] = Query(None, description="性别筛选"),
+    startDate: Optional[str] = Query(None, description="开始日期（格式：YYYY-MM-DD）"),
+    endDate: Optional[str] = Query(None, description="结束日期（格式：YYYY-MM-DD）"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
     """获取 App 用户列表"""
     skip = (page - 1) * pageSize
+    
+    # 处理日期参数
+    start_date = None
+    end_date = None
+    if startDate:
+        try:
+            start_date = datetime.strptime(startDate, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="开始日期格式不正确，应为 YYYY-MM-DD")
+    if endDate:
+        try:
+            end_date = datetime.strptime(endDate, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="结束日期格式不正确，应为 YYYY-MM-DD")
     
     # 只查询 role='user' 的用户
     accounts, total = await get_accounts_with_pagination(
@@ -177,7 +193,9 @@ async def get_user_list(
         nickname=nickname,
         phone=phone,
         email=email,
-        role='user'  # 只查询用户角色
+        role='user',  # 只查询用户角色
+        start_date=start_date,
+        end_date=end_date
     )
     
     # 如果提供了性别筛选，需要额外过滤
