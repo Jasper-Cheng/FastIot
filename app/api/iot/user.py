@@ -16,9 +16,9 @@ from app.crud.account import (
     get_accounts_with_pagination
 )
 from app.crud.user_operation_log import user_operation_log
-from app.models.account import AccountCreate, AccountUpdate, AccountRole, AccountGender
+from app.models.account import AccountCreate, AccountUpdate, AccountRole, AccountGender, RegisterRequest, Account
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.db.models.account import Account
+from app.db.models.account import Account as DBAccount
 from app.db.models.family import Family
 from app.db.models.family_member import FamilyMember
 from app.db.models.device import Device
@@ -31,7 +31,7 @@ router = APIRouter()
 async def get_user_info(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    current_account: Account = Depends(get_current_account),
+    current_account: DBAccount = Depends(get_current_account),
 ):
     """获取当前管理员个人信息"""
     # 验证是否为管理员
@@ -139,62 +139,89 @@ async def get_user_list(
     }
 
 
-@router.post("/user")
+@router.post("/user", response_model=Account)
 async def create_user(
-    user_data: dict = Body(...),
+    req: RegisterRequest = Body(...),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
-    """创建用户"""
-    # 验证必填字段
-    if not user_data.get("nickname"):
-        raise HTTPException(status_code=400, detail="昵称不能为空")
-    if not user_data.get("phone"):
-        raise HTTPException(status_code=400, detail="手机号不能为空")
-    if not user_data.get("password"):
-        raise HTTPException(status_code=400, detail="密码不能为空")
+    """创建用户
     
-    # 验证手机号格式
-    if not validate_phone(user_data["phone"]):
-        raise HTTPException(status_code=400, detail="手机号格式不正确")
+    必填: phone, password
+    可选: nickname, gender, email, avatar
+    """
+    # 手机号格式校验
+    phone_pattern = r"^1\d{10}$"
+    if not re.match(phone_pattern, req.phone):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="手机号格式不正确")
+
+    # 手机号唯一性
+    phone_exists = await get_account_by_phone(db, req.phone)
+    if phone_exists:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="手机号已被使用")
+
+    # 密码必填验证
+    if not req.password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="密码不能为空")
+
+    # 规范化并校验邮箱（可选）
+    norm_email = (req.email or None)
+    if norm_email:
+        v = norm_email.strip().lower()
+        if v in ("", "string", "null", "undefined"):
+            norm_email = None
+        else:
+            norm_email = v
+            email_exists = await get_account_by_email(db, norm_email)
+            if email_exists:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已被使用")
+
+    # 解密密码
+    decrypted_password = None
+    try:
+        decrypted_password = rsa_crypto.decrypt(req.password)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"密码解密失败: {str(e)}"
+        )
     
-    # 验证手机号唯一性
-    existing_account = await get_account_by_phone(db, user_data["phone"])
-    if existing_account:
-        raise HTTPException(status_code=400, detail="手机号已存在")
-    
-    # 验证邮箱格式（如果提供）
-    if user_data.get("email"):
-        if not validate_email(user_data["email"]):
-            raise HTTPException(status_code=400, detail="邮箱格式不正确")
-        # 验证邮箱唯一性
-        existing_email = await get_account_by_email(db, user_data["email"])
-        if existing_email:
-            raise HTTPException(status_code=400, detail="邮箱已存在")
-    
-    # 创建账号
-    account_create = AccountCreate(
-        nickname=user_data["nickname"],
-        phone=user_data["phone"],
-        email=user_data.get("email"),
-        password=user_data["password"],
-        avatar=user_data.get("avatar"),
-        gender=AccountGender(user_data["gender"]) if user_data.get("gender") else None,
-        role=AccountRole.user  # 默认角色为 user
+    acc = await create_account(
+        db,
+        AccountCreate(
+            password=decrypted_password,
+            phone=req.phone,
+            nickname=req.nickname,
+            gender=req.gender,  # type: ignore[arg-type]
+            email=norm_email,
+            avatar=req.avatar,
+            role=AccountRole.user,  # 固定角色为 user
+        ),
     )
-    
-    account = await create_account(db, account_create)
-    
-    return {
-        "id": account.id,
-        "nickname": account.nickname,
-        "phone": account.phone,
-        "email": account.email,
-        "avatar": account.avatar,
-        "gender": account.gender,
-        "role": account.role,
-        "createdAt": account.created_at.strftime("%Y-%m-%d %H:%M:%S") if account.created_at else None
-    }
+
+    # 记录创建用户操作
+    try:
+        current_account_id = token_info.get("account_id")
+        if current_account_id:
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.register,
+                    description=f"创建用户账号（{acc.nickname or acc.phone}）",
+                    extra={
+                        "registration_type": "user",
+                        "phone": acc.phone,
+                        "email": acc.email,
+                        "created_account_id": acc.id
+                    }
+                ),
+                account_id=current_account_id
+            )
+    except Exception as e:
+        # 记录操作失败不影响创建流程
+        print(f"记录创建用户操作失败: {e}")
+
+    return Account.model_validate(acc)
 
 
 @router.put("/user/{id}")

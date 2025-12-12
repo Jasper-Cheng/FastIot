@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from datetime import datetime
@@ -15,8 +15,10 @@ from app.crud.account import (
     delete_account,
     get_accounts_with_pagination
 )
-from app.models.account import AccountCreate, AccountUpdate, AccountRole, AccountGender
-from app.db.models.account import Account
+from app.crud.user_operation_log import user_operation_log
+from app.models.account import AccountCreate, AccountUpdate, AccountRole, AccountGender, RegisterRequest, Account
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+from app.core.rsa_crypto import rsa_crypto
 
 router = APIRouter()
 
@@ -78,113 +80,191 @@ async def get_account_list(
     }
 
 
-@router.post("/account")
+@router.post("/account", response_model=Account)
 async def create_admin_account(
-    account_data: dict = Body(...),
+    req: RegisterRequest = Body(...),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
-    """创建管理员"""
-    # 验证必填字段
-    if not account_data.get("nickname"):
-        raise HTTPException(status_code=400, detail="昵称不能为空")
-    if not account_data.get("phone"):
-        raise HTTPException(status_code=400, detail="手机号不能为空")
-    if not account_data.get("password"):
-        raise HTTPException(status_code=400, detail="密码不能为空")
+    """创建管理员
     
-    # 验证手机号格式
-    if not validate_phone(account_data["phone"]):
-        raise HTTPException(status_code=400, detail="手机号格式不正确")
+    必填: phone, password
+    可选: nickname, gender, email, avatar
+    """
+    # 手机号格式校验
+    phone_pattern = r"^1\d{10}$"
+    if not re.match(phone_pattern, req.phone):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="手机号格式不正确")
+
+    # 手机号唯一性
+    phone_exists = await get_account_by_phone(db, req.phone)
+    if phone_exists:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="手机号已被使用")
+
+    # 密码必填验证
+    if not req.password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="密码不能为空")
+
+    # 规范化并校验邮箱（可选）
+    norm_email = (req.email or None)
+    if norm_email:
+        v = norm_email.strip().lower()
+        if v in ("", "string", "null", "undefined"):
+            norm_email = None
+        else:
+            norm_email = v
+            email_exists = await get_account_by_email(db, norm_email)
+            if email_exists:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已被使用")
+
+    # 解密密码
+    decrypted_password = None
+    try:
+        decrypted_password = rsa_crypto.decrypt(req.password)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"密码解密失败: {str(e)}"
+        )
     
-    # 验证手机号唯一性
-    existing_account = await get_account_by_phone(db, account_data["phone"])
-    if existing_account:
-        raise HTTPException(status_code=400, detail="手机号已存在")
-    
-    # 验证邮箱格式（如果提供）
-    if account_data.get("email"):
-        if not validate_email(account_data["email"]):
-            raise HTTPException(status_code=400, detail="邮箱格式不正确")
-        # 验证邮箱唯一性
-        existing_email = await get_account_by_email(db, account_data["email"])
-        if existing_email:
-            raise HTTPException(status_code=400, detail="邮箱已存在")
-    
-    # 创建账号
-    account_create = AccountCreate(
-        nickname=account_data["nickname"],
-        phone=account_data["phone"],
-        email=account_data.get("email"),
-        password=account_data["password"],
-        avatar=account_data.get("avatar"),
-        gender=AccountGender(account_data["gender"]) if account_data.get("gender") else None,
-        role=AccountRole.admin  # 默认角色为 admin
+    acc = await create_account(
+        db,
+        AccountCreate(
+            password=decrypted_password,
+            phone=req.phone,
+            nickname=req.nickname,
+            gender=req.gender,  # type: ignore[arg-type]
+            email=norm_email,
+            avatar=req.avatar,
+            role=AccountRole.admin,  # 固定角色为 admin
+        ),
     )
-    
-    account = await create_account(db, account_create)
-    
-    return {
-        "id": account.id,
-        "nickname": account.nickname,
-        "phone": account.phone,
-        "email": account.email,
-        "avatar": account.avatar,
-        "gender": account.gender,
-        "role": account.role,
-        "createdAt": account.created_at.strftime("%Y-%m-%d %H:%M:%S") if account.created_at else None
-    }
+
+    # 记录创建管理员操作
+    try:
+        current_account_id = token_info.get("account_id")
+        if current_account_id:
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.register,
+                    description=f"创建管理员账号（{acc.nickname or acc.phone}）",
+                    extra={
+                        "registration_type": "admin",
+                        "phone": acc.phone,
+                        "email": acc.email,
+                        "created_account_id": acc.id
+                    }
+                ),
+                account_id=current_account_id
+            )
+    except Exception as e:
+        # 记录操作失败不影响创建流程
+        print(f"记录创建管理员操作失败: {e}")
+
+    return Account.model_validate(acc)
 
 
 @router.put("/account/{id}")
 async def update_admin_account(
     id: int,
-    account_data: dict = Body(...),
+    account_update: AccountUpdate = Body(...),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
-    """更新管理员信息"""
+    """更新管理员信息
+    
+    接收一个对象，只更新提供的字段：
+    - nickname: 昵称
+    - gender: 性别 (male/female/other)
+    - email: 邮箱
+    - phone: 手机号
+    - avatar: 头像URL
+    - password: 密码（RSA加密的Base64字符串，会自动解密）
+    """
     # 验证管理员是否存在
     account = await get_account(db, id)
     if not account:
-        raise HTTPException(status_code=404, detail="管理员不存在")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="管理员不存在")
     
-    # 验证手机号格式（如果提供）
-    if account_data.get("phone"):
-        if not validate_phone(account_data["phone"]):
-            raise HTTPException(status_code=400, detail="手机号格式不正确")
-        # 验证手机号唯一性（排除自己）
-        existing_account = await get_account_by_phone(db, account_data["phone"])
+    # 如果提供了密码，需要先解密
+    update_data = account_update.dict(exclude_unset=True)
+    
+    if "password" in update_data and update_data["password"]:
+        try:
+            # RSA解密密码
+            plain_password = rsa_crypto.decrypt(update_data["password"])
+            # 验证密码长度
+            if len(plain_password) < 6:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="密码长度至少6位"
+                )
+            update_data["password"] = plain_password
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"密码解密失败: {str(e)}"
+            )
+    
+    # 如果提供了手机号，检查格式和唯一性
+    if "phone" in update_data and update_data["phone"]:
+        if not validate_phone(update_data["phone"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="手机号格式不正确"
+            )
+        existing_account = await get_account_by_phone(db, update_data["phone"])
         if existing_account and existing_account.id != id:
-            raise HTTPException(status_code=400, detail="手机号已存在")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该手机号已被其他账号使用"
+            )
     
-    # 验证邮箱格式（如果提供）
-    if account_data.get("email"):
-        if not validate_email(account_data["email"]):
-            raise HTTPException(status_code=400, detail="邮箱格式不正确")
-        # 验证邮箱唯一性（排除自己）
-        existing_email = await get_account_by_email(db, account_data["email"])
+    # 如果提供了邮箱，检查格式和唯一性
+    if "email" in update_data and update_data["email"]:
+        if not validate_email(update_data["email"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="邮箱格式不正确"
+            )
+        existing_email = await get_account_by_email(db, update_data["email"])
         if existing_email and existing_email.id != id:
-            raise HTTPException(status_code=400, detail="邮箱已存在")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该邮箱已被其他账号使用"
+            )
     
-    # 构建更新数据
-    update_data = AccountUpdate()
-    if "nickname" in account_data:
-        update_data.nickname = account_data["nickname"]
-    if "phone" in account_data:
-        update_data.phone = account_data["phone"]
-    if "email" in account_data:
-        update_data.email = account_data["email"]
-    if "avatar" in account_data:
-        update_data.avatar = account_data["avatar"]
-    if "gender" in account_data:
-        update_data.gender = AccountGender(account_data["gender"])
-    if "role" in account_data:
-        update_data.role = AccountRole(account_data["role"])
+    # 创建更新对象
+    update_obj = AccountUpdate(**update_data)
     
-    updated_account = await update_account(db, id, update_data)
+    # 更新账号信息
+    updated_account = await update_account(db, id, update_obj)
+    
     if not updated_account:
-        raise HTTPException(status_code=500, detail="更新失败")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="账号不存在"
+        )
+    
+    # 记录操作日志
+    try:
+        current_account_id = token_info.get("account_id")
+        if current_account_id:
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.account_update,
+                    description=f"更新管理员信息 (ID: {id})",
+                    extra={"updated_fields": list(update_data.keys()), "target_account_id": id}
+                ),
+                account_id=current_account_id
+            )
+    except Exception as e:
+        # 记录操作失败不影响更新流程
+        print(f"记录操作日志失败: {e}")
     
     return {
         "id": updated_account.id,
@@ -194,7 +274,7 @@ async def update_admin_account(
         "avatar": updated_account.avatar,
         "gender": updated_account.gender,
         "role": updated_account.role,
-        "updatedAt": updated_account.updated_at.strftime("%Y-%m-%d %H:%M:%S") if updated_account.updated_at else None
+        "createdAt": updated_account.created_at.strftime("%Y-%m-%d %H:%M:%S") if updated_account.created_at else None
     }
 
 
