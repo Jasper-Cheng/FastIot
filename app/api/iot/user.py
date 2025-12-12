@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from sqlalchemy import select, func, or_
@@ -15,11 +15,14 @@ from app.crud.account import (
     delete_account,
     get_accounts_with_pagination
 )
+from app.crud.user_operation_log import user_operation_log
 from app.models.account import AccountCreate, AccountUpdate, AccountRole, AccountGender
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.db.models.account import Account
 from app.db.models.family import Family
 from app.db.models.family_member import FamilyMember
 from app.db.models.device import Device
+from app.core.rsa_crypto import rsa_crypto
 
 router = APIRouter()
 
@@ -197,52 +200,103 @@ async def create_user(
 @router.put("/user/{id}")
 async def update_user(
     id: int,
-    user_data: dict = Body(...),
+    account_update: AccountUpdate = Body(...),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
-    """更新用户信息"""
+    """更新用户信息
+    
+    接收一个对象，只更新提供的字段：
+    - nickname: 昵称
+    - gender: 性别 (male/female/other)
+    - email: 邮箱
+    - phone: 手机号
+    - avatar: 头像URL
+    - password: 密码（RSA加密的Base64字符串，会自动解密）
+    """
     # 验证用户是否存在
     account = await get_account(db, id)
     if not account:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
     
-    # 验证手机号格式（如果提供）
-    if user_data.get("phone"):
-        if not validate_phone(user_data["phone"]):
-            raise HTTPException(status_code=400, detail="手机号格式不正确")
-        # 验证手机号唯一性（排除自己）
-        existing_account = await get_account_by_phone(db, user_data["phone"])
+    # 如果提供了密码，需要先解密
+    update_data = account_update.dict(exclude_unset=True)
+    
+    if "password" in update_data and update_data["password"]:
+        try:
+            # RSA解密密码
+            plain_password = rsa_crypto.decrypt(update_data["password"])
+            # 验证密码长度
+            if len(plain_password) < 6:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="密码长度至少6位"
+                )
+            update_data["password"] = plain_password
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"密码解密失败: {str(e)}"
+            )
+    
+    # 如果提供了手机号，检查格式和唯一性
+    if "phone" in update_data and update_data["phone"]:
+        if not validate_phone(update_data["phone"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="手机号格式不正确"
+            )
+        existing_account = await get_account_by_phone(db, update_data["phone"])
         if existing_account and existing_account.id != id:
-            raise HTTPException(status_code=400, detail="手机号已存在")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该手机号已被其他账号使用"
+            )
     
-    # 验证邮箱格式（如果提供）
-    if user_data.get("email"):
-        if not validate_email(user_data["email"]):
-            raise HTTPException(status_code=400, detail="邮箱格式不正确")
-        # 验证邮箱唯一性（排除自己）
-        existing_email = await get_account_by_email(db, user_data["email"])
+    # 如果提供了邮箱，检查格式和唯一性
+    if "email" in update_data and update_data["email"]:
+        if not validate_email(update_data["email"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="邮箱格式不正确"
+            )
+        existing_email = await get_account_by_email(db, update_data["email"])
         if existing_email and existing_email.id != id:
-            raise HTTPException(status_code=400, detail="邮箱已存在")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该邮箱已被其他账号使用"
+            )
     
-    # 构建更新数据
-    update_data = AccountUpdate()
-    if "nickname" in user_data:
-        update_data.nickname = user_data["nickname"]
-    if "phone" in user_data:
-        update_data.phone = user_data["phone"]
-    if "email" in user_data:
-        update_data.email = user_data["email"]
-    if "avatar" in user_data:
-        update_data.avatar = user_data["avatar"]
-    if "gender" in user_data:
-        update_data.gender = AccountGender(user_data["gender"])
-    if "role" in user_data:
-        update_data.role = AccountRole(user_data["role"])
+    # 创建更新对象
+    update_obj = AccountUpdate(**update_data)
     
-    updated_account = await update_account(db, id, update_data)
+    # 更新账号信息
+    updated_account = await update_account(db, id, update_obj)
+    
     if not updated_account:
-        raise HTTPException(status_code=500, detail="更新失败")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="账号不存在"
+        )
+    
+    # 记录操作日志
+    try:
+        current_account_id = token_info.get("account_id")
+        if current_account_id:
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.account_update,
+                    description=f"更新用户信息 (ID: {id})",
+                    extra={"updated_fields": list(update_data.keys()), "target_user_id": id}
+                ),
+                account_id=current_account_id
+            )
+    except Exception as e:
+        # 记录操作失败不影响更新流程
+        print(f"记录操作日志失败: {e}")
     
     return {
         "id": updated_account.id,
@@ -251,7 +305,8 @@ async def update_user(
         "email": updated_account.email,
         "avatar": updated_account.avatar,
         "gender": updated_account.gender,
-        "role": updated_account.role
+        "role": updated_account.role,
+        "createdAt": updated_account.created_at.strftime("%Y-%m-%d %H:%M:%S") if updated_account.created_at else None
     }
 
 
