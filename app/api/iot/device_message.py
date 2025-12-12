@@ -19,6 +19,7 @@ async def get_device_message_list(
     deviceId: Optional[int] = Query(None, description="设备ID筛选"),
     level: Optional[str] = Query(None, description="消息级别筛选"),
     type: Optional[str] = Query(None, description="消息类型筛选"),
+    status: Optional[str] = Query(None, description="消息状态筛选"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
@@ -31,7 +32,8 @@ async def get_device_message_list(
         limit=pageSize,
         device_id=deviceId,
         level=level,
-        type=type
+        type=type,
+        status=status
     )
     
     items = []

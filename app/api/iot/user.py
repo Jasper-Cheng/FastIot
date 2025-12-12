@@ -5,7 +5,7 @@ from sqlalchemy import select, func, or_
 import re
 
 from app.db.session import get_db
-from app.api.dependencies import get_current_token
+from app.api.dependencies import get_current_token, get_current_account
 from app.crud.account import (
     get_account,
     get_account_by_phone,
@@ -22,6 +22,29 @@ from app.db.models.family_member import FamilyMember
 from app.db.models.device import Device
 
 router = APIRouter()
+
+
+@router.get("/user/info")
+async def get_user_info(
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+    current_account: Account = Depends(get_current_account),
+):
+    """获取当前管理员个人信息"""
+    # 验证是否为管理员
+    if current_account.role != AccountRole.admin:
+        raise HTTPException(status_code=403, detail="该账号不是管理员，无权访问")
+    
+    return {
+        "id": current_account.id,
+        "nickname": current_account.nickname,
+        "phone": current_account.phone,
+        "email": current_account.email,
+        "avatar": current_account.avatar,
+        "gender": current_account.gender,
+        "role": current_account.role,
+        "createdAt": current_account.created_at.strftime("%Y-%m-%d %H:%M:%S") if current_account.created_at else None
+    }
 
 
 def validate_phone(phone: str) -> bool:

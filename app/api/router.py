@@ -41,6 +41,7 @@ api_router.include_router(web_router, prefix="/web")
 iot_router = APIRouter(tags=["iot"])
 
 # 注册 IoT 端点路由
+from app.api.iot import auth as iot_auth
 from app.api.iot import account as iot_account
 from app.api.iot import device as iot_device
 from app.api.iot import network as iot_network
@@ -55,7 +56,9 @@ from app.api.iot import device_model as iot_device_model
 from app.api.iot import thing_model as iot_thing_model
 
 # 将所有 IoT 路由添加到 iot_router
-# 统一管理依赖：get_db（数据库会话）、get_current_token（认证）
+# 登录接口不需要认证依赖，只需要数据库依赖
+iot_router.include_router(iot_auth.router, dependencies=[Depends(get_db)])
+# 其他接口需要认证：get_db（数据库会话）、get_current_token（认证）
 iot_router.include_router(iot_account.router, dependencies=[Depends(get_db), Depends(get_current_token)])
 iot_router.include_router(iot_device.router, dependencies=[Depends(get_db), Depends(get_current_token)])
 iot_router.include_router(iot_network.router, dependencies=[Depends(get_db), Depends(get_current_token)])

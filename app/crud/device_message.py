@@ -152,7 +152,8 @@ async def get_device_messages_with_pagination(
     limit: int = 10,
     device_id: Optional[int] = None,
     level: Optional[str] = None,
-    type: Optional[str] = None
+    type: Optional[str] = None,
+    status: Optional[str] = None
 ) -> Tuple[List[DeviceMessage], int]:
     """获取设备消息列表（支持分页和搜索）"""
     query = select(DeviceMessage)
@@ -164,6 +165,8 @@ async def get_device_messages_with_pagination(
         conditions.append(DeviceMessage.device_id == device_id)
     if level:
         conditions.append(DeviceMessage.level == level)
+    if status:
+        conditions.append(DeviceMessage.status == status)
     # type 参数暂时不使用，因为数据库中没有 type 字段
     
     if conditions:
