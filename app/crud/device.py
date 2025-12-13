@@ -22,7 +22,7 @@ async def update_device(db: AsyncSession, device_id: int, device: DeviceUpdate) 
     
     update_data = device.dict(exclude_unset=True)
     # 允许更新的字段白名单（移除 family_id，因为现在使用 family_device 关联表）
-    allowed_fields = {"name", "sn", "status", "account_id"}
+    allowed_fields = {"name", "sn", "status", "account_id", "model_id"}
     for field, value in update_data.items():
         if field not in allowed_fields:
             continue

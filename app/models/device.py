@@ -20,6 +20,7 @@ class DeviceUpdate(BaseModel):
     sn: Optional[str] = None
     status: Optional[DeviceStatus] = None
     account_id: Optional[int] = None
+    model_id: Optional[int] = None
 
 class DeviceInDB(DeviceBase):
     id: int
