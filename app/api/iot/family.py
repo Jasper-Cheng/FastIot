@@ -357,6 +357,10 @@ async def add_family_member(
     
     member = await create_family_member(db, member_create)
     
+    # 自动将该成员的所有设备添加到家庭
+    from app.crud.family_device import add_account_devices_to_family
+    await add_account_devices_to_family(db, account_id, familyId)
+    
     return {
         "id": member.id,
         "familyId": member.family_id,
@@ -384,6 +388,10 @@ async def remove_family_member(
     
     if member.family_id != familyId:
         raise HTTPException(status_code=400, detail="成员不属于该家庭")
+    
+    # 先移除该成员在该家庭中的所有设备
+    from app.crud.family_device import delete_account_devices_from_family
+    removed_device_count = await delete_account_devices_from_family(db, member.account_id, familyId)
     
     # 删除成员关联关系
     success = await remove_family_member_by_family_and_account(db, familyId, member.account_id)
