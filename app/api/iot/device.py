@@ -15,6 +15,7 @@ from app.crud.family_device import get_device_families
 from app.db.models.device import Device
 from app.db.models.device_model import DeviceModel
 from app.db.models.account import Account
+from app.db.models.device_network import DeviceNetwork
 from app.db.models.family_device import FamilyDevice
 from app.models.device import DeviceUpdate
 
@@ -122,17 +123,21 @@ async def get_device_detail(
         if account:
             account_name = account.nickname or account.phone
     
-    # 获取网络信息（如果有）
+    # 获取网络信息（如果有）- 使用显式查询避免懒加载问题
     network_info = None
-    if device.network:
+    network_result = await db.execute(
+        select(DeviceNetwork).filter(DeviceNetwork.device_id == device.id)
+    )
+    network = network_result.scalar_one_or_none()
+    if network:
         network_info = {
-            "netType": device.network.net_type,
-            "name": device.network.name,
-            "ip": device.network.ip,
-            "mac": device.network.mac,
-            "rssi": device.network.rssi,
-            "connectState": device.network.connect_state,
-            "lastUpdate": device.network.last_update.strftime("%Y-%m-%d %H:%M:%S") if device.network.last_update else None
+            "netType": network.net_type,
+            "name": network.name,
+            "ip": network.ip,
+            "mac": network.mac,
+            "rssi": network.rssi,
+            "connectState": network.connect_state,
+            "lastUpdate": network.last_update.strftime("%Y-%m-%d %H:%M:%S") if network.last_update else None
         }
     
     # 获取设备所属的家庭

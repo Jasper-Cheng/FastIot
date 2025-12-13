@@ -70,16 +70,26 @@ async def get_family_list(
         )
         member_count = member_count_result.scalar() or 0
         
-        # 获取成员ID列表
+        # 获取成员ID列表和名字列表
         members_result = await db.execute(
             select(FamilyMember.account_id).filter(FamilyMember.family_id == family.id)
         )
         member_ids = [row[0] for row in members_result.all()]
         
-        # 统计设备数
+        # 获取成员名字列表
+        member_names = []
+        if member_ids:
+            accounts_result = await db.execute(
+                select(Account).filter(Account.id.in_(member_ids))
+            )
+            accounts = accounts_result.scalars().all()
+            member_names = [account.nickname or account.phone or f"用户{account.id}" for account in accounts]
+        
+        # 统计设备数和获取设备名字列表
         devices = await get_family_devices(db, family.id, skip=0, limit=1000)
         device_count = len(devices)
         device_ids = [d.id for d in devices]
+        device_names = [d.name for d in devices]
         
         items.append({
             "id": family.id,
@@ -89,8 +99,10 @@ async def get_family_list(
             "inviteCode": family.invite_code,
             "memberCount": member_count,
             "memberIds": member_ids,
+            "memberNames": member_names,
             "deviceCount": device_count,
             "deviceIds": device_ids,
+            "deviceNames": device_names,
             "createdAt": family.created_at.strftime("%Y-%m-%d %H:%M:%S") if family.created_at else None,
             "updatedAt": family.updated_at.strftime("%Y-%m-%d %H:%M:%S") if family.updated_at else None
         })
@@ -167,7 +179,28 @@ async def create_family_info(
         # 这里我们暂时使用 None，但实际应该有一个创建者
         raise HTTPException(status_code=400, detail="需要创建者账号ID")
     
+    # 获取创建者账号信息，判断是否是管理员
+    from app.crud.account import get_account
+    from app.models.account import AccountRole
+    creator_account = await get_account(db, creator_account_id)
+    is_admin = creator_account and creator_account.role == AccountRole.admin
+    
     family = await create_family(db, family_create, creator_account_id)
+    
+    # 如果是管理员创建家庭，不自动加入家庭，需要删除自动创建的成员记录和设备关联
+    if is_admin:
+        # 删除自动创建的成员记录
+        from app.crud.family_member import get_family_member_by_family_and_account, remove_family_member_by_family_and_account
+        member = await get_family_member_by_family_and_account(db, family.id, creator_account_id)
+        if member:
+            await remove_family_member_by_family_and_account(db, family.id, creator_account_id)
+        
+        # 删除自动添加的设备关联
+        from app.crud.family_device import get_family_devices, delete_family_device
+        devices = await get_family_devices(db, family.id, skip=0, limit=1000)
+        for device in devices:
+            if device.account_id == creator_account_id:
+                await delete_family_device(db, family.id, device.id)
     
     return {
         "id": family.id,
