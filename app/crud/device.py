@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, and_
 from app.db.models.device import Device
 from app.models.device import DeviceUpdate
 from typing import Optional, List, Tuple
@@ -87,13 +87,14 @@ async def get_devices_with_pagination(
     sn: Optional[str] = None,
     name: Optional[str] = None,
     model_id: Optional[int] = None,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    account_id: Optional[int] = None
 ) -> Tuple[List[Device], int]:
     """获取设备列表（支持分页和搜索）"""
     query = select(Device)
     count_query = select(func.count(Device.id))
     
-    # 构建搜索条件
+    # 构建搜索条件（使用 AND 组合，因为这些都是筛选条件）
     conditions = []
     if sn:
         conditions.append(Device.sn.like(f"%{sn}%"))
@@ -103,10 +104,12 @@ async def get_devices_with_pagination(
         conditions.append(Device.model_id == model_id)
     if status:
         conditions.append(Device.status == status)
+    if account_id:
+        conditions.append(Device.account_id == account_id)
     
     if conditions:
-        query = query.filter(or_(*conditions))
-        count_query = count_query.filter(or_(*conditions))
+        query = query.filter(and_(*conditions))
+        count_query = count_query.filter(and_(*conditions))
     
     # 获取总数
     total_result = await db.execute(count_query)

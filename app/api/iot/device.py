@@ -29,6 +29,7 @@ async def get_device_list(
     name: Optional[str] = Query(None, description="设备名称搜索（模糊匹配）"),
     modelId: Optional[int] = Query(None, description="设备型号ID筛选"),
     status: Optional[str] = Query(None, description="设备状态筛选"),
+    accountId: Optional[int] = Query(None, description="账号ID筛选"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
@@ -42,7 +43,8 @@ async def get_device_list(
         sn=sn,
         name=name,
         model_id=modelId,
-        status=status
+        status=status,
+        account_id=accountId
     )
     
     items = []
