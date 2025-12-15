@@ -411,16 +411,18 @@ class WebSocketTool:
     async def send_system_message(
         self,
         message_type: str,
-        data: Dict[str, Any]
+        data: Dict[str, Any],
+        platforms: Optional[list] = None
     ):
         """
-        发送系统消息给所有连接的客户端
+        发送系统消息给连接的客户端
         
         Args:
             message_type: 消息类型
             data: 消息数据
+            platforms: 目标平台列表（如 ["web", "app"]），如果为 None 则发送给所有平台
         """
-        print(f"🔔 [WebSocket] 发送系统消息: {message_type}")
+        print(f"🔔 [WebSocket] 发送系统消息: {message_type}, platforms: {platforms}")
         
         # 生成时间戳和消息ID
         current_timestamp = int(datetime.now().timestamp() * 1000)
@@ -441,13 +443,30 @@ class WebSocketTool:
             "timestamp": current_timestamp
         }
         
-        # 发送给所有连接的客户端
-        for target_client_id in self.active_connections:
+        # 根据平台过滤客户端
+        target_clients = []
+        if platforms:
+            # 如果指定了平台，只发送给匹配平台的客户端
+            # client_id 格式: {platform}_{account_id}
+            for client_id in self.active_connections.keys():
+                client_platform = client_id.split('_')[0] if '_' in client_id else None
+                if client_platform and client_platform in platforms:
+                    target_clients.append(client_id)
+        else:
+            # 如果没有指定平台，发送给所有客户端
+            target_clients = list(self.active_connections.keys())
+        
+        # 发送给目标客户端
+        sent_count = 0
+        for target_client_id in target_clients:
             try:
                 await self.send_message(target_client_id, system_message)
+                sent_count += 1
                 print(f"📤 [WebSocket] 系统消息已发送给 {target_client_id}")
             except Exception as e:
                 print(f"❌ [WebSocket] 发送系统消息给 {target_client_id} 失败: {e}")
+        
+        print(f"✅ [WebSocket] 系统消息已发送给 {sent_count}/{len(target_clients)} 个客户端")
     
     async def send_device_family_message(
         self,

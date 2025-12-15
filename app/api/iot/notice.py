@@ -16,6 +16,7 @@ from app.crud.system_message import (
 from app.models.system_message import SystemMessageCreate, SystemMessageUpdate
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+from app.services.websocket_tool import websocket_tool
 
 router = APIRouter()
 
@@ -106,19 +107,48 @@ async def create_notice(
     
     message = await create_system_message(db, message_create)
     
+    # 保存消息属性到局部变量，避免懒加载问题
+    message_id = message.id
+    message_title = message.title
+    message_content = message.content
+    message_type = message.type
+    message_priority = message.priority
+    message_platforms = message.platforms or []
+    message_extra = message.extra or {}
+    message_created_at = message.created_at
+    message_updated_at = message.updated_at
+    
+    # 发送 WebSocket 系统消息（根据 platforms 过滤）
+    try:
+        await websocket_tool.send_system_message(
+            message_type=message_type,
+            data={
+                "id": message_id,
+                "title": message_title,
+                "content": message_content,
+                "type": message_type,
+                "priority": message_priority,
+                "extra": message_extra
+            },
+            platforms=message_platforms
+        )
+    except Exception as e:
+        # WebSocket 发送失败不影响创建流程
+        print(f"发送系统消息 WebSocket 通知失败: {e}")
+    
     # 记录操作日志
     try:
         await user_operation_log.create(
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.notice_create,
-                description=f"创建系统消息：{message.title}",
+                description=f"创建系统消息：{message_title}",
                 extra={
-                    "message_id": message.id,
-                    "title": message.title,
-                    "type": message.type,
-                    "priority": message.priority,
-                    "platforms": message.platforms or []
+                    "message_id": message_id,
+                    "title": message_title,
+                    "type": message_type,
+                    "priority": message_priority,
+                    "platforms": message_platforms
                 }
             ),
             account_id=token_info.get("account_id")
@@ -127,15 +157,15 @@ async def create_notice(
         print(f"记录创建系统消息操作日志失败: {e}")
     
     return {
-        "id": message.id,
-        "title": message.title,
-        "content": message.content,
-        "type": message.type,
-        "priority": message.priority,
-        "platforms": message.platforms or [],
-        "extra": message.extra or {},
-        "createdAt": message.created_at.strftime("%Y-%m-%d %H:%M:%S") if message.created_at else None,
-        "updatedAt": message.updated_at.strftime("%Y-%m-%d %H:%M:%S") if message.updated_at else None
+        "id": message_id,
+        "title": message_title,
+        "content": message_content,
+        "type": message_type,
+        "priority": message_priority,
+        "platforms": message_platforms,
+        "extra": message_extra,
+        "createdAt": message_created_at.strftime("%Y-%m-%d %H:%M:%S") if message_created_at else None,
+        "updatedAt": message_updated_at.strftime("%Y-%m-%d %H:%M:%S") if message_updated_at else None
     }
 
 
