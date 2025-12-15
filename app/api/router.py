@@ -54,6 +54,7 @@ from app.api.iot import notice as iot_notice
 from app.api.iot import version as iot_version
 from app.api.iot import device_model as iot_device_model
 from app.api.iot import thing_model as iot_thing_model
+from app.api.iot import points as iot_points
 
 # 将所有 IoT 路由添加到 iot_router
 # 登录接口不需要认证依赖，只需要数据库依赖
@@ -71,6 +72,7 @@ iot_router.include_router(iot_notice.router, dependencies=[Depends(get_db), Depe
 iot_router.include_router(iot_version.router, dependencies=[Depends(get_db), Depends(get_current_token)])
 iot_router.include_router(iot_device_model.router, dependencies=[Depends(get_db), Depends(get_current_token)])
 iot_router.include_router(iot_thing_model.router, dependencies=[Depends(get_db), Depends(get_current_token)])
+iot_router.include_router(iot_points.router, dependencies=[Depends(get_db), Depends(get_current_token)])
 
 # 将 iot_router 添加到 api_router，添加 /iot 前缀
 api_router.include_router(iot_router, prefix="/iot")

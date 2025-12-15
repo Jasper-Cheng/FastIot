@@ -189,38 +189,17 @@ async def update_device_info(
     if "modelId" in device_data:
         update_data.model_id = device_data["modelId"]
     if "accountId" in device_data:
-        # accountId 为 null 表示解绑用户
-        update_data.account_id = device_data["accountId"]
+        # accountId 为 null 表示解绑用户，同时更新状态为 unbound
+        account_id_value = device_data["accountId"]
+        update_data.account_id = account_id_value
+        # 当 accountId 为 null 时，更新 status 为 unbound
+        if account_id_value is None:
+            from app.models.device import DeviceStatus
+            update_data.status = DeviceStatus.unbound
     
     updated_device = await update_device(db, id, update_data)
     if not updated_device:
         raise HTTPException(status_code=500, detail="更新失败")
-    
-    # 更新家庭关联
-    if "familyIds" in device_data:
-        family_ids = device_data["familyIds"]
-        
-        # 获取当前的家庭关联
-        current_families = await get_device_families(db, id, skip=0, limit=100)
-        current_family_ids = {f.id for f in current_families}
-        new_family_ids = set(family_ids)
-        
-        # 需要添加的家庭
-        to_add = new_family_ids - current_family_ids
-        # 需要删除的家庭
-        to_remove = current_family_ids - new_family_ids
-        
-        from app.crud.family_device import create_family_device, delete_family_device
-        
-        # 添加新的家庭关联
-        for family_id in to_add:
-            await create_family_device(db, family_id, id)
-        
-        # 删除旧的家庭关联
-        for family_id in to_remove:
-            await delete_family_device(db, family_id, id)
-        
-        await db.commit()
     
     # 获取更新后的设备信息
     updated_device = await get_device(db, id)
@@ -235,17 +214,13 @@ async def update_device_info(
         if account:
             account_name = account.nickname or account.phone
     
-    # 获取家庭ID列表
-    families = await get_device_families(db, id, skip=0, limit=100)
-    family_ids = [f.id for f in families]
-    
     return {
         "id": updated_device.id,
         "name": updated_device.name,
         "modelId": updated_device.model_id,
         "accountId": updated_device.account_id,
         "accountName": account_name,
-        "familyIds": family_ids
+        "status": updated_device.status
     }
 
 
