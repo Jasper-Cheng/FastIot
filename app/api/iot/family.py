@@ -372,6 +372,60 @@ async def add_family_member(
     }
 
 
+@router.put("/family/{familyId}/members/{memberId}")
+async def update_family_member_nickname(
+    familyId: int,
+    memberId: int,
+    member_data: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+):
+    """更新家庭成员昵称"""
+    # 验证家庭是否存在
+    family = await get_family(db, familyId)
+    if not family:
+        raise HTTPException(status_code=404, detail="家庭不存在")
+    
+    # 验证成员是否存在
+    from app.crud.family_member import get_family_member, update_family_member
+    from app.models.family_member import FamilyMemberUpdate
+    
+    member = await get_family_member(db, memberId)
+    if not member:
+        raise HTTPException(status_code=404, detail="成员不存在")
+    
+    if member.family_id != familyId:
+        raise HTTPException(status_code=400, detail="成员不属于该家庭")
+    
+    # 构建更新数据
+    member_update = FamilyMemberUpdate()
+    if "nickname" in member_data:
+        member_update.nickname = member_data["nickname"]
+    else:
+        raise HTTPException(status_code=400, detail="昵称参数不能为空")
+    
+    # 更新成员昵称
+    updated_member = await update_family_member(db, memberId, member_update)
+    if not updated_member:
+        raise HTTPException(status_code=500, detail="更新失败")
+    
+    # 获取账号信息
+    account_result = await db.execute(
+        select(Account).filter(Account.id == updated_member.account_id)
+    )
+    account = account_result.scalar_one_or_none()
+    
+    return {
+        "id": updated_member.id,
+        "familyId": updated_member.family_id,
+        "accountId": updated_member.account_id,
+        "accountName": account.nickname if account else None,
+        "nickname": updated_member.nickname,
+        "joinedAt": updated_member.joined_at.strftime("%Y-%m-%d %H:%M:%S") if updated_member.joined_at else None,
+        "createdAt": updated_member.created_at.strftime("%Y-%m-%d %H:%M:%S") if updated_member.created_at else None
+    }
+
+
 @router.delete("/family/{familyId}/members/{memberId}")
 async def remove_family_member(
     familyId: int,
@@ -399,4 +453,42 @@ async def remove_family_member(
         raise HTTPException(status_code=500, detail="删除失败")
     
     return {}
+
+
+@router.delete("/family/{familyId}/devices/{deviceId}")
+async def remove_family_device(
+    familyId: int,
+    deviceId: int,
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+):
+    """从家庭中移除设备（删除 family_device 表中的关联）"""
+    # 验证家庭是否存在
+    family = await get_family(db, familyId)
+    if not family:
+        raise HTTPException(status_code=404, detail="家庭不存在")
+    
+    # 验证设备是否存在
+    from app.crud.device import get_device
+    device = await get_device(db, deviceId)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    
+    # 检查设备是否属于该家庭
+    from app.crud.family_device import check_device_in_family
+    if not await check_device_in_family(db, deviceId, familyId):
+        raise HTTPException(status_code=404, detail="设备不属于此家庭")
+    
+    # 移除设备与家庭的关联
+    from app.crud.family_device import delete_family_device
+    success = await delete_family_device(db, familyId, deviceId)
+    if not success:
+        raise HTTPException(status_code=500, detail="删除设备关联失败")
+    
+    return {
+        "message": "设备已从家庭中移除",
+        "familyId": familyId,
+        "deviceId": deviceId,
+        "deviceName": device.name
+    }
 

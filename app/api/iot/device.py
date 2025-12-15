@@ -192,10 +192,18 @@ async def update_device_info(
         # accountId 为 null 表示解绑用户，同时更新状态为 unbound
         account_id_value = device_data["accountId"]
         update_data.account_id = account_id_value
-        # 当 accountId 为 null 时，更新 status 为 unbound
+        from app.models.device import DeviceStatus
+        # 当 accountId 为 null 时，更新 status 为 unbound，并移除所有家庭关联
         if account_id_value is None:
-            from app.models.device import DeviceStatus
             update_data.status = DeviceStatus.unbound
+            # 同步移除设备与所有家庭的关联
+            from app.crud.family_device import delete_all_family_devices_by_device
+            await delete_all_family_devices_by_device(db, id)
+        else:
+            # 当 accountId 不为 null 时（绑定设备），更新 status 为 bound
+            # 如果设备之前未绑定（account_id 为 None），绑定后设置为 bound
+            if device.account_id is None:
+                update_data.status = DeviceStatus.bound
     
     updated_device = await update_device(db, id, update_data)
     if not updated_device:
