@@ -107,9 +107,6 @@ async def get_user_points_detail(
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
     
-    # 获取当前积分余额
-    balance_info = await get_user_points_balance(db, accountId)
-    
     items = []
     for point in points_records:
         items.append({
@@ -123,10 +120,6 @@ async def get_user_points_detail(
         })
     
     return {
-        "accountId": accountId,
-        "accountName": account.nickname,
-        "accountPhone": account.phone,
-        "currentBalance": balance_info["total_balance"],
         "items": items,
         "total": total,
         "page": page,
@@ -239,5 +232,58 @@ async def adjust_user_points(
         "description": new_point.description,
         "extra": new_point.extra,
         "createdAt": new_point.created_at.strftime("%Y-%m-%d %H:%M:%S") if new_point.created_at else None
+    }
+
+
+@router.get("/points/{accountId}/check-in", response_model=Dict[str, Any])
+async def get_user_check_in_history(
+    accountId: int,
+    page: int = Query(1, ge=1, description="页码，从1开始"),
+    pageSize: int = Query(20, ge=1, le=100, description="每页数量"),
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+):
+    """获取某个用户的签到记录"""
+    # 验证账号是否存在
+    account = await get_account(db, accountId)
+    if not account:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    skip = (page - 1) * pageSize
+    
+    # 获取签到历史记录
+    from app.crud.check_in import get_check_in_history
+    check_in_records = await get_check_in_history(db, accountId, skip=skip, limit=pageSize)
+    
+    # 获取总记录数
+    from sqlalchemy import select, func
+    from app.db.models.check_in import CheckIn
+    
+    count_result = await db.execute(
+        select(func.count(CheckIn.id)).where(CheckIn.account_id == accountId)
+    )
+    total = count_result.scalar() or 0
+    
+    items = []
+    for check_in in check_in_records:
+        items.append({
+            "id": check_in.id,
+            "checkInDate": check_in.check_in_date.strftime("%Y-%m-%d") if check_in.check_in_date else None,
+            "checkInTime": check_in.check_in_time.strftime("%Y-%m-%d %H:%M:%S") if check_in.check_in_time else None,
+            "pointsEarned": check_in.points_earned,
+            "continuousDays": check_in.continuous_days,
+            "checkInType": check_in.check_in_type,
+            "extra": check_in.extra,
+            "createdAt": check_in.created_at.strftime("%Y-%m-%d %H:%M:%S") if check_in.created_at else None
+        })
+    
+    return {
+        "accountId": accountId,
+        "accountName": account.nickname,
+        "accountPhone": account.phone,
+        "items": items,
+        "total": total,
+        "page": page,
+        "pageSize": pageSize
     }
 
