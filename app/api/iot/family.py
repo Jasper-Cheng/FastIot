@@ -455,6 +455,45 @@ async def remove_family_member(
     return {}
 
 
+@router.post("/family/{familyId}/devices/{deviceId}")
+async def add_family_device(
+    familyId: int,
+    deviceId: int,
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+):
+    """将设备添加到家庭（在 family_device 表中创建关联）"""
+    # 验证家庭是否存在
+    family = await get_family(db, familyId)
+    if not family:
+        raise HTTPException(status_code=404, detail="家庭不存在")
+    
+    # 验证设备是否存在
+    from app.crud.device import get_device
+    device = await get_device(db, deviceId)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    
+    # 检查设备是否已在家庭中
+    from app.crud.family_device import check_device_in_family, create_family_device
+    if await check_device_in_family(db, deviceId, familyId):
+        raise HTTPException(status_code=400, detail="设备已在此家庭中")
+    
+    # 添加设备到家庭
+    family_device = await create_family_device(db, familyId, deviceId)
+    if not family_device:
+        raise HTTPException(status_code=500, detail="设备添加失败")
+    
+    return {
+        "message": "设备已添加到家庭",
+        "familyId": familyId,
+        "familyName": family.name,
+        "deviceId": deviceId,
+        "deviceName": device.name,
+        "deviceSn": device.sn
+    }
+
+
 @router.delete("/family/{familyId}/devices/{deviceId}")
 async def remove_family_device(
     familyId: int,
