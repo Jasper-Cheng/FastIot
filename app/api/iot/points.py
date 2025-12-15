@@ -162,6 +162,12 @@ async def adjust_user_points(
     balance_info = await get_user_points_balance(db, accountId)
     current_balance = balance_info["total_balance"]
     
+    # 确保余额是数字类型（可能是 Decimal）
+    if hasattr(current_balance, '__int__'):
+        current_balance = int(current_balance)
+    elif hasattr(current_balance, '__float__'):
+        current_balance = float(current_balance)
+    
     # 计算新的余额
     new_balance = current_balance + points
     
@@ -192,6 +198,15 @@ async def adjust_user_points(
     else:
         new_point = await deduct_points(db, points_record_data)
     
+    # 保存积分记录属性到局部变量，避免懒加载问题
+    point_id = new_point.id
+    point_points = new_point.points
+    point_balance = new_point.balance
+    point_type = new_point.type
+    point_description = new_point.description
+    point_extra = new_point.extra
+    point_created_at = new_point.created_at
+    
     # 记录操作日志
     try:
         from app.crud.user_operation_log import user_operation_log
@@ -208,8 +223,8 @@ async def adjust_user_points(
                     "account_name": account.nickname,
                     "account_phone": account.phone,
                     "points": points,
-                    "old_balance": current_balance,
-                    "new_balance": new_balance,
+                    "old_balance": int(current_balance),  # 确保是 int 类型，避免 Decimal 序列化问题
+                    "new_balance": int(new_balance),  # 确保是 int 类型，避免 Decimal 序列化问题
                     "type": points_type,
                     "description": description
                 }
@@ -221,17 +236,17 @@ async def adjust_user_points(
         print(f"记录积分调整操作日志失败: {e}")
     
     return {
-        "id": new_point.id,
+        "id": point_id,
         "accountId": accountId,
         "accountName": account.nickname,
         "accountPhone": account.phone,
-        "points": new_point.points,
-        "oldBalance": current_balance,
-        "newBalance": new_point.balance,
-        "type": new_point.type,
-        "description": new_point.description,
-        "extra": new_point.extra,
-        "createdAt": new_point.created_at.strftime("%Y-%m-%d %H:%M:%S") if new_point.created_at else None
+        "points": point_points,
+        "oldBalance": int(current_balance),
+        "newBalance": int(point_balance),
+        "type": point_type,
+        "description": point_description,
+        "extra": point_extra,
+        "createdAt": point_created_at.strftime("%Y-%m-%d %H:%M:%S") if point_created_at else None
     }
 
 
