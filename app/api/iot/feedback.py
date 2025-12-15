@@ -9,6 +9,8 @@ from app.api.dependencies import get_current_token
 from app.crud.feedback import feedback
 from app.db.models.feedback import Feedback
 from app.db.models.account import Account
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 
 router = APIRouter()
 
@@ -89,6 +91,9 @@ async def reply_feedback(
     status = reply_data.get("status", fb.status)
     replay = reply_data.get("replay")
     
+    # 保存更新前的状态用于日志
+    old_status = fb.status
+    
     updated_fb = await feedback.update_status(db, id=id, status=status, replay=replay)
     if not updated_fb:
         raise HTTPException(status_code=500, detail="更新失败")
@@ -98,6 +103,29 @@ async def reply_feedback(
         select(Account).filter(Account.id == updated_fb.account_id)
     )
     account = account_result.scalar_one_or_none()
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.feedback_reply,
+                description=f"回复反馈：{updated_fb.name} - {old_status} -> {updated_fb.status}",
+                extra={
+                    "feedback_id": id,
+                    "account_id": updated_fb.account_id,
+                    "account_name": account.nickname if account else None,
+                    "name": updated_fb.name,
+                    "type": updated_fb.type,
+                    "old_status": old_status,
+                    "new_status": updated_fb.status,
+                    "has_reply": bool(replay)
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录回复反馈操作日志失败: {e}")
     
     return {
         "id": updated_fb.id,
@@ -132,6 +160,9 @@ async def update_feedback_status(
     if not status:
         raise HTTPException(status_code=400, detail="状态不能为空")
     
+    # 保存更新前的状态用于日志
+    old_status = fb.status
+    
     updated_fb = await feedback.update_status(db, id=id, status=status)
     if not updated_fb:
         raise HTTPException(status_code=500, detail="更新失败")
@@ -141,6 +172,28 @@ async def update_feedback_status(
         select(Account).filter(Account.id == updated_fb.account_id)
     )
     account = account_result.scalar_one_or_none()
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.feedback_status_update,
+                description=f"更新反馈状态：{updated_fb.name} - {old_status} -> {updated_fb.status}",
+                extra={
+                    "feedback_id": id,
+                    "account_id": updated_fb.account_id,
+                    "account_name": account.nickname if account else None,
+                    "name": updated_fb.name,
+                    "type": updated_fb.type,
+                    "old_status": old_status,
+                    "new_status": updated_fb.status
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录更新反馈状态操作日志失败: {e}")
     
     return {
         "id": updated_fb.id,

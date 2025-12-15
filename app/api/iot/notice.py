@@ -14,6 +14,8 @@ from app.crud.system_message import (
     delete_system_message
 )
 from app.models.system_message import SystemMessageCreate, SystemMessageUpdate
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 
 router = APIRouter()
 
@@ -104,6 +106,26 @@ async def create_notice(
     
     message = await create_system_message(db, message_create)
     
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.notice_create,
+                description=f"创建系统消息：{message.title}",
+                extra={
+                    "message_id": message.id,
+                    "title": message.title,
+                    "type": message.type,
+                    "priority": message.priority,
+                    "platforms": message.platforms or []
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录创建系统消息操作日志失败: {e}")
+    
     return {
         "id": message.id,
         "title": message.title,
@@ -144,9 +166,43 @@ async def update_notice(
     if "extra" in notice_data:
         message_update.extra = notice_data["extra"]
     
+    # 保存更新前的信息用于日志
+    old_title = message.title
+    
     updated_message = await update_system_message(db, id, message_update)
     if not updated_message:
         raise HTTPException(status_code=500, detail="更新失败")
+    
+    # 记录操作日志
+    try:
+        changes = []
+        if "title" in notice_data and old_title != updated_message.title:
+            changes.append(f"标题: {old_title} -> {updated_message.title}")
+        if "type" in notice_data:
+            changes.append("更新类型")
+        if "priority" in notice_data:
+            changes.append("更新优先级")
+        if "platforms" in notice_data:
+            changes.append("更新平台")
+        
+        description = f"更新系统消息：{updated_message.title}" + (f" - {', '.join(changes)}" if changes else "")
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.notice_update,
+                description=description,
+                extra={
+                    "message_id": id,
+                    "old_title": old_title,
+                    "new_title": updated_message.title,
+                    "changes": changes
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录更新系统消息操作日志失败: {e}")
     
     return {
         "id": updated_message.id,
@@ -172,9 +228,30 @@ async def delete_notice(
     if not message:
         raise HTTPException(status_code=404, detail="消息不存在")
     
+    # 保存消息信息用于日志
+    message_title = message.title
+    
     deleted_message = await delete_system_message(db, id)
     if not deleted_message:
         raise HTTPException(status_code=500, detail="删除失败")
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.notice_delete,
+                description=f"删除系统消息：{message_title}",
+                extra={
+                    "message_id": id,
+                    "title": message_title,
+                    "type": message.type
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录删除系统消息操作日志失败: {e}")
     
     return {}
 
@@ -193,5 +270,25 @@ async def publish_notice(
     
     # 这里可以添加发布逻辑，比如更新状态、推送给用户等
     # 目前只是返回成功
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.notice_publish,
+                description=f"发布系统消息：{message.title}",
+                extra={
+                    "message_id": id,
+                    "title": message.title,
+                    "type": message.type,
+                    "priority": message.priority
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录发布系统消息操作日志失败: {e}")
+    
     return {}
 

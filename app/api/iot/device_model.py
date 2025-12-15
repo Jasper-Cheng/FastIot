@@ -17,6 +17,8 @@ from app.crud.device_model import (
 )
 from app.db.models.device_model import DeviceModel
 from app.db.models.device_thing_model import DeviceThingModel
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 
 router = APIRouter()
 
@@ -142,6 +144,26 @@ async def create_device_model_info(
     
     model = await create_device_model(db, model_data)
     
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_model_create,
+                description=f"创建设备型号：{model.name}（代码: {model.model_code}）",
+                extra={
+                    "model_id": model.id,
+                    "model_code": model.model_code,
+                    "model_name": model.name,
+                    "thing_model_id": model.thing_model_id,
+                    "thing_model_name": thing_model.name
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录创建设备型号操作日志失败: {e}")
+    
     return {
         "id": model.id,
         "code": model.model_code,
@@ -183,6 +205,10 @@ async def update_device_model_info(
         if not thing_model:
             raise HTTPException(status_code=404, detail="物模型不存在")
     
+    # 保存更新前的信息用于日志
+    old_name = model.name
+    old_code = model.model_code
+    
     updated_model = await update_device_model(db, id, model_data)
     if not updated_model:
         raise HTTPException(status_code=500, detail="更新失败")
@@ -192,6 +218,37 @@ async def update_device_model_info(
         select(DeviceThingModel).filter(DeviceThingModel.id == updated_model.thing_model_id)
     )
     thing_model = thing_model_result.scalar_one_or_none()
+    
+    # 记录操作日志
+    try:
+        changes = []
+        if "name" in model_data and old_name != updated_model.name:
+            changes.append(f"名称: {old_name} -> {updated_model.name}")
+        if "code" in model_data and old_code != updated_model.model_code:
+            changes.append(f"代码: {old_code} -> {updated_model.model_code}")
+        if "thingModelId" in model_data:
+            changes.append("更新物模型")
+        
+        description = f"更新设备型号：{updated_model.name}" + (f" - {', '.join(changes)}" if changes else "")
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_model_update,
+                description=description,
+                extra={
+                    "model_id": id,
+                    "old_name": old_name,
+                    "new_name": updated_model.name,
+                    "old_code": old_code,
+                    "new_code": updated_model.model_code,
+                    "changes": changes
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录更新设备型号操作日志失败: {e}")
     
     return {
         "id": updated_model.id,
@@ -219,12 +276,34 @@ async def delete_device_model_info(
     if not model:
         raise HTTPException(status_code=404, detail="设备型号不存在")
     
+    # 保存型号信息用于日志
+    model_name = model.name
+    model_code = model.model_code
+    
     try:
         success = await delete_device_model(db, id)
         if not success:
             raise HTTPException(status_code=500, detail="删除失败")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_model_delete,
+                description=f"删除设备型号：{model_name}（代码: {model_code}）",
+                extra={
+                    "model_id": id,
+                    "model_name": model_name,
+                    "model_code": model_code
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录删除设备型号操作日志失败: {e}")
     
     return {}
 

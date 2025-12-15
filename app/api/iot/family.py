@@ -202,6 +202,28 @@ async def create_family_info(
             if device.account_id == creator_account_id:
                 await delete_family_device(db, family.id, device.id)
     
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.family_create,
+                description=f"创建家庭：{family.name}",
+                extra={
+                    "family_id": family.id,
+                    "family_name": family.name,
+                    "invite_code": family.invite_code,
+                    "is_admin": is_admin
+                }
+            ),
+            account_id=creator_account_id
+        )
+    except Exception as e:
+        print(f"记录创建家庭操作日志失败: {e}")
+    
     return {
         "id": family.id,
         "name": family.name,
@@ -235,9 +257,44 @@ async def update_family_info(
     if "avatar" in family_data:
         family_update.avatar = family_data["avatar"]
     
+    # 保存更新前的信息用于日志
+    old_name = family.name
+    
     updated_family = await update_family(db, id, family_update)
     if not updated_family:
         raise HTTPException(status_code=500, detail="更新失败")
+    
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        changes = []
+        if "name" in family_data and old_name != updated_family.name:
+            changes.append(f"名称: {old_name} -> {updated_family.name}")
+        if "description" in family_data:
+            changes.append("更新描述")
+        if "avatar" in family_data:
+            changes.append("更新头像")
+        
+        description = f"更新家庭：{updated_family.name}" + (f" - {', '.join(changes)}" if changes else "")
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.family_update,
+                description=description,
+                extra={
+                    "family_id": updated_family.id,
+                    "old_name": old_name,
+                    "new_name": updated_family.name,
+                    "changes": changes
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录更新家庭操作日志失败: {e}")
     
     return {
         "id": updated_family.id,
@@ -261,9 +318,34 @@ async def delete_family_info(
     if not family:
         raise HTTPException(status_code=404, detail="家庭不存在")
     
+    # 保存家庭信息用于日志
+    family_name = family.name
+    family_invite_code = family.invite_code
+    
     success = await delete_family(db, id)
     if not success:
         raise HTTPException(status_code=500, detail="删除失败")
+    
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.family_delete,
+                description=f"删除家庭：{family_name}",
+                extra={
+                    "family_id": id,
+                    "family_name": family_name,
+                    "invite_code": family_invite_code
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录删除家庭操作日志失败: {e}")
     
     return {}
 
@@ -361,6 +443,30 @@ async def add_family_member(
     from app.crud.family_device import add_account_devices_to_family
     await add_account_devices_to_family(db, account_id, familyId)
     
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.family_member_add,
+                description=f"添加家庭成员：{account.nickname or account.phone} 到家庭 {family.name}",
+                extra={
+                    "family_id": familyId,
+                    "family_name": family.name,
+                    "member_id": member.id,
+                    "account_id": account_id,
+                    "account_name": account.nickname or account.phone,
+                    "nickname": member.nickname
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录添加家庭成员操作日志失败: {e}")
+    
     return {
         "id": member.id,
         "familyId": member.family_id,
@@ -404,6 +510,9 @@ async def update_family_member_nickname(
     else:
         raise HTTPException(status_code=400, detail="昵称参数不能为空")
     
+    # 保存更新前的昵称用于日志
+    old_nickname = member.nickname
+    
     # 更新成员昵称
     updated_member = await update_family_member(db, memberId, member_update)
     if not updated_member:
@@ -414,6 +523,30 @@ async def update_family_member_nickname(
         select(Account).filter(Account.id == updated_member.account_id)
     )
     account = account_result.scalar_one_or_none()
+    
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.family_member_update,
+                description=f"更新家庭成员昵称：{account.nickname if account else member.account_id} 在家庭 {family.name} - {old_nickname} -> {updated_member.nickname}",
+                extra={
+                    "family_id": familyId,
+                    "family_name": family.name,
+                    "member_id": memberId,
+                    "account_id": updated_member.account_id,
+                    "old_nickname": old_nickname,
+                    "new_nickname": updated_member.nickname
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录更新家庭成员操作日志失败: {e}")
     
     return {
         "id": updated_member.id,
@@ -447,10 +580,41 @@ async def remove_family_member(
     from app.crud.family_device import delete_account_devices_from_family
     removed_device_count = await delete_account_devices_from_family(db, member.account_id, familyId)
     
+    # 保存成员信息用于日志
+    from app.crud.account import get_account
+    account = await get_account(db, member.account_id)
+    account_name = account.nickname if account else None
+    family = await get_family(db, familyId)
+    family_name = family.name if family else None
+    
     # 删除成员关联关系
     success = await remove_family_member_by_family_and_account(db, familyId, member.account_id)
     if not success:
         raise HTTPException(status_code=500, detail="删除失败")
+    
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.family_member_remove,
+                description=f"移除家庭成员：{account_name or member.account_id} 从家庭 {family_name or familyId}",
+                extra={
+                    "family_id": familyId,
+                    "family_name": family_name,
+                    "member_id": memberId,
+                    "account_id": member.account_id,
+                    "account_name": account_name,
+                    "removed_device_count": removed_device_count
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录移除家庭成员操作日志失败: {e}")
     
     return {}
 
@@ -483,6 +647,29 @@ async def add_family_device(
     family_device = await create_family_device(db, familyId, deviceId)
     if not family_device:
         raise HTTPException(status_code=500, detail="设备添加失败")
+    
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_add_to_family,
+                description=f"添加设备到家庭：{device.name}（SN: {device.sn}）到家庭 {family.name}",
+                extra={
+                    "family_id": familyId,
+                    "family_name": family.name,
+                    "device_id": deviceId,
+                    "device_name": device.name,
+                    "device_sn": device.sn
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录添加设备到家庭操作日志失败: {e}")
     
     return {
         "message": "设备已添加到家庭",
@@ -523,6 +710,29 @@ async def remove_family_device(
     success = await delete_family_device(db, familyId, deviceId)
     if not success:
         raise HTTPException(status_code=500, detail="删除设备关联失败")
+    
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_remove_from_family,
+                description=f"从家庭移除设备：{device.name}（SN: {device.sn}）从家庭 {family.name}",
+                extra={
+                    "family_id": familyId,
+                    "family_name": family.name,
+                    "device_id": deviceId,
+                    "device_name": device.name,
+                    "device_sn": device.sn
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录从家庭移除设备操作日志失败: {e}")
     
     return {
         "message": "设备已从家庭中移除",

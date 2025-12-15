@@ -12,6 +12,8 @@ from app.crud.thing_model import (
     delete_thing_model,
     count_devices_by_thing_model
 )
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 
 router = APIRouter()
 
@@ -95,6 +97,24 @@ async def create_thing_model_info(
     
     model = await create_thing_model(db, model_data)
     
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.thing_model_create,
+                description=f"创建物模型：{model.name}",
+                extra={
+                    "thing_model_id": model.id,
+                    "name": model.name,
+                    "description": model.description
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录创建物模型操作日志失败: {e}")
+    
     return {
         "id": model.id,
         "name": model.name,
@@ -119,9 +139,45 @@ async def update_thing_model_info(
     if not model:
         raise HTTPException(status_code=404, detail="物模型不存在")
     
+    # 保存更新前的信息用于日志
+    old_name = model.name
+    
     updated_model = await update_thing_model(db, id, model_data)
     if not updated_model:
         raise HTTPException(status_code=500, detail="更新失败")
+    
+    # 记录操作日志
+    try:
+        changes = []
+        if "name" in model_data and old_name != updated_model.name:
+            changes.append(f"名称: {old_name} -> {updated_model.name}")
+        if "description" in model_data:
+            changes.append("更新描述")
+        if "properties" in model_data:
+            changes.append("更新属性")
+        if "services" in model_data:
+            changes.append("更新服务")
+        if "events" in model_data:
+            changes.append("更新事件")
+        
+        description = f"更新物模型：{updated_model.name}" + (f" - {', '.join(changes)}" if changes else "")
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.thing_model_update,
+                description=description,
+                extra={
+                    "thing_model_id": id,
+                    "old_name": old_name,
+                    "new_name": updated_model.name,
+                    "changes": changes
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录更新物模型操作日志失败: {e}")
     
     return {
         "id": updated_model.id,
@@ -145,12 +201,32 @@ async def delete_thing_model_info(
     if not model:
         raise HTTPException(status_code=404, detail="物模型不存在")
     
+    # 保存物模型信息用于日志
+    model_name = model.name
+    
     try:
         success = await delete_thing_model(db, id)
         if not success:
             raise HTTPException(status_code=500, detail="删除失败")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.thing_model_delete,
+                description=f"删除物模型：{model_name}",
+                extra={
+                    "thing_model_id": id,
+                    "name": model_name
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录删除物模型操作日志失败: {e}")
     
     return {}
 
@@ -169,5 +245,23 @@ async def publish_thing_model(
     
     # 这里可以添加发布逻辑，比如更新状态、推送给相关设备等
     # 目前只是返回成功
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.thing_model_publish,
+                description=f"发布物模型：{model.name}",
+                extra={
+                    "thing_model_id": id,
+                    "name": model.name
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录发布物模型操作日志失败: {e}")
+    
     return {}
 

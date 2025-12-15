@@ -8,6 +8,8 @@ from app.api.dependencies import get_current_token
 from app.crud.version_info import version_info
 from app.db.models.version_info import VersionInfo
 from app.models.version_info import VersionInfoCreate, VersionInfoUpdate, PlatformEnum
+from app.crud.user_operation_log import user_operation_log
+from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 
 router = APIRouter()
 
@@ -108,6 +110,26 @@ async def create_version(
     
     version = await version_info.create(db, obj_in=version_create)
     
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.version_create,
+                description=f"创建版本：{version.version_name}（{version.platform}）",
+                extra={
+                    "version_id": version.id,
+                    "version_code": version.version_code,
+                    "version_name": version.version_name,
+                    "platform": version.platform,
+                    "title": version.title
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录创建版本操作日志失败: {e}")
+    
     return {
         "id": version.id,
         "versionCode": version.version_code,
@@ -160,7 +182,42 @@ async def update_version(
     if "extra" in version_data:
         version_update.extra = version_data["extra"]
     
+    # 保存更新前的信息用于日志
+    old_version_name = version.version_name
+    
     updated_version = await version_info.update(db, db_obj=version, obj_in=version_update)
+    
+    # 记录操作日志
+    try:
+        changes = []
+        if "versionName" in version_data and old_version_name != updated_version.version_name:
+            changes.append(f"版本名称: {old_version_name} -> {updated_version.version_name}")
+        if "versionCode" in version_data:
+            changes.append("更新版本号")
+        if "title" in version_data:
+            changes.append("更新标题")
+        if "description" in version_data:
+            changes.append("更新描述")
+        
+        description = f"更新版本：{updated_version.version_name}（{updated_version.platform}）" + (f" - {', '.join(changes)}" if changes else "")
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.version_update,
+                description=description,
+                extra={
+                    "version_id": id,
+                    "old_version_name": old_version_name,
+                    "new_version_name": updated_version.version_name,
+                    "platform": updated_version.platform,
+                    "changes": changes
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录更新版本操作日志失败: {e}")
     
     return {
         "id": updated_version.id,
@@ -190,9 +247,33 @@ async def delete_version(
     if not version:
         raise HTTPException(status_code=404, detail="版本不存在")
     
+    # 保存版本信息用于日志
+    version_name = version.version_name
+    version_code = version.version_code
+    platform = version.platform
+    
     deleted_version = await version_info.remove(db, id=id)
     if not deleted_version:
         raise HTTPException(status_code=500, detail="删除失败")
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.version_delete,
+                description=f"删除版本：{version_name}（{platform}）",
+                extra={
+                    "version_id": id,
+                    "version_name": version_name,
+                    "version_code": version_code,
+                    "platform": platform
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录删除版本操作日志失败: {e}")
     
     return {}
 
@@ -211,5 +292,25 @@ async def publish_version(
     
     # 这里可以添加发布逻辑，比如更新状态、推送给用户等
     # 目前只是返回成功
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.version_publish,
+                description=f"发布版本：{version.version_name}（{version.platform}）",
+                extra={
+                    "version_id": id,
+                    "version_name": version.version_name,
+                    "version_code": version.version_code,
+                    "platform": version.platform
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录发布版本操作日志失败: {e}")
+    
     return {}
 

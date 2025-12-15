@@ -20,6 +20,7 @@ async def get_log_list(
     operationType: Optional[str] = Query(None, description="操作类型"),
     startTime: Optional[str] = Query(None, description="开始时间"),
     endTime: Optional[str] = Query(None, description="结束时间"),
+    role: Optional[str] = Query(None, description="角色筛选（admin/user）"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
@@ -33,7 +34,8 @@ async def get_log_list(
         account_id=accountId,
         operation_type=operationType,
         start_time=startTime,
-        end_time=endTime
+        end_time=endTime,
+        role=role
     )
     
     items = []
@@ -48,6 +50,7 @@ async def get_log_list(
             "id": log.id,
             "accountId": log.account_id,
             "accountName": account.nickname if account else None,
+            "role": account.role if account else None,
             "operationType": log.operation_type,
             "description": log.description,
             "extra": log.extra or {},

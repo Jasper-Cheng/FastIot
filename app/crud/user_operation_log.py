@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, desc, asc, select, func
 from typing import List, Optional, Dict, Any, Tuple
+from enum import Enum
 from app.db.models.user_operation_log import UserOperationLog
 from app.models.user_operation_log import UserOperationLogCreate, UserOperationLogUpdate
 from datetime import datetime
@@ -8,7 +9,11 @@ from datetime import datetime
 class CRUDUserOperationLog:
     async def create(self, db: AsyncSession, *, obj_in: UserOperationLogCreate, account_id: int) -> UserOperationLog:
         """创建用户操作记录"""
-        db_obj = UserOperationLog(**obj_in.dict(), account_id=account_id)
+        # 确保枚举值转换为字符串
+        data = obj_in.dict()
+        if isinstance(data.get('operation_type'), Enum):
+            data['operation_type'] = data['operation_type'].value
+        db_obj = UserOperationLog(**data, account_id=account_id)
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)
@@ -161,11 +166,19 @@ class CRUDUserOperationLog:
         account_id: Optional[int] = None,
         operation_type: Optional[str] = None,
         start_time: Optional[str] = None,
-        end_time: Optional[str] = None
+        end_time: Optional[str] = None,
+        role: Optional[str] = None
     ) -> Tuple[List[UserOperationLog], int]:
         """获取操作日志列表（支持分页和搜索）"""
+        from app.db.models.account import Account
+        
         query = select(UserOperationLog)
         count_query = select(func.count(UserOperationLog.id))
+        
+        # 如果需要按 role 筛选，需要 JOIN Account 表
+        if role:
+            query = query.join(Account, UserOperationLog.account_id == Account.id)
+            count_query = count_query.join(Account, UserOperationLog.account_id == Account.id)
         
         # 构建搜索条件
         conditions = []
@@ -173,6 +186,8 @@ class CRUDUserOperationLog:
             conditions.append(UserOperationLog.account_id == account_id)
         if operation_type:
             conditions.append(UserOperationLog.operation_type == operation_type)
+        if role:
+            conditions.append(Account.role == role)
         if start_time:
             try:
                 start_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")

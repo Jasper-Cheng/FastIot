@@ -283,7 +283,7 @@ ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 CREATE TABLE IF NOT EXISTS `user_operation_log` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '操作记录ID',
     `account_id` BIGINT NOT NULL COMMENT '操作用户账号ID',
-    `operation_type` ENUM('login','logout','register','account_delete','account_update','device_bind','device_unbind','device_name_update','device_add_to_family','device_remove_from_family','family_create','family_delete','family_member_add','family_member_remove','family_member_update','permission_update','quick_control','feedback_create') NOT NULL COMMENT '操作类型',
+    `operation_type` ENUM('login','logout','register','account_delete','account_update','device_create','device_update','device_delete','device_bind','device_unbind','device_name_update','device_add_to_family','device_remove_from_family','family_create','family_update','family_delete','family_member_add','family_member_remove','family_member_update','permission_update','quick_control','feedback_create','feedback_reply','feedback_status_update','notice_create','notice_update','notice_delete','notice_publish','device_model_create','device_model_update','device_model_delete','thing_model_create','thing_model_update','thing_model_delete','thing_model_publish','version_create','version_update','version_delete','version_publish','points_adjust','points_deduct') NOT NULL COMMENT '操作类型',
     `description` VARCHAR(500) NOT NULL COMMENT '操作描述',
     `extra` JSON NULL COMMENT '扩展信息（如快捷控制的具体操作、设备排序详情等）',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',

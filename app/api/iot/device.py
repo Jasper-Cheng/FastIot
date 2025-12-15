@@ -64,19 +64,52 @@ async def create_device_info(
     # 创建设备
     new_device = await create_device(db, device_create)
     
+    # 立即保存设备属性到局部变量，避免懒加载问题
+    device_id = new_device.id
+    device_name = new_device.name
+    device_sn = new_device.sn
+    device_model_id = new_device.model_id
+    device_status = new_device.status
+    device_created_at = new_device.created_at
+    
     # 获取设备型号名称
     model_name = model.name if model else None
     
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_create,
+                description=f"设备入库：{device_name}（SN: {device_sn}）",
+                extra={
+                    "device_id": device_id,
+                    "device_name": device_name,
+                    "device_sn": device_sn,
+                    "model_id": device_model_id,
+                    "model_name": model_name,
+                    "status": device_status
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        # 记录操作失败不影响设备入库流程
+        print(f"记录设备入库操作日志失败: {e}")
+    
     return {
-        "id": new_device.id,
-        "name": new_device.name,
-        "sn": new_device.sn,
-        "modelId": new_device.model_id,
+        "id": device_id,
+        "name": device_name,
+        "sn": device_sn,
+        "modelId": device_model_id,
         "modelName": model_name,
         "accountId": None,
         "accountName": None,
-        "status": new_device.status,
-        "createdAt": new_device.created_at.strftime("%Y-%m-%d %H:%M:%S") if new_device.created_at else None
+        "status": device_status,
+        "createdAt": device_created_at.strftime("%Y-%m-%d %H:%M:%S") if device_created_at else None
     }
 
 
@@ -263,6 +296,11 @@ async def update_device_info(
             if device.account_id is None:
                 update_data.status = DeviceStatus.bound
     
+    # 保存更新前的设备信息用于日志
+    old_name = device.name
+    old_account_id = device.account_id
+    old_status = device.status
+    
     updated_device = await update_device(db, id, update_data)
     if not updated_device:
         raise HTTPException(status_code=500, detail="更新失败")
@@ -279,6 +317,52 @@ async def update_device_info(
         account = account_result.scalar_one_or_none()
         if account:
             account_name = account.nickname or account.phone
+    
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        # 构建操作描述
+        changes = []
+        if "name" in device_data and old_name != updated_device.name:
+            changes.append(f"名称: {old_name} -> {updated_device.name}")
+        if "accountId" in device_data:
+            if old_account_id != updated_device.account_id:
+                if updated_device.account_id is None:
+                    changes.append("解绑用户")
+                else:
+                    changes.append(f"绑定用户: {account_name or updated_device.account_id}")
+        if "modelId" in device_data:
+            changes.append("更新型号")
+        if changes:
+            description = f"更新设备：{updated_device.name}（SN: {updated_device.sn}）- {', '.join(changes)}"
+        else:
+            description = f"更新设备：{updated_device.name}（SN: {updated_device.sn}）"
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_update,
+                description=description,
+                extra={
+                    "device_id": updated_device.id,
+                    "device_name": updated_device.name,
+                    "device_sn": updated_device.sn,
+                    "old_name": old_name,
+                    "new_name": updated_device.name,
+                    "old_account_id": old_account_id,
+                    "new_account_id": updated_device.account_id,
+                    "old_status": old_status,
+                    "new_status": updated_device.status,
+                    "model_id": updated_device.model_id
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        # 记录操作失败不影响更新流程
+        print(f"记录设备更新操作日志失败: {e}")
     
     return {
         "id": updated_device.id,
@@ -302,9 +386,38 @@ async def delete_device_info(
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
     
+    # 保存设备信息用于日志
+    device_name = device.name
+    device_sn = device.sn
+    device_model_id = device.model_id
+    
     success = await delete_device(db, id)
     if not success:
         raise HTTPException(status_code=500, detail="删除失败")
+    
+    # 记录操作日志
+    try:
+        from app.crud.user_operation_log import user_operation_log
+        from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
+        
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.device_delete,
+                description=f"删除设备：{device_name}（SN: {device_sn}）",
+                extra={
+                    "device_id": id,
+                    "device_name": device_name,
+                    "device_sn": device_sn,
+                    "model_id": device_model_id,
+                    "status": device.status
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        # 记录操作失败不影响删除流程
+        print(f"记录设备删除操作日志失败: {e}")
     
     return {}
 

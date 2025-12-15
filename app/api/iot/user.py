@@ -460,9 +460,32 @@ async def delete_user(
     if not account:
         raise HTTPException(status_code=404, detail="用户不存在")
     
+    # 保存账号信息用于日志
+    account_name = account.nickname or account.phone
+    account_phone = account.phone
+    
     success = await delete_account(db, id)
     if not success:
         raise HTTPException(status_code=500, detail="删除失败")
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.account_delete,
+                description=f"删除用户账号：{account_name}（{account_phone}）",
+                extra={
+                    "deleted_account_id": id,
+                    "deleted_account_name": account_name,
+                    "deleted_account_phone": account_phone,
+                    "deleted_account_role": account.role
+                }
+            ),
+            account_id=token_info.get("account_id")
+        )
+    except Exception as e:
+        print(f"记录删除用户操作日志失败: {e}")
     
     return {}
 
