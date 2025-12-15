@@ -7,7 +7,9 @@ from app.db.session import get_db
 from app.api.dependencies import get_current_token
 from app.crud.device import (
     get_device,
+    get_device_by_sn,
     get_devices_with_pagination,
+    create_device,
     update_device,
     delete_device
 )
@@ -17,9 +19,65 @@ from app.db.models.device_model import DeviceModel
 from app.db.models.account import Account
 from app.db.models.device_network import DeviceNetwork
 from app.db.models.family_device import FamilyDevice
-from app.models.device import DeviceUpdate
+from app.models.device import DeviceCreate, DeviceUpdate, DeviceStatus
 
 router = APIRouter()
+
+
+@router.post("/device")
+async def create_device_info(
+    device_data: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+):
+    """设备入库：创建设备记录"""
+    # 验证必填字段
+    if not device_data.get("name"):
+        raise HTTPException(status_code=400, detail="设备名称不能为空")
+    if not device_data.get("sn"):
+        raise HTTPException(status_code=400, detail="设备序列号不能为空")
+    if not device_data.get("modelId"):
+        raise HTTPException(status_code=400, detail="设备型号ID不能为空")
+    
+    # 验证设备序列号唯一性
+    existing_device = await get_device_by_sn(db, device_data["sn"])
+    if existing_device:
+        raise HTTPException(status_code=400, detail="设备序列号已存在")
+    
+    # 验证设备型号是否存在
+    model_result = await db.execute(
+        select(DeviceModel).filter(DeviceModel.id == device_data["modelId"])
+    )
+    model = model_result.scalar_one_or_none()
+    if not model:
+        raise HTTPException(status_code=404, detail="设备型号不存在")
+    
+    # 构建创建设备数据（入库时 account_id 固定为 null，status 固定为 unbound）
+    device_create = DeviceCreate(
+        name=device_data["name"],
+        sn=device_data["sn"],
+        model_id=device_data["modelId"],
+        account_id=None,  # 入库时默认为 null（未绑定）
+        status=DeviceStatus.unbound  # 入库时默认为 unbound
+    )
+    
+    # 创建设备
+    new_device = await create_device(db, device_create)
+    
+    # 获取设备型号名称
+    model_name = model.name if model else None
+    
+    return {
+        "id": new_device.id,
+        "name": new_device.name,
+        "sn": new_device.sn,
+        "modelId": new_device.model_id,
+        "modelName": model_name,
+        "accountId": None,
+        "accountName": None,
+        "status": new_device.status,
+        "createdAt": new_device.created_at.strftime("%Y-%m-%d %H:%M:%S") if new_device.created_at else None
+    }
 
 
 @router.get("/device/list")

@@ -15,6 +15,13 @@ class DeviceBase(BaseModel):
     sn: str
     status: DeviceStatus = DeviceStatus.unbound
 
+class DeviceCreate(BaseModel):
+    name: str
+    sn: str
+    model_id: int
+    account_id: Optional[int] = None
+    status: DeviceStatus = DeviceStatus.unbound
+
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
     sn: Optional[str] = None

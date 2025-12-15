@@ -1,8 +1,25 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_
 from app.db.models.device import Device
-from app.models.device import DeviceUpdate
+from app.models.device import DeviceCreate, DeviceUpdate, DeviceStatus
 from typing import Optional, List, Tuple
+
+async def create_device(db: AsyncSession, device: DeviceCreate) -> Device:
+    """创建设备（入库）"""
+    # 处理状态值（DeviceStatus 是字符串枚举）
+    status_value = device.status.value if isinstance(device.status, DeviceStatus) else device.status
+    
+    db_device = Device(
+        name=device.name,
+        sn=device.sn,
+        model_id=device.model_id,
+        account_id=device.account_id,
+        status=status_value
+    )
+    db.add(db_device)
+    await db.commit()
+    await db.refresh(db_device)
+    return db_device
 
 async def get_device(db: AsyncSession, device_id: int) -> Optional[Device]:
     """根据ID获取设备"""
