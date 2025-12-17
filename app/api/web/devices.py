@@ -14,7 +14,7 @@ from app.models.account import AccountRole
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
-from app.services.websocket_tool import websocket_tool
+from app.services.mqtt_service import mqtt_service
 
 router = APIRouter()
 
@@ -133,18 +133,23 @@ async def update_device_name(
             for family in device_families:
                 if family.id is not None:
                     try:
-                        await websocket_tool.send_family_message_by_id(
-                            family_id=family.id,
-                            message_type="device.name.update",
-                            data={
-                                "senderId": account_id,
-                                "senderRole": role,
-                                "title": "设备名称修改",
-                                "message": f"设备 {old_name} 已更名为 {payload.name}",
-                                "level": "normal",
-                                "deviceId": device.id,
-                                "deviceName": payload.name,
-                                "oldName": old_name
+                        await mqtt_service.publish_home_notice(
+                            home_id=str(family.id),
+                            payload={
+                                "method": "family.message",
+                                "params": {
+                                    "type": "device.name.update",
+                                    "data": {
+                                        "senderId": account_id,
+                                        "senderRole": role,
+                                        "title": "设备名称修改",
+                                        "message": f"设备 {old_name} 已更名为 {payload.name}",
+                                        "level": "normal",
+                                        "deviceId": device.id,
+                                        "deviceName": payload.name,
+                                        "oldName": old_name
+                                    }
+                                }
                             }
                         )
                     except Exception as e:
@@ -239,18 +244,23 @@ async def bind_device_by_sn(
             for family in device_families:
                 if family.id is not None:
                     try:
-                        await websocket_tool.send_family_message_by_id(
-                            family_id=family.id,
-                            message_type="device.bind",
-                            data={
-                                "senderId": account_id,
-                                "senderRole": role,
-                                "title": "设备绑定",
-                                "message": f"设备 {device.name} 已绑定",
-                                "level": "normal",
-                                "deviceId": device.id,
-                                "deviceName": device.name,
-                                "deviceSn": device.sn
+                        await mqtt_service.publish_home_notice(
+                            home_id=str(family.id),
+                            payload={
+                                "method": "family.message",
+                                "params": {
+                                    "type": "device.bind",
+                                    "data": {
+                                        "senderId": account_id,
+                                        "senderRole": role,
+                                        "title": "设备绑定",
+                                        "message": f"设备 {device.name} 已绑定",
+                                        "level": "normal",
+                                        "deviceId": device.id,
+                                        "deviceName": device.name,
+                                        "deviceSn": device.sn
+                                    }
+                                }
                             }
                         )
                     except Exception as e:
@@ -333,18 +343,23 @@ async def unbind_device_by_sn(
             for family in device_families:
                 if family.id is not None:
                     try:
-                        await websocket_tool.send_family_message_by_id(
-                            family_id=family.id,
-                            message_type="device.unbind",
-                            data={
-                                "senderId": account_id,
-                                "senderRole": role,
-                                "title": "设备解绑",
-                                "message": f"设备 {device_name} 已解绑",
-                                "level": "normal",
-                                "deviceId": device.id,
-                                "deviceName": device_name,
-                                "deviceSn": sn
+                        await mqtt_service.publish_home_notice(
+                            home_id=str(family.id),
+                            payload={
+                                "method": "family.message",
+                                "params": {
+                                    "type": "device.unbind",
+                                    "data": {
+                                        "senderId": account_id,
+                                        "senderRole": role,
+                                        "title": "设备解绑",
+                                        "message": f"设备 {device_name} 已解绑",
+                                        "level": "normal",
+                                        "deviceId": device.id,
+                                        "deviceName": device_name,
+                                        "deviceSn": sn
+                                    }
+                                }
                             }
                         )
                     except Exception as e:

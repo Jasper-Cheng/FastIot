@@ -14,7 +14,7 @@ from app.models.device import DeviceInDB
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
-from app.services.websocket_tool import websocket_tool
+from app.services.mqtt_service import mqtt_service
 
 router = APIRouter()
 
@@ -103,19 +103,24 @@ async def delete_family_endpoint(
     try:
         role = token_info.get("role")
         if family_id is not None:
-            await websocket_tool.send_family_message_by_id(
-                family_id=family_id,
-            message_type="family.delete",
-            data={
-                "senderId": account_id,
-                "senderRole": role,
-                "title": "家庭删除",
-                "message": f"家庭 {family_name} 已删除",
-                "level": "warning",
-                "familyId": family_id,
-                "familyName": family_name
+            await mqtt_service.publish_home_notice(
+                home_id=str(family_id),
+                payload={
+                    "method": "family.message",
+                    "params": {
+                        "type": "family.delete",
+                        "data": {
+                            "senderId": account_id,
+                            "senderRole": role,
+                            "title": "家庭删除",
+                            "message": f"家庭 {family_name} 已删除",
+                            "level": "warning",
+                            "familyId": family_id,
+                            "familyName": family_name
+                        }
+                    }
                 }
-        )
+            )
     except Exception as e:
         # 发送消息失败不影响删除流程
         print(f"发送删除家庭消息失败: {e}")
@@ -187,20 +192,25 @@ async def add_device_to_family(
     try:
         role = token_info.get("role")
         if family_id is not None:
-            await websocket_tool.send_family_message_by_id(
-                family_id=family_id,
-                message_type="device.add",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "设备已添加到家庭",
-                    "message": f"设备 {device.name} 已添加到家庭 {family_name or family_id}",
-                    "level": "normal",
-                    "familyId": family_id,
-                    "familyName": family_name,
-                    "deviceId": device.id,
-                    "deviceName": device.name,
-                    "deviceSn": device.sn
+            await mqtt_service.publish_home_notice(
+                home_id=str(family_id),
+                payload={
+                    "method": "family.message",
+                    "params": {
+                        "type": "device.add",
+                        "data": {
+                            "senderId": account_id,
+                            "senderRole": role,
+                            "title": "设备已添加到家庭",
+                            "message": f"设备 {device.name} 已添加到家庭 {family_name or family_id}",
+                            "level": "normal",
+                            "familyId": family_id,
+                            "familyName": family_name,
+                            "deviceId": device.id,
+                            "deviceName": device.name,
+                            "deviceSn": device.sn
+                        }
+                    }
                 }
             )
     except Exception as e:
@@ -272,20 +282,25 @@ async def remove_device_from_family(
     try:
         role = token_info.get("role")
         if family_id is not None:
-            await websocket_tool.send_family_message_by_id(
-                family_id=family_id,
-                message_type="device.remove",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "设备已从家庭中移除",
-                    "message": f"设备 {device.name} 已从家庭 {family_name or family_id} 中移除",
-                    "level": "normal",
-                    "familyId": family_id,
-                    "familyName": family_name,
-                    "deviceId": device.id,
-                    "deviceName": device.name,
-                    "deviceSn": device.sn
+            await mqtt_service.publish_home_notice(
+                home_id=str(family_id),
+                payload={
+                    "method": "family.message",
+                    "params": {
+                        "type": "device.remove",
+                        "data": {
+                            "senderId": account_id,
+                            "senderRole": role,
+                            "title": "设备已从家庭中移除",
+                            "message": f"设备 {device.name} 已从家庭 {family_name or family_id} 中移除",
+                            "level": "normal",
+                            "familyId": family_id,
+                            "familyName": family_name,
+                            "deviceId": device.id,
+                            "deviceName": device.name,
+                            "deviceSn": device.sn
+                        }
+                    }
                 }
             )
     except Exception as e:

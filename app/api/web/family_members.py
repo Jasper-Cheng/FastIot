@@ -28,7 +28,7 @@ from app.models.family_member import (
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
-from app.services.websocket_tool import websocket_tool
+from app.services.mqtt_service import mqtt_service
 
 router = APIRouter()
 
@@ -99,20 +99,25 @@ async def join_family_by_invite_code(
         member_name = nickname or (account.nickname if account and account.nickname else account.phone if account else "新成员")
         
         if family.id is not None:
-            await websocket_tool.send_family_message_by_id(
-                family_id=family.id,
-                message_type="member.join",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "新成员加入",
-                    "message": f"{member_name} 已加入家庭 {family.name}",
-                    "level": "normal",
-                    "familyId": family.id,
-                    "familyName": family.name,
-                    "memberId": account_id,
-                    "memberName": member_name,
-                    "memberRole": FamilyMemberRole.member.value
+            await mqtt_service.publish_home_notice(
+                home_id=str(family.id),
+                payload={
+                    "method": "family.message",
+                    "params": {
+                        "type": "member.join",
+                        "data": {
+                            "senderId": account_id,
+                            "senderRole": role,
+                            "title": "新成员加入",
+                            "message": f"{member_name} 已加入家庭 {family.name}",
+                            "level": "normal",
+                            "familyId": family.id,
+                            "familyName": family.name,
+                            "memberId": account_id,
+                            "memberName": member_name,
+                            "memberRole": FamilyMemberRole.member.value
+                        }
+                    }
                 }
             )
     except Exception as e:
@@ -226,21 +231,26 @@ async def update_family_member(
         if db_family_member.family_id is not None:
             new_nickname = family_member.nickname or "未设置"
             old_nickname_display = old_nickname or "未设置"
-            await websocket_tool.send_family_message_by_id(
-                family_id=db_family_member.family_id,
-                message_type="member.update",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "成员信息更新",
-                    "message": f"{target_account_name} 的昵称已更新：{old_nickname_display} -> {new_nickname}",
-                    "level": "normal",
-                    "familyId": db_family_member.family_id,
-                    "familyName": family_name,
-                    "memberId": db_family_member.account_id,
-                    "memberName": target_account_name,
-                    "oldNickname": old_nickname,
-                    "newNickname": family_member.nickname
+            await mqtt_service.publish_home_notice(
+                home_id=str(db_family_member.family_id),
+                payload={
+                    "method": "family.message",
+                    "params": {
+                        "type": "member.update",
+                        "data": {
+                            "senderId": account_id,
+                            "senderRole": role,
+                            "title": "成员信息更新",
+                            "message": f"{target_account_name} 的昵称已更新：{old_nickname_display} -> {new_nickname}",
+                            "level": "normal",
+                            "familyId": db_family_member.family_id,
+                            "familyName": family_name,
+                            "memberId": db_family_member.account_id,
+                            "memberName": target_account_name,
+                            "oldNickname": old_nickname,
+                            "newNickname": family_member.nickname
+                        }
+                    }
                 }
             )
     except Exception as e:
@@ -329,17 +339,22 @@ async def remove_family_member(
         
         # 发送家庭消息通知
         try:
-            await websocket_tool.send_family_message_by_id(
-                family_id=family_id,
-                message_type="family.delete",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "家庭删除",
-                    "message": f"家庭 {family_name} 已删除",
-                    "level": "warning",
-                    "familyId": family_id,
-                    "familyName": family_name
+            await mqtt_service.publish_home_notice(
+                home_id=str(family_id),
+                payload={
+                    "method": "family.message",
+                    "params": {
+                        "type": "family.delete",
+                        "data": {
+                            "senderId": account_id,
+                            "senderRole": role,
+                            "title": "家庭删除",
+                            "message": f"家庭 {family_name} 已删除",
+                            "level": "warning",
+                            "familyId": family_id,
+                            "familyName": family_name
+                        }
+                    }
                 }
             )
         except Exception as e:
@@ -379,19 +394,24 @@ async def remove_family_member(
     
     # 发送家庭消息通知成员已移除
     try:
-        await websocket_tool.send_family_message_by_id(
-            family_id=family_id,
-            message_type="member.remove",
-            data={
-                "senderId": account_id,
-                "senderRole": role,
-                "title": "成员已移除",
-                "message": f"{removed_member_name} 已从家庭 {family_name} 中移除",
-                "level": "warning",
-                "familyId": family_id,
-                "familyName": family_name,
-                "memberId": db_family_member.account_id,
-                "memberName": removed_member_name
+        await mqtt_service.publish_home_notice(
+            home_id=str(family_id),
+            payload={
+                "method": "family.message",
+                "params": {
+                    "type": "member.remove",
+                    "data": {
+                        "senderId": account_id,
+                        "senderRole": role,
+                        "title": "成员已移除",
+                        "message": f"{removed_member_name} 已从家庭 {family_name} 中移除",
+                        "level": "warning",
+                        "familyId": family_id,
+                        "familyName": family_name,
+                        "memberId": db_family_member.account_id,
+                        "memberName": removed_member_name
+                    }
+                }
             }
         )
     except Exception as e:

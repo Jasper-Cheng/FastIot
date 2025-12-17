@@ -16,7 +16,7 @@ from app.crud.system_message import (
 from app.models.system_message import SystemMessageCreate, SystemMessageUpdate
 from app.crud.user_operation_log import user_operation_log
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
-from app.services.websocket_tool import websocket_tool
+from app.services.mqtt_service import mqtt_service
 
 router = APIRouter()
 
@@ -118,23 +118,28 @@ async def create_notice(
     message_created_at = message.created_at
     message_updated_at = message.updated_at
     
-    # 发送 WebSocket 系统消息（根据 platforms 过滤）
+    # 发送 MQTT 系统通知
     try:
-        await websocket_tool.send_system_message(
-            message_type=message_type,
-            data={
-                "id": message_id,
-                "title": message_title,
-                "content": message_content,
-                "type": message_type,
-                "priority": message_priority,
-                "extra": message_extra
-            },
-            platforms=message_platforms
+        await mqtt_service.publish_system_notice(
+            payload={
+                "method": "system.message",
+                "params": {
+                    "type": message_type,
+                    "data": {
+                        "id": message_id,
+                        "title": message_title,
+                        "content": message_content,
+                        "type": message_type,
+                        "priority": message_priority,
+                        "platforms": message_platforms,
+                        "extra": message_extra
+                    }
+                }
+            }
         )
     except Exception as e:
-        # WebSocket 发送失败不影响创建流程
-        print(f"发送系统消息 WebSocket 通知失败: {e}")
+        # MQTT 发送失败不影响创建流程
+        print(f"发送系统消息 MQTT 通知失败: {e}")
     
     # 记录操作日志
     try:

@@ -16,7 +16,7 @@ from app.models.device_message import (
 )
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
-from app.services.websocket_tool import websocket_tool
+from app.services.mqtt_service import mqtt_service
 router = APIRouter()
 
 
@@ -107,22 +107,27 @@ async def make_device_message_read(
     device_name = device.name if device else None
     device_id = device.id if device else message.device_id
     
-    # 发送websocket消息通知设备消息已读
+    # 发送MQTT家庭通知消息
     try:
         role = token_info.get("role")
         if account_id is not None and family_id is not None:
-            await websocket_tool.send_family_message_by_id(
-                family_id=family_id,
-                message_type="device.message.read",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "设备消息已读",
-                    "message": f"设备 {device_name or device_id} 的消息已标记为已读",
-                    "level": "normal",
-                    "deviceId": device_id,
-                    "deviceName": device_name,
-                    "messageId": message_id
+            await mqtt_service.publish_home_notice(
+                home_id=str(family_id),
+                payload={
+                    "method": "family.message",
+                    "params": {
+                        "type": "device.message.read",
+                        "data": {
+                            "senderId": account_id,
+                            "senderRole": role,
+                            "title": "设备消息已读",
+                            "message": f"设备 {device_name or device_id} 的消息已标记为已读",
+                            "level": "normal",
+                            "deviceId": device_id,
+                            "deviceName": device_name,
+                            "messageId": message_id
+                        }
+                    }
                 }
             )
     except Exception as e:
@@ -160,16 +165,21 @@ async def mark_all_device_messages_read(
     try:
         role = token_info.get("role")
         if account_id is not None and family_id is not None:
-            await websocket_tool.send_family_message_by_id(
-                family_id=family_id,
-                message_type="device.message.mark_all_read",
-                data={
-                    "senderId": account_id,
-                    "senderRole": role,
-                    "title": "所有设备消息已读",
-                    "message": f"{count} 条设备消息已标记为已读",
-                    "level": "normal",
-                    "count": count
+            await mqtt_service.publish_home_notice(
+                home_id=str(family_id),
+                payload={
+                    "method": "family.message",
+                    "params": {
+                        "type": "device.message.mark_all_read",
+                        "data": {
+                            "senderId": account_id,
+                            "senderRole": role,
+                            "title": "所有设备消息已读",
+                            "message": f"{count} 条设备消息已标记为已读",
+                            "level": "normal",
+                            "count": count
+                        }
+                    }
                 }
             )
     except Exception as e:

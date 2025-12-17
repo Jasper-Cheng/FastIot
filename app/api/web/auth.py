@@ -30,7 +30,7 @@ from app.models.account import (
 from app.models.user_operation_log import UserOperationLogCreate, OperationTypeEnum
 from app.api.dependencies import get_current_account, get_current_token
 from app.db.session import get_db
-from app.services.websocket_tool import websocket_tool
+from app.services.mqtt_service import mqtt_service
 from app.services.wechat_service import wechat_service, QRCodeStatus
 from app.core.rsa_crypto import rsa_crypto
 from fastapi import Query
@@ -804,17 +804,22 @@ async def update_profile(
             for family in families:
                 if family.id is not None:
                     try:
-                        await websocket_tool.send_family_message_by_id(
-                            family_id=family.id,
-                            message_type="account.update",
-                            data={
-                                "senderId": account_id,
-                                "senderRole": role,
-                                "title": f"{current_account.nickname} 用户信息更新",
-                                "message": message_text,
-                                "level": "normal",
-                                "accountId": account_id,
-                                "updatedFields": updated_fields
+                        await mqtt_service.publish_home_notice(
+                            home_id=str(family.id),
+                            payload={
+                                "method": "family.message",
+                                "params": {
+                                    "type": "account.update",
+                                    "data": {
+                                        "senderId": account_id,
+                                        "senderRole": role,
+                                        "title": f"{current_account.nickname} 用户信息更新",
+                                        "message": message_text,
+                                        "level": "normal",
+                                        "accountId": account_id,
+                                        "updatedFields": updated_fields
+                                    }
+                                }
                             }
                         )
                     except Exception as e:
@@ -958,17 +963,22 @@ async def delete_account(
                 deleted_family_id = deleted_family.get("familyId")
                 if deleted_family_id is not None:
                     try:
-                        await websocket_tool.send_family_message_by_id(
-                            family_id=deleted_family_id,
-                            message_type="family.delete",
-                            data={
-                                "senderId": account_id,
-                                "senderRole": role,
-                                "title": "家庭删除",
-                                "message": f"家庭 {deleted_family['familyName']} 已删除",
-                                "level": "warning",
-                                "familyId": deleted_family_id,
-                                "familyName": deleted_family["familyName"]
+                        await mqtt_service.publish_home_notice(
+                            home_id=str(deleted_family_id),
+                            payload={
+                                "method": "family.message",
+                                "params": {
+                                    "type": "family.delete",
+                                    "data": {
+                                        "senderId": account_id,
+                                        "senderRole": role,
+                                        "title": "家庭删除",
+                                        "message": f"家庭 {deleted_family['familyName']} 已删除",
+                                        "level": "warning",
+                                        "familyId": deleted_family_id,
+                                        "familyName": deleted_family["familyName"]
+                                    }
+                                }
                             }
                         )
                     except Exception as e:

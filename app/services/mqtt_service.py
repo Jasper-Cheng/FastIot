@@ -390,7 +390,7 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
             from app.crud.device import get_device_by_sn
             from app.crud.device_message import create_device_message
             from app.models.device_message import DeviceMessageCreate, DeviceMessageLevel
-            from app.services.websocket_tool import websocket_tool
+            from app.crud.family_device import get_device_families
             
             async with AsyncSessionLocal() as db:
                 # 查找设备
@@ -425,21 +425,32 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
                 created_message = await create_device_message(db, device_message)
                 print(f"✅ [M701001] 告警消息已插入数据库，消息ID: {created_message.id}")
                 
-                # 发送 websocket message 给所有订阅了该设备的客户端，此消息为家庭消息
-                await websocket_tool.send_device_family_message(
-                    device_sn=sn,
-                            message_type="device.alert",
-                            data={
-                                "title": "设备告警",
-                                "message": alert_message,
-                                "level": "error",
-                                "deviceId": device.id,
-                                "deviceSn": sn,
-                                "deviceName": device.name,
-                                "messageId": created_message.id,
-                                "alerts": alert_details
-                    }
-                        )
+                # 获取设备所属的家庭，发送 MQTT 家庭通知
+                device_families = await get_device_families(db, device.id)
+                for family in device_families:
+                    if family.id is not None:
+                        try:
+                            await mqtt_service.publish_home_notice(
+                                home_id=str(family.id),
+                                payload={
+                                    "method": "family.message",
+                                    "params": {
+                                        "type": "device.alert",
+                                        "data": {
+                                            "title": "设备告警",
+                                            "message": alert_message,
+                                            "level": "error",
+                                            "deviceId": device.id,
+                                            "deviceSn": sn,
+                                            "deviceName": device.name,
+                                            "messageId": created_message.id,
+                                            "alerts": alert_details
+                                        }
+                                    }
+                                }
+                            )
+                        except Exception as e:
+                            print(f"❌ [M701001] 发送家庭通知失败 (family_id={family.id}): {e}")
                     
         except Exception as e:
             print(f"❌ [M701001] 处理告警失败 ({sn}): {e}")
