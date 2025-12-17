@@ -26,11 +26,17 @@ class MQTTService:
         self.password = settings.MQTT_PASSWORD
 
         # 分层化 topic
-        self.topic_control_template = "device/{sn}/control"  # 后台 -> 设备
-        self.topic_data_template = "device/{sn}/data"        # 设备 -> 后台
-        self.topic_status_template = "device/{sn}/status"    # 设备 -> 后台（包含 LWT 离线消息）
-        self.topic_system_notice = "system/notice"           # 系统通知
-        self.topic_home_event_template = "home/{home_id}/event"  # 家庭事件
+        self.device_sn_control = "device/{sn}/control"  # 后台 -> 设备
+        self.device_sn_data = "device/{sn}/data"        # 设备 -> 后台
+        self.device_sn_status = "device/{sn}/status"    # 设备 -> 后台（包含 LWT 离线消息）
+        self.system_notice = "system/notice"           # 系统通知
+        self.home_notice = "home/{home_id}/notice"     # 家庭通知
+        self.web_sn_data = "web/{sn}/data"             # 后台 -> web
+        self.web_sn_status = "web/{sn}/status"         # 后台 -> web
+        self.web_sn_control = "web/{sn}/control"       # web -> 后台
+        self.app_sn_data = "app/{sn}/data"             # 后台 -> app
+        self.app_sn_status = "app/{sn}/status"         # 后台 -> app
+        self.app_sn_control = "app/{sn}/control"       # app -> 后台
 
         self.client: Optional[MQTTClient] = None
         self.running = False
@@ -231,12 +237,37 @@ class MQTTService:
             print("❌ [MQTT] 客户端未连接，无法发送消息")
             return
 
-        topic = self.topic_control_template.format(sn=sn)
+        topic = self.device_sn_control.format(sn=sn)
         message = {**payload, "sn": sn}
         message_json = json.dumps(message, ensure_ascii=False)
         
         self.client.publish(topic, message_json, qos=1)
         print(f"✅ [MQTT] 已发送控制命令给 {sn}: {message}")
+
+    async def publish_home_notice(self, home_id: str, payload: dict):
+        """后台 -> 家庭，发布家庭通知"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.home_notice.format(home_id=home_id)
+        message = {**payload, "home_id": home_id}
+        message_json = json.dumps(message, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送家庭通知给 {home_id}: {message}")
+
+    async def publish_system_notice(self, payload: dict):
+        """后台 -> 系统，发布系统通知"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.system_notice
+        message_json = json.dumps(payload, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送系统通知: {payload}")
 
     async def disconnect(self):
         """断开 MQTT 连接"""
