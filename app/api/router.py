@@ -18,7 +18,7 @@ from app.api.web import points as points_endpoints
 from app.api.web import system_message as system_message_endpoints
 from app.api.web import version_info as version_info_endpoints
 from app.api.web import feedback as feedback_endpoints
-from app.api.web import websocket as websocket_endpoints
+# from app.api.web import websocket as websocket_endpoints  # 已改用 MQTT，不再使用 WebSocket
 
 # 将所有路由添加到 web_router
 # 统一管理依赖：get_db（数据库会话）、get_current_token（认证）
@@ -32,7 +32,7 @@ web_router.include_router(points_endpoints.router, prefix="/points", dependencie
 web_router.include_router(system_message_endpoints.router, prefix="/system-messages", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(version_info_endpoints.router, prefix="/version-info", dependencies=[Depends(get_db), Depends(get_current_token)])
 web_router.include_router(feedback_endpoints.router, prefix="/feedback", dependencies=[Depends(get_db), Depends(get_current_token)])
-web_router.include_router(websocket_endpoints.router, prefix="/ws")
+# web_router.include_router(websocket_endpoints.router, prefix="/ws")  # 已改用 MQTT，不再使用 WebSocket
 
 # 将 web_router 添加到 api_router，添加 /web 前缀
 api_router.include_router(web_router, prefix="/web")

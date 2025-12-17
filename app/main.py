@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.db.session import engine
 from app.services.redis_service import redis_service
-from app.services.websocket_tool import websocket_tool
+# from app.services.websocket_tool import websocket_tool  # 已改用 MQTT
 from app.services.wechat_service import wechat_service
 from app.services.mqtt_service import mqtt_service
 
@@ -19,18 +19,18 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
 logging.getLogger('sqlalchemy.dialects').setLevel(logging.WARNING)
 
-async def heartbeat_checker():
-    """心跳超时检查任务"""
-    while True:
-        try:
-            timeout_count = await websocket_tool.check_heartbeat_timeouts()
-            if timeout_count > 0:
-                print(f"💔 [WebSocket] 已断开 {timeout_count} 个超时连接")
-        except Exception as e:
-            print(f"❌ [WebSocket] 心跳检查异常: {e}")
-        
-        # 每30秒检查一次
-        await asyncio.sleep(30)
+# async def heartbeat_checker():
+#     """心跳超时检查任务 - 已改用 MQTT，不再需要 WebSocket 心跳检查"""
+#     while True:
+#         try:
+#             timeout_count = await websocket_tool.check_heartbeat_timeouts()
+#             if timeout_count > 0:
+#                 print(f"💔 [WebSocket] 已断开 {timeout_count} 个超时连接")
+#         except Exception as e:
+#             print(f"❌ [WebSocket] 心跳检查异常: {e}")
+#         
+#         # 每30秒检查一次
+#         await asyncio.sleep(30)
 
 async def wechat_qrcode_cleaner():
     """微信二维码清理任务"""
@@ -70,9 +70,9 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
     
-    # 启动心跳检查任务
-    heartbeat_task = asyncio.create_task(heartbeat_checker())
-    print("✅ WebSocket心跳检查任务已启动")
+    # 启动心跳检查任务 - 已改用 MQTT，不再需要 WebSocket 心跳检查
+    # heartbeat_task = asyncio.create_task(heartbeat_checker())
+    # print("✅ WebSocket心跳检查任务已启动")
     
     # 启动微信二维码清理任务
     qrcode_cleaner_task = asyncio.create_task(wechat_qrcode_cleaner())
@@ -92,13 +92,13 @@ async def lifespan(app: FastAPI):
     
     # shutdown
     print("🔄 应用关闭中...")
-    heartbeat_task.cancel()
+    # heartbeat_task.cancel()  # 已改用 MQTT，不再需要 WebSocket 心跳检查
     qrcode_cleaner_task.cancel()
-    try:
-        await heartbeat_task
-    except asyncio.CancelledError:
-        pass
-    print("💔 WebSocket心跳检查任务已停止")
+    # try:
+    #     await heartbeat_task
+    # except asyncio.CancelledError:
+    #     pass
+    # print("💔 WebSocket心跳检查任务已停止")
     try:
         await qrcode_cleaner_task
     except asyncio.CancelledError:
