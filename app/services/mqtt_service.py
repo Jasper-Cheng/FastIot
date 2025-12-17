@@ -9,13 +9,14 @@ MQTT服务工具类（服务端）- 设备在线状态监控
 import asyncio
 import json
 import time
-from typing import Dict, Any, Optional, Callable, Awaitable
+from typing import Dict, Any, Optional, Callable, Awaitable, Tuple
 from gmqtt import Client as MQTTClient
 from app.core.config import settings
 
 # 定义处理器类型
 DataHandler = Callable[[str, Dict[str, Any]], Awaitable[None]]
 StatusHandler = Callable[[str, Dict[str, Any]], Awaitable[None]]
+ControlHandler = Callable[[str, str, Dict[str, Any]], Awaitable[None]]  # platform, sn, payload
 
 
 class MQTTService:
@@ -45,10 +46,12 @@ class MQTTService:
         # 设备处理器注册表（按 SN 前缀）
         self.data_handlers: Dict[str, DataHandler] = {}
         self.status_handlers: Dict[str, StatusHandler] = {}
+        self.control_handlers: Dict[str, ControlHandler] = {}  # 按平台（web/app）注册
         
         # 默认处理器
         self.default_data_handler: Optional[DataHandler] = None
         self.default_status_handler: Optional[StatusHandler] = None
+        self.default_control_handler: Optional[ControlHandler] = None
 
     def on_connect(self, client, flags, rc, properties):
         """连接成功回调"""
@@ -72,13 +75,21 @@ class MQTTService:
         """消息接收回调"""
         try:
             parsed_payload = self.parse_payload(payload.decode())
-            sn = self.extract_sn(topic)
-
+            
             # 处理不同类型的消息
             if topic.endswith("/data"):
+                sn = self.extract_sn(topic)
                 asyncio.create_task(self._on_data(sn, parsed_payload))
             elif topic.endswith("/status"):
+                sn = self.extract_sn(topic)
                 asyncio.create_task(self._on_status(sn, parsed_payload))
+            elif topic.endswith("/control"):
+                # 处理 web/app -> 后台的控制消息
+                platform, sn = self.extract_platform_and_sn(topic)
+                if platform and sn:
+                    asyncio.create_task(self._on_control(platform, sn, parsed_payload))
+                else:
+                    print(f"⚠️ [MQTT] 无法从 topic {topic} 中提取平台和SN")
 
         except Exception as e:
             print(f"❌ [MQTT] 处理消息时发生错误: {e}")
@@ -111,6 +122,8 @@ class MQTTService:
         topics = [
             ("device/+/data", 1),      # 设备数据
             ("device/+/status", 1),    # 设备状态（包含 LWT 离线消息）
+            ("web/+/control", 1),     # web -> 后台控制
+            ("app/+/control", 1),     # app -> 后台控制
         ]
         
         for topic, qos in topics:
@@ -148,6 +161,21 @@ class MQTTService:
         """设置默认状态处理器（当没有匹配的前缀处理器时使用）"""
         self.default_status_handler = handler
         print("[MQTT] ✅ 已设置默认状态处理器")
+
+    def register_control_handler(self, platform: str, handler: ControlHandler):
+        """注册控制处理器（按平台）
+        
+        Args:
+            platform: 平台名称，如 "web"、"app"
+            handler: 异步处理函数，签名为 async def handler(platform: str, sn: str, payload: dict)
+        """
+        self.control_handlers[platform] = handler
+        print(f"[MQTT] ✅ 已注册控制处理器: {platform}")
+
+    def set_default_control_handler(self, handler: ControlHandler):
+        """设置默认控制处理器（当没有匹配的平台处理器时使用）"""
+        self.default_control_handler = handler
+        print("[MQTT] ✅ 已设置默认控制处理器")
 
     def _get_handler_for_sn(self, sn: str, handlers: Dict[str, Callable]) -> Optional[Callable]:
         """根据 SN 前缀匹配处理器
@@ -210,6 +238,27 @@ class MQTTService:
         else:
             print(f"⚠️ [MQTT] 未找到设备 {sn} 的状态处理器")
 
+    async def _on_control(self, platform: str, sn: str, payload: Dict[str, Any]):
+        """处理 web/app -> 后台的控制消息"""
+        # 查找匹配的处理器
+        handler = self.control_handlers.get(platform)
+        if handler:
+            try:
+                await handler(platform, sn, payload)
+            except Exception as e:
+                print(f"❌ [MQTT] 控制处理器执行失败 ({platform}, {sn}): {e}")
+                import traceback
+                traceback.print_exc()
+        elif self.default_control_handler:
+            try:
+                await self.default_control_handler(platform, sn, payload)
+            except Exception as e:
+                print(f"❌ [MQTT] 默认控制处理器执行失败 ({platform}, {sn}): {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"⚠️ [MQTT] 未找到平台 {platform} 的控制处理器")
+
     async def listen(self):
         """持续监听消息"""
         try:
@@ -269,6 +318,58 @@ class MQTTService:
         self.client.publish(topic, message_json, qos=1)
         print(f"✅ [MQTT] 已发送系统通知: {payload}")
 
+    async def publish_web_data(self, sn: str, payload: dict):
+        """后台 -> web，发布设备数据"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.web_sn_data.format(sn=sn)
+        message = {**payload, "sn": sn}
+        message_json = json.dumps(message, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送设备数据给 web ({sn}): {message}")
+
+    async def publish_web_status(self, sn: str, payload: dict):
+        """后台 -> web，发布设备状态"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.web_sn_status.format(sn=sn)
+        message = {**payload, "sn": sn}
+        message_json = json.dumps(message, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送设备状态给 web ({sn}): {message}")
+
+    async def publish_app_data(self, sn: str, payload: dict):
+        """后台 -> app，发布设备数据"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.app_sn_data.format(sn=sn)
+        message = {**payload, "sn": sn}
+        message_json = json.dumps(message, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送设备数据给 app ({sn}): {message}")
+
+    async def publish_app_status(self, sn: str, payload: dict):
+        """后台 -> app，发布设备状态"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.app_sn_status.format(sn=sn)
+        message = {**payload, "sn": sn}
+        message_json = json.dumps(message, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送设备状态给 app ({sn}): {message}")
+
     async def disconnect(self):
         """断开 MQTT 连接"""
         if self.client:
@@ -286,11 +387,26 @@ class MQTTService:
 
     @staticmethod
     def extract_sn(topic: str) -> Optional[str]:
-        """从 topic 中提取设备 SN"""
+        """从 topic 中提取设备 SN（用于 device topic）"""
         parts = topic.split("/")
         if len(parts) >= 2 and parts[0] == "device":
             return parts[1]
         return None
+    
+    @staticmethod
+    def extract_platform_and_sn(topic: str) -> Tuple[Optional[str], Optional[str]]:
+        """从 topic 中提取平台和设备 SN（用于 web/app control topic）
+        
+        Returns:
+            (platform, sn) 元组，如果无法提取则返回 (None, None)
+        """
+        parts = topic.split("/")
+        if len(parts) >= 3:
+            platform = parts[0]  # web 或 app
+            sn = parts[1]
+            if platform in ["web", "app"]:
+                return platform, sn
+        return None, None
 
 
 # 全局 MQTT 服务实例
@@ -325,11 +441,9 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
     # from app.crud.device_data import save_device_data
     # await save_device_data(sn, payload)
     
-    # 通过 WebSocket 推送给前端
+    # 通过 MQTT 推送给 web/app 客户端
     try:
-        from app.services.websocket_tool import websocket_tool
-        
-        # 构建数据对象（移除 sn 字段，因为 deviceSn 会在 params 中）
+        # 构建数据对象
         device_data = {
             "co2": co2,
             "hcho": hcho,
@@ -340,13 +454,11 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
             "humi": humi
         }
         
-        # 发送设备数据事件通知
-        await websocket_tool.send_event_notification(
-            device_sn=sn,
-            data=device_data
-        )
+        # 发送设备数据到 web 和 app
+        await mqtt_service.publish_web_data(sn, device_data)
+        await mqtt_service.publish_app_data(sn, device_data)
     except Exception as e:
-        print(f"❌ [M701001] WebSocket 推送数据失败 ({sn}): {e}")
+        print(f"❌ [M701001] MQTT 推送数据失败 ({sn}): {e}")
         import traceback
         traceback.print_exc()
     
@@ -501,20 +613,14 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
         import traceback
         traceback.print_exc()
     
-    # 通过 WebSocket 通知前端
+    # 通过 MQTT 通知 web/app 客户端
     try:
-        from app.services.websocket_tool import websocket_tool
-        
-        # 发送设备状态变更事件通知
-        await websocket_tool.send_event_notification(
-            device_sn=sn,
-            data={
-                "status": status
-            }
-        )
-        # print(f"✅ [M701001] 已通过 WebSocket 通知前端设备 {sn} 状态变更: {status}")
+        # 发送设备状态变更到 web 和 app
+        status_data = {"status": status}
+        await mqtt_service.publish_web_status(sn, status_data)
+        await mqtt_service.publish_app_status(sn, status_data)
     except Exception as e:
-        print(f"❌ [M701001] WebSocket 通知失败 ({sn}): {e}")
+        print(f"❌ [M701001] MQTT 通知失败 ({sn}): {e}")
         import traceback
         traceback.print_exc()
 
