@@ -76,3 +76,36 @@ iot_router.include_router(iot_points.router, dependencies=[Depends(get_db), Depe
 
 # 将 iot_router 添加到 api_router，添加 /iot 前缀
 api_router.include_router(iot_router, prefix="/iot")
+
+# 创建 app 路由器，用于统一管理所有 App 端接口
+app_router = APIRouter(tags=["app"])
+
+# 注册 App 端点路由
+from app.api.app import auth as app_auth
+from app.api.app import devices as app_devices
+from app.api.app import families as app_families
+from app.api.app import family_members as app_family_members
+from app.api.app import device_messages as app_device_messages
+from app.api.app import system_message as app_system_message
+from app.api.app import check_in as app_check_in
+from app.api.app import points as app_points
+from app.api.app import feedback as app_feedback
+from app.api.app import version_info as app_version_info
+
+# 将所有 App 路由添加到 app_router
+# 认证接口不需要认证依赖，只需要数据库依赖
+app_router.include_router(app_auth.router, prefix="/auth", dependencies=[Depends(get_db)])
+# 其他接口需要认证：get_db（数据库会话）、get_current_token（认证）
+app_router.include_router(app_devices.router, prefix="/devices", dependencies=[Depends(get_db), Depends(get_current_token)])
+app_router.include_router(app_families.router, prefix="/families", dependencies=[Depends(get_db), Depends(get_current_token)])
+app_router.include_router(app_family_members.router, prefix="/family-members", dependencies=[Depends(get_db), Depends(get_current_token)])
+app_router.include_router(app_device_messages.router, prefix="/device-messages", dependencies=[Depends(get_db), Depends(get_current_token)])
+app_router.include_router(app_system_message.router, prefix="/system-messages", dependencies=[Depends(get_db), Depends(get_current_token)])
+app_router.include_router(app_check_in.router, prefix="/check-in", dependencies=[Depends(get_db), Depends(get_current_token)])
+app_router.include_router(app_points.router, prefix="/points", dependencies=[Depends(get_db), Depends(get_current_token)])
+app_router.include_router(app_feedback.router, prefix="/feedback", dependencies=[Depends(get_db), Depends(get_current_token)])
+# version_info 不需要认证，任何人都可以访问
+app_router.include_router(app_version_info.router, prefix="/version-info", dependencies=[Depends(get_db)])
+
+# 将 app_router 添加到 api_router，添加 /app 前缀
+api_router.include_router(app_router, prefix="/app")
