@@ -3,12 +3,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from app.crud.device_message import (
-    get_device_messages_by_account,
+    get_account_device_messages,
     get_device_message,
-    update_device_message,
-    mark_all_device_messages_as_read
+    update_device_message_status,
+    mark_all_account_device_messages_read
 )
-from app.models.device_message import DeviceMessageInDB, DeviceMessageUpdate
+from app.models.device_message import DeviceMessageInDB
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
 
@@ -35,10 +35,10 @@ async def list_device_messages(
     skip = (page - 1) * page_size
     limit = page_size
     
-    messages = await get_device_messages_by_account(
+    messages = await get_account_device_messages(
         db,
         account_id=account_id,
-        level=level,
+        level=[level] if level else None,
         status=status,
         skip=skip,
         limit=limit
@@ -85,7 +85,8 @@ async def mark_message_as_read(
             raise HTTPException(status_code=403, detail="无权访问此消息")
     
     # 标记为已读
-    await update_device_message(db, id, DeviceMessageUpdate(status="read"))
+    from app.models.device_message import DeviceMessageStatus
+    await update_device_message_status(db, id, DeviceMessageStatus.read)
     
     return {}
 
@@ -98,7 +99,7 @@ async def mark_all_messages_as_read(
     """标记所有消息为已读"""
     account_id = token_info["account_id"]
     
-    count = await mark_all_device_messages_as_read(db, account_id)
+    count = await mark_all_account_device_messages_read(db, account_id)
     
     return {"count": count}
 
@@ -112,7 +113,7 @@ async def get_unread_count(
     account_id = token_info["account_id"]
     
     # 获取设备消息未读数量
-    device_messages = await get_device_messages_by_account(
+    device_messages = await get_account_device_messages(
         db,
         account_id=account_id,
         status="new",

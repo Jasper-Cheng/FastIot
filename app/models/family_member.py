@@ -24,6 +24,11 @@ class JoinFamilyRequest(BaseModel):
     """加入家庭请求"""
     nickname: Optional[str] = None  # 在家庭中的昵称，不提供则使用账号的nickname
 
+class JoinByInviteCodeRequest(BaseModel):
+    """通过邀请码加入家庭请求"""
+    invite_code: str  # 家庭邀请码
+    nickname: Optional[str] = None  # 在家庭中的昵称
+
 class FamilyMemberInDB(FamilyMemberBase):
     id: int
     joined_at: datetime

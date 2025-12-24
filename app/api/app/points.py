@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.crud.points import get_points_balance, get_points_history
-from app.models.points import PointsHistoryInDB
+from app.crud.points import get_user_points_balance, get_points_history
+from app.models.points import PointsResponse
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
 
@@ -17,11 +17,12 @@ async def get_balance(
 ):
     """获取当前用户的积分余额"""
     account_id = token_info["account_id"]
-    balance = await get_points_balance(db, account_id)
+    balance_info = await get_user_points_balance(db, account_id)
+    balance = balance_info.get("total_balance", 0)
     return {"balance": balance}
 
 
-@router.get("/history", response_model=List[PointsHistoryInDB])
+@router.get("/history", response_model=List[PointsResponse])
 async def list_points_history(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
