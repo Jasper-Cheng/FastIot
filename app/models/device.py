@@ -49,3 +49,4 @@ class DeviceNameUpdate(BaseModel):
 # 设备绑定请求模型（通过序列号）
 class DeviceBindBySNRequest(BaseModel):
     sn: str
+    name: Optional[str] = None  # 设备名称（可选，如果不提供则使用默认名称）
