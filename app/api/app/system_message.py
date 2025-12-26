@@ -1,37 +1,67 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+"""
+系统消息API端点（App端）
+"""
 from typing import List, Optional
-
-from app.crud.system_message import get_system_messages
-from app.models.system_message import SystemMessageInDB
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_token
 from app.db.session import get_db
+from app.crud.system_message import (
+    get_system_messages as crud_get_system_messages,
+)
+from app.models.system_message import SystemMessage, SystemMessageType, SystemMessagePriority
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[SystemMessageInDB])
+@router.get("/", response_model=List[SystemMessage])
 async def list_system_messages(
+    *,
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
-    type: Optional[str] = Query(None, description="消息类型 (maintenance/update/announcement/security)"),
-    page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(20, ge=1, le=100, description="每页数量")
+    skip: int = Query(0, ge=0, description="跳过数量"),
+    limit: int = Query(100, ge=1, le=500, description="限制数量"),
+    type: Optional[str] = Query(None, description="消息类型 (notification, announcement, alert, maintenance, update)"),
+    priority: Optional[str] = Query(None, description="优先级 (low, normal, high, urgent)")
 ):
     """获取系统消息列表
     
-    - 支持按类型筛选
-    - 支持分页
-    - 按时间倒序排列
+    支持按类型、优先级筛选
+    平台信息从token中自动获取，无需传入
     """
-    skip = (page - 1) * page_size
-    limit = page_size
+    # 验证 type 参数
+    if type is not None:
+        try:
+            SystemMessageType(type)
+        except ValueError:
+            valid_types = [t.value for t in SystemMessageType]
+            raise HTTPException(
+                status_code=400, 
+                detail=f"无效的消息类型 '{type}'。有效值: {', '.join(valid_types)}"
+            )
     
-    messages = await get_system_messages(
-        db,
-        type=type,
+    # 验证 priority 参数
+    if priority is not None:
+        try:
+            SystemMessagePriority(priority)
+        except ValueError:
+            valid_priorities = [p.value for p in SystemMessagePriority]
+            raise HTTPException(
+                status_code=400, 
+                detail=f"无效的优先级 '{priority}'。有效值: {', '.join(valid_priorities)}"
+            )
+    
+    # 从token中获取平台信息（app端默认为"app"）
+    platform_str = token_info.get("platform", "app")
+    
+    # 获取消息（所有过滤都在数据库层面完成）
+    messages = await crud_get_system_messages(
+        db=db,
         skip=skip,
-        limit=limit
+        limit=limit,
+        type=type,
+        priority=priority,
+        platform=platform_str
     )
     
     return messages
