@@ -11,11 +11,13 @@ from app.crud.account import (
     get_account_by_email,
     create_account,
     delete_account,
+    update_account,
 )
 from app.crud.family import get_family
 from app.crud.user_operation_log import user_operation_log
 from app.models.account import (
     AccountCreate,
+    AccountUpdate,
     Account, 
     AccountRole,
     LoginRequest,
@@ -26,6 +28,7 @@ from app.models.user_operation_log import UserOperationLogCreate, OperationTypeE
 from app.api.dependencies import get_current_account, get_current_token
 from app.db.session import get_db
 from app.core.rsa_crypto import rsa_crypto
+from app.services.mqtt_service import mqtt_service
 
 router = APIRouter()
 
@@ -249,6 +252,164 @@ async def get_profile(
 ):
     """获取当前用户信息"""
     return Account.model_validate(current_account)
+
+
+@router.patch("/profile", response_model=Account)
+async def update_profile(
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+    current_account: Account = Depends(get_current_account),
+    account_update: AccountUpdate = Body(...)
+):
+    """更新当前用户信息
+    
+    接收一个对象，只更新提供的字段：
+    - nickname: 昵称
+    - gender: 性别 (male/female/other)
+    - email: 邮箱
+    - phone: 手机号
+    - avatar: 头像URL
+    - password: 密码（RSA加密的Base64字符串，会自动解密）
+    """
+    # 如果提供了密码，需要先解密
+    update_data = account_update.dict(exclude_unset=True)
+    
+    if "password" in update_data and update_data["password"]:
+        try:
+            # RSA解密密码
+            plain_password = rsa_crypto.decrypt(update_data["password"])
+            # 验证密码长度
+            if len(plain_password) < 6:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="密码长度至少6位"
+                )
+            update_data["password"] = plain_password
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"密码解密失败: {str(e)}"
+            )
+    
+    # 如果提供了手机号，检查是否已被其他账号使用
+    if "phone" in update_data and update_data["phone"]:
+        existing_account = await get_account_by_phone(db, update_data["phone"])
+        if existing_account and existing_account.id != current_account.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该手机号已被其他账号使用"
+            )
+    
+    # 如果提供了邮箱，检查是否已被其他账号使用
+    if "email" in update_data and update_data["email"]:
+        existing_account = await get_account_by_email(db, update_data["email"])
+        if existing_account and existing_account.id != current_account.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="该邮箱已被其他账号使用"
+            )
+    
+    # 创建更新对象
+    update_obj = AccountUpdate(**update_data)
+    
+    # 更新账号信息
+    updated_account = await update_account(db, current_account.id, update_obj)
+    
+    if not updated_account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="账号不存在"
+        )
+    
+    # 记录操作日志
+    try:
+        await user_operation_log.create(
+            db=db,
+            obj_in=UserOperationLogCreate(
+                operation_type=OperationTypeEnum.account_update,
+                description="通过App更新用户信息",
+                extra={
+                    "updated_fields": list(update_data.keys()),
+                    "platform": "app"
+                }
+            ),
+            account_id=current_account.id
+        )
+    except Exception as e:
+        # 记录操作失败不影响更新流程
+        print(f"记录操作日志失败: {e}")
+    
+    # 暂时不发送家庭消息通知用户信息更新
+    # try:
+    #     account_id = token_info.get("account_id")
+    #     role = token_info.get("role")
+    #     if account_id is not None:
+    #         # 构建更新的字段描述和值
+    #         updated_fields = {}
+    #         field_names = {
+    #             "nickname": "昵称",
+    #             "gender": "性别",
+    #             "email": "邮箱",
+    #             "phone": "手机号",
+    #             "avatar": "头像",
+    #             "password": "密码"
+    #         }
+    #         
+    #         # 构建包含字段名和值的字典（使用英文字段名作为键）
+    #         for field, value in update_data.items():
+    #             if field == "password":
+    #                 # 密码字段不显示值，只显示已更新
+    #                 updated_fields[field] = "已更新"
+    #             else:
+    #                 updated_fields[field] = value
+    #         
+    #         # 构建显示名称列表用于消息文本
+    #         field_display_names = []
+    #         for field in update_data.keys():
+    #             if field == "password":
+    #                 field_display_names.append("密码")
+    #             else:
+    #                 field_display_names.append(field_names.get(field, field))
+    #         
+    #         if field_display_names:
+    #             message_text = f"用户信息已更新：{', '.join(field_display_names)}"
+    #         else:
+    #             message_text = "用户信息已更新"
+    #         
+    #         # 查询该用户的所有家庭，然后为每个家庭发送消息
+    #         from app.crud.family import get_families_by_account
+    #         families = await get_families_by_account(db, account_id)
+    #         
+    #         for family in families:
+    #             if family.id is not None:
+    #                 try:
+    #                     await mqtt_service.publish_home_notice(
+    #                         home_id=str(family.id),
+    #                         payload={
+    #                             "method": "family.message",
+    #                             "params": {
+    #                                 "type": "account.update",
+    #                                 "data": {
+    #                                     "senderId": account_id,
+    #                                     "senderRole": role,
+    #                                     "title": f"{current_account.nickname} 用户信息更新",
+    #                                     "message": message_text,
+    #                                     "level": "normal",
+    #                                     "accountId": account_id,
+    #                                     "updatedFields": updated_fields
+    #                                 }
+    #                             }
+    #                         }
+    #                     )
+    #                 except Exception as e:
+    #                     print(f"发送用户信息更新消息失败 (family_id={family.id}): {e}")
+    # except Exception as e:
+    #     # 发送消息失败不影响更新流程
+    #     print(f"发送用户信息更新消息失败: {e}")
+    
+    return Account.model_validate(updated_account)
 
 
 @router.get("/current-family")
