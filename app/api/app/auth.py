@@ -442,27 +442,162 @@ async def delete_account_endpoint(
     token_info: dict = Depends(get_current_token),
     current_account: Account = Depends(get_current_account)
 ):
-    """删除当前账户"""
-    account_id = current_account.id
+    """注销账号（删除当前登录用户的账号）
     
-    # 记录删除操作（在删除前记录）
+    不需要接收参数，会自动删除当前登录用户的账号。
+    删除前会：
+    1. 如果账号是家庭创建者，自动删除这些家庭（会级联删除家庭成员和设备关联）
+    2. 从所有家庭中移除设备关联（family_device 表）
+    3. 更新设备状态为 unbound
+    4. 记录操作日志
+    5. 删除账号（会级联删除家庭成员关系、签到记录、积分记录、反馈、操作日志等）
+    
+    注意：
+    - device.account_id 会在删除账号时自动设为 NULL（ON DELETE SET NULL）
+    - family_member 记录会在删除账号时自动删除（ON DELETE CASCADE）
+    """
+    account_id = token_info["account_id"]
+    
+    # 如果账号是任何家庭的创建者，先删除这些家庭
+    from app.crud.family_member import get_family_members_by_account
+    from app.models.family_member import FamilyMemberRole
+    from app.crud.family import get_family, delete_family
+    
+    family_members = await get_family_members_by_account(db, account_id)
+    creator_families = [fm for fm in family_members if fm.role == FamilyMemberRole.creator]
+    
+    # 删除所有创建的家庭
+    deleted_families = []  # 记录成功删除的家庭信息
+    for fm in creator_families:
+        family = await get_family(db, fm.family_id)
+        if family:
+            # 保存家庭信息用于后续日志
+            family_id = family.id
+            family_name = family.name
+            
+            # 先删除家庭（会级联删除家庭成员和设备关联）
+            # delete_family 内部已经提交事务
+            success = await delete_family(db, fm.family_id)
+            
+            # 删除成功后保存家庭信息
+            if success:
+                deleted_families.append({
+                    "familyId": family_id,
+                    "familyName": family_name
+                })
+    
+    # 如果删除了家庭，记录一条日志
+    if deleted_families:
+        # 记录删除家庭的操作日志（仅一条）
+        try:
+            if len(deleted_families) == 1:
+                description = f"通过App删除家庭: {deleted_families[0]['familyName']}（账号注销时自动删除）"
+                extra = {
+                    "family_id": deleted_families[0]["familyId"],
+                    "family_name": deleted_families[0]["familyName"],
+                    "reason": "account_deletion",
+                    "platform": "app"
+                }
+            else:
+                family_names = [f["familyName"] for f in deleted_families]
+                description = f"通过App删除 {len(deleted_families)} 个家庭（账号注销时自动删除）: {', '.join(family_names)}"
+                extra = {
+                    "families": deleted_families,
+                    "count": len(deleted_families),
+                    "reason": "account_deletion",
+                    "platform": "app"
+                }
+            
+            await user_operation_log.create(
+                db=db,
+                obj_in=UserOperationLogCreate(
+                    operation_type=OperationTypeEnum.family_delete,
+                    description=description,
+                    extra=extra
+                ),
+                account_id=account_id
+            )
+        except Exception as e:
+            print(f"记录删除家庭操作日志失败: {e}")
+        
+        # 暂时不发送家庭消息通知
+        # try:
+        #     role = token_info.get("role")
+        #     for deleted_family in deleted_families:
+        #         deleted_family_id = deleted_family.get("familyId")
+        #         if deleted_family_id is not None:
+        #             try:
+        #                 await mqtt_service.publish_home_notice(
+        #                     home_id=str(deleted_family_id),
+        #                     payload={
+        #                         "method": "family.message",
+        #                         "params": {
+        #                             "type": "family.delete",
+        #                             "data": {
+        #                                 "senderId": account_id,
+        #                                 "senderRole": role,
+        #                                 "title": "家庭删除",
+        #                                 "message": f"家庭 {deleted_family['familyName']} 已删除",
+        #                                 "level": "warning",
+        #                                 "familyId": deleted_family_id,
+        #                                 "familyName": deleted_family["familyName"]
+        #                             }
+        #                         }
+        #                     }
+        #                 )
+        #             except Exception as e:
+        #                 print(f"发送删除家庭消息失败 (family_id={deleted_family_id}): {e}")
+        # except Exception as e:
+        #     # 发送消息失败不影响删除流程
+        #     print(f"发送删除家庭消息失败: {e}")
+    
+    # 记录操作日志（在删除前记录，因为删除后日志也会被级联删除）
     try:
         await user_operation_log.create(
             db=db,
             obj_in=UserOperationLogCreate(
                 operation_type=OperationTypeEnum.account_delete,
-                description=f"用户删除账户（{current_account.nickname or current_account.phone}）",
-                extra={"platform": "app"}
+                description=f"通过App注销账号：{current_account.nickname or current_account.phone}",
+                extra={
+                    "account_id": account_id,
+                    "nickname": current_account.nickname,
+                    "phone": current_account.phone,
+                    "platform": "app"
+                }
             ),
             account_id=account_id
         )
     except Exception as e:
-        print(f"记录账户删除操作失败: {e}")
+        # 记录操作失败不影响注销流程
+        print(f"记录操作日志失败: {e}")
     
-    # 删除账户
-    success = await delete_account(db, account_id)
+    # 处理设备：从所有家庭中移除，并更新状态
+    # 注意：device.account_id 会在删除账号时自动设为 NULL（ON DELETE SET NULL）
+    from app.crud.device import get_devices_by_account
+    from app.crud.family_device import delete_all_family_devices_by_device
+    from app.models.device import DeviceStatus
+    
+    devices = await get_devices_by_account(db, account_id)
+    for device in devices:
+        # 从所有家庭中移除设备（必须手动处理，因为 family_device 没有 account_id 外键）
+        await delete_all_family_devices_by_device(db, device.id)
+        # 更新设备状态为 unbound（数据库不会自动更新状态）
+        device.status = DeviceStatus.unbound
+        # 不需要手动设置 device.account_id = None，数据库会自动处理（ON DELETE SET NULL）
+    
+    await db.commit()
+    
+    # 删除账号（会级联删除家庭成员关系、签到记录、积分记录、反馈、操作日志等）
+    # device.account_id 会自动设为 NULL（ON DELETE SET NULL）
+    from app.crud.account import delete_account as delete_account_crud
+    success = await delete_account_crud(db, account_id)
     if not success:
-        raise HTTPException(status_code=404, detail="删除账户失败")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="账号不存在"
+        )
     
-    return {}
+    await db.commit()
+    
+    return {"message": "账号已成功注销"}
 
