@@ -19,19 +19,7 @@ from app.services.mqtt_service import mqtt_service
 router = APIRouter()
 
 
-@router.get("/", response_model=List[FamilyInDB])
-async def list_families(
-    db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
-):
-    """获取当前账号所在的所有家庭"""
-    account_id = token_info["account_id"]
-    return await get_families_by_account(db, account_id, skip=skip, limit=limit)
-
-
-@router.post("/", response_model=FamilyInDB, status_code=201)
+@router.post("/", response_model=FamilyInDB)
 async def create_family_endpoint(
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
@@ -62,9 +50,21 @@ async def create_family_endpoint(
     return db_family
 
 
-@router.delete("/{id}")
+@router.get("/", response_model=List[FamilyInDB])
+async def list_families(
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+):
+    """获取当前账号所在的所有家庭"""
+    account_id = token_info["account_id"]
+    return await get_families_by_account(db, account_id, skip=skip, limit=limit)
+
+
+@router.delete("/{family_id}")
 async def delete_family_endpoint(
-    id: int,
+    family_id: int,
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token)
 ):
@@ -75,16 +75,16 @@ async def delete_family_endpoint(
     from app.crud.family_member import get_family_member_by_family_and_account
     from app.models.family_member import FamilyMemberRole
 
-    family = await get_family(db, id)
+    family = await get_family(db, family_id)
     if not family:
         raise HTTPException(status_code=404, detail="家庭不存在")
     
-    family_member = await get_family_member_by_family_and_account(db, id, account_id)
+    family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
     if not family_member or family_member.role != FamilyMemberRole.creator:
         raise HTTPException(status_code=403, detail="只有家庭创建者可以删除家庭")
     
     family_name = family.name
-    success = await delete_family(db, id)
+    success = await delete_family(db, family_id)
     if not success:
         raise HTTPException(status_code=404, detail="删除家庭失败")
     
@@ -94,37 +94,38 @@ async def delete_family_endpoint(
         obj_in=UserOperationLogCreate(
             operation_type=OperationTypeEnum.family_delete,
             description=f"通过App删除家庭: {family_name}",
-            extra={"family_id": id, "family_name": family_name, "platform": "app"}
+            extra={"family_id": family_id, "family_name": family_name, "platform": "app"}
         ),
         account_id=account_id
     )
     
-    # 发送家庭消息通知
-    try:
-        role = token_info.get("role")
-        await mqtt_service.publish_home_notice(
-            home_id=str(id),
-            payload={
-                "method": "family.message",
-                "params": {
-                    "type": "family.delete",
-                    "data": {
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "家庭删除",
-                        "message": f"家庭 {family_name} 已删除",
-                        "level": "warning",
-                        "familyId": id,
-                        "familyName": family_name
-                    }
-                }
-            }
-        )
-    except Exception as e:
-        # 发送消息失败不影响删除流程
-        print(f"发送删除家庭消息失败: {e}")
+    # 暂时不发送家庭消息通知
+    # try:
+    #     role = token_info.get("role")
+    #     if family_id is not None:
+    #         await mqtt_service.publish_home_notice(
+    #             home_id=str(family_id),
+    #             payload={
+    #                 "method": "family.message",
+    #                 "params": {
+    #                     "type": "family.delete",
+    #                     "data": {
+    #                         "senderId": account_id,
+    #                         "senderRole": role,
+    #                         "title": "家庭删除",
+    #                         "message": f"家庭 {family_name} 已删除",
+    #                         "level": "warning",
+    #                         "familyId": family_id,
+    #                         "familyName": family_name
+    #                     }
+    #                 }
+    #             }
+    #         )
+    # except Exception as e:
+    #     # 发送消息失败不影响删除流程
+    #     print(f"发送删除家庭消息失败: {e}")
     
-    return {}
+    return {"message": "家庭已删除"}
 
 
 @router.post("/{family_id}/devices/{device_id}")
@@ -188,35 +189,36 @@ async def add_device_to_family(
         # 记录操作失败不影响添加流程
         print(f"记录设备添加到家庭操作日志失败: {e}")
     
-    # 发送家庭消息通知设备已添加到家庭
-    try:
-        role = token_info.get("role")
-        await mqtt_service.publish_home_notice(
-            home_id=str(family_id),
-            payload={
-                "method": "family.message",
-                "params": {
-                    "type": "device.add",
-                    "data": {
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "设备已添加到家庭",
-                        "message": f"设备 {device.name} 已添加到家庭 {family_name or family_id}",
-                        "level": "normal",
-                        "familyId": family_id,
-                        "familyName": family_name,
-                        "deviceId": device.id,
-                        "deviceName": device.name,
-                        "deviceSn": device.sn
-                    }
-                }
-            }
-        )
-    except Exception as e:
-        # 发送消息失败不影响添加流程
-        print(f"发送设备添加到家庭消息失败: {e}")
+    # 暂时不发送家庭消息通知设备已添加到家庭
+    # try:
+    #     role = token_info.get("role")
+    #     if family_id is not None:
+    #         await mqtt_service.publish_home_notice(
+    #             home_id=str(family_id),
+    #             payload={
+    #                 "method": "family.message",
+    #                 "params": {
+    #                     "type": "device.add",
+    #                     "data": {
+    #                         "senderId": account_id,
+    #                         "senderRole": role,
+    #                         "title": "设备已添加到家庭",
+    #                         "message": f"设备 {device.name} 已添加到家庭 {family_name or family_id}",
+    #                         "level": "normal",
+    #                         "familyId": family_id,
+    #                         "familyName": family_name,
+    #                         "deviceId": device.id,
+    #                         "deviceName": device.name,
+    #                         "deviceSn": device.sn
+    #                     }
+    #                 }
+    #             }
+    #         )
+    # except Exception as e:
+    #     # 发送消息失败不影响添加流程
+    #     print(f"发送设备添加到家庭消息失败: {e}")
     
-    return {}
+    return {"message": "设备已添加到家庭", "device_id": device_id, "family_id": family_id}
 
 
 @router.delete("/{family_id}/devices/{device_id}")
@@ -278,33 +280,55 @@ async def remove_device_from_family(
         # 记录操作失败不影响移除流程
         print(f"记录设备从家庭移除操作日志失败: {e}")
     
-    # 发送家庭消息通知设备已从家庭中移除
-    try:
-        role = token_info.get("role")
-        await mqtt_service.publish_home_notice(
-            home_id=str(family_id),
-            payload={
-                "method": "family.message",
-                "params": {
-                    "type": "device.remove",
-                    "data": {
-                        "senderId": account_id,
-                        "senderRole": role,
-                        "title": "设备已从家庭中移除",
-                        "message": f"设备 {device.name} 已从家庭 {family_name or family_id} 中移除",
-                        "level": "normal",
-                        "familyId": family_id,
-                        "familyName": family_name,
-                        "deviceId": device.id,
-                        "deviceName": device.name,
-                        "deviceSn": device.sn
-                    }
-                }
-            }
-        )
-    except Exception as e:
-        # 发送消息失败不影响移除流程
-        print(f"发送设备从家庭移除消息失败: {e}")
+    # 暂时不发送家庭消息通知设备已从家庭中移除
+    # try:
+    #     role = token_info.get("role")
+    #     if family_id is not None:
+    #         await mqtt_service.publish_home_notice(
+    #             home_id=str(family_id),
+    #             payload={
+    #                 "method": "family.message",
+    #                 "params": {
+    #                     "type": "device.remove",
+    #                     "data": {
+    #                         "senderId": account_id,
+    #                         "senderRole": role,
+    #                         "title": "设备已从家庭中移除",
+    #                         "message": f"设备 {device.name} 已从家庭 {family_name or family_id} 中移除",
+    #                         "level": "normal",
+    #                         "familyId": family_id,
+    #                         "familyName": family_name,
+    #                         "deviceId": device.id,
+    #                         "deviceName": device.name,
+    #                         "deviceSn": device.sn
+    #                     }
+    #                 }
+    #             }
+    #         )
+    # except Exception as e:
+    #     # 发送消息失败不影响移除流程
+    #     print(f"发送设备从家庭移除消息失败: {e}")
     
-    return {}
+    return {"message": "设备已从家庭中移除", "device_id": device_id, "family_id": family_id}
 
+
+@router.get("/{family_id}/devices", response_model=List[DeviceInDB])
+async def list_family_devices(
+    family_id: int,
+    db: AsyncSession = Depends(get_db),
+    token_info: dict = Depends(get_current_token),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+):
+    """获取家庭的所有设备（需要是家庭成员）"""
+    account_id = token_info["account_id"]
+    
+    # 检查是否是家庭成员
+    from app.crud.family_member import get_family_member_by_family_and_account
+    family_member = await get_family_member_by_family_and_account(db, family_id, account_id)
+    if not family_member:
+        raise HTTPException(status_code=403, detail="无权访问此家庭")
+    
+    from app.crud.family_device import get_family_devices
+    devices = await get_family_devices(db, family_id, skip=skip, limit=limit)
+    return devices
