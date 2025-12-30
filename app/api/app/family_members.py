@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -16,6 +16,7 @@ from app.models.family_member import (
     FamilyMemberCreate,
     FamilyMemberUpdate,
     FamilyMemberInDB,
+    FamilyMemberWithAccount,
     FamilyMemberRole,
     JoinByInviteCodeRequest
 )
@@ -28,13 +29,15 @@ from app.services.mqtt_service import mqtt_service
 router = APIRouter()
 
 
-@router.get("/family/{family_id}", response_model=List[FamilyMemberInDB])
+@router.get("/family/{family_id}", response_model=List[FamilyMemberWithAccount])
 async def list_family_members(
     family_id: int,
     db: AsyncSession = Depends(get_db),
-    token_info: dict = Depends(get_current_token)
+    token_info: dict = Depends(get_current_token),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
 ):
-    """获取家庭成员列表（需要是家庭成员才能查看）"""
+    """获取家庭成员列表"""
     account_id = token_info["account_id"]
     
     # 检查是否是家庭成员
@@ -42,8 +45,20 @@ async def list_family_members(
     if not family_member:
         raise HTTPException(status_code=403, detail="无权访问此家庭")
     
-    members = await get_family_members_by_family(db, family_id)
-    return members
+    family_members = await get_family_members_by_family(db, family_id, skip=skip, limit=limit)
+    # 转换为包含 account 信息的响应模型
+    return [
+        FamilyMemberWithAccount(
+            id=member.id,
+            family_id=member.family_id,
+            role=member.role,
+            nickname=member.nickname,
+            joined_at=member.joined_at,
+            created_at=member.created_at,
+            account=member.account
+        )
+        for member in family_members
+    ]
 
 
 @router.post("/join-by-invite-code", response_model=FamilyInDB)
