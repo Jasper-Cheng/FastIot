@@ -53,6 +53,7 @@ async def get_network_list(
             "wifiPassword": network.wifi_password,
             "mqttBroker": network.mqtt_broker,
             "mqttPort": network.mqtt_port,
+            "firmware": network.firmware,
             "lastUpdate": network.last_update.strftime("%Y-%m-%d %H:%M:%S") if network.last_update else None
         })
     

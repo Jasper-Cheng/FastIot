@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS `device_network` (
     `wifi_password` VARCHAR(255) NULL COMMENT 'Wi-Fi 密码',
     `mqtt_broker` VARCHAR(255) NULL COMMENT 'MQTT 代理服务器地址',
     `mqtt_port` INT NULL COMMENT 'MQTT 端口号',
+    `firmware` VARCHAR(128) NULL COMMENT '固件版本',
     `last_update` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后一次更新时间',
     FOREIGN KEY (`sn`) REFERENCES `device`(`sn`) ON DELETE CASCADE,
     UNIQUE KEY `uq_device_network_device` (`sn`) COMMENT '保证每个设备仅有一条网络记录'

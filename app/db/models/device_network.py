@@ -15,6 +15,7 @@ class DeviceNetwork(Base):
     wifi_password = Column(String(255), nullable=True, comment="Wi-Fi 密码")
     mqtt_broker = Column(String(255), nullable=True, comment="MQTT 代理服务器地址")
     mqtt_port = Column(Integer, nullable=True, comment="MQTT 端口号")
+    firmware = Column(String(128), nullable=True, comment="固件版本")
     last_update = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="记录最后一次更新时间")
 
     # 关系：与设备一对一
@@ -26,4 +27,4 @@ class DeviceNetwork(Base):
     )
 
     def __repr__(self):
-        return f"<DeviceNetwork(id={self.id}, sn='{self.sn}', ip='{self.ip}', mac='{self.mac}')>"
+        return f"<DeviceNetwork(id={self.id}, sn='{self.sn}', ip='{self.ip}', mac='{self.mac}', firmware='{self.firmware}')>"

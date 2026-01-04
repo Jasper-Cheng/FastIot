@@ -867,7 +867,8 @@ async def create_device_networks(session: AsyncSession, devices):
             wifi_name=f"WiFi_{random.randint(1, 100)}" if has_wifi else None,
             wifi_password=f"password_{random.randint(1000, 9999)}" if has_wifi and random.choice([True, False]) else None,
             mqtt_broker=f"mqtt.example.com" if random.choice([True, False]) else None,
-            mqtt_port=1883 if random.choice([True, False]) else None
+            mqtt_port=1883 if random.choice([True, False]) else None,
+            firmware=f"v{random.randint(1, 5)}.{random.randint(0, 9)}.{random.randint(0, 9)}" if random.choice([True, False]) else None
         )
         session.add(device_network)
 

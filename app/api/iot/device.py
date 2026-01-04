@@ -229,6 +229,7 @@ async def get_device_detail(
             "wifiPassword": network.wifi_password,
             "mqttBroker": network.mqtt_broker,
             "mqttPort": network.mqtt_port,
+            "firmware": network.firmware,
             "lastUpdate": network.last_update.strftime("%Y-%m-%d %H:%M:%S") if network.last_update else None
         }
     
@@ -256,7 +257,7 @@ async def get_device_detail(
     if network_info:
         result["lastOnlineTime"] = network_info["lastUpdate"]
         result["mac"] = network_info["mac"]
-        result["firmware"] = None  # 如果数据库中有固件版本字段，可以添加
+        result["firmware"] = network_info["firmware"]
     
     return result
 
