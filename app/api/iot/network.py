@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 
 from app.db.session import get_db
 from app.api.dependencies import get_current_token
@@ -15,31 +15,44 @@ router = APIRouter()
 async def get_network_list(
     page: int = Query(1, ge=1, description="页码，从1开始"),
     pageSize: int = Query(10, ge=1, le=100, description="每页数量"),
+    deviceSn: Optional[str] = Query(None, description="设备序列号搜索（模糊匹配）"),
+    deviceName: Optional[str] = Query(None, description="设备名称搜索（模糊匹配）"),
     db: AsyncSession = Depends(get_db),
     token_info: dict = Depends(get_current_token),
 ):
     """获取设备网络信息列表"""
     skip = (page - 1) * pageSize
     
-    # 查询网络信息
-    query = select(DeviceNetwork)
-    count_query = select(func.count(DeviceNetwork.id))
+    # 查询网络信息，关联设备表
+    query = select(DeviceNetwork).join(Device, DeviceNetwork.sn == Device.sn)
+    count_query = select(func.count(DeviceNetwork.id)).join(Device, DeviceNetwork.sn == Device.sn)
+    
+    # 构建筛选条件
+    conditions = []
+    if deviceSn:
+        conditions.append(Device.sn.like(f"%{deviceSn}%"))
+    if deviceName:
+        conditions.append(Device.name.like(f"%{deviceName}%"))
+    
+    # 应用筛选条件
+    if conditions:
+        query = query.where(and_(*conditions))
+        count_query = count_query.where(and_(*conditions))
     
     # 获取总数
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
     
-    # 获取分页数据
-    result = await db.execute(query.offset(skip).limit(pageSize))
+    # 获取分页数据，按 id 倒序，同时加载设备信息
+    from sqlalchemy.orm import joinedload
+    query = query.options(joinedload(DeviceNetwork.device))
+    result = await db.execute(query.order_by(DeviceNetwork.id.desc()).offset(skip).limit(pageSize))
     networks = result.scalars().all()
     
     items = []
     for network in networks:
-        # 获取设备信息
-        device_result = await db.execute(
-            select(Device).filter(Device.sn == network.sn)
-        )
-        device = device_result.scalar_one_or_none()
+        # 通过 relationship 获取设备信息（已在查询时加载）
+        device = network.device
         
         items.append({
             "id": network.id,
