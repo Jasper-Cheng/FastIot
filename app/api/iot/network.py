@@ -43,10 +43,10 @@ async def get_network_list(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
     
-    # 获取分页数据，按 id 倒序，同时加载设备信息
+    # 获取分页数据，同时加载设备信息
     from sqlalchemy.orm import joinedload
     query = query.options(joinedload(DeviceNetwork.device))
-    result = await db.execute(query.order_by(DeviceNetwork.id.desc()).offset(skip).limit(pageSize))
+    result = await db.execute(query.offset(skip).limit(pageSize))
     networks = result.scalars().all()
     
     items = []
