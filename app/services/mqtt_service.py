@@ -677,13 +677,6 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
                 print(f"⚠️ [M701001] 设备 {sn} 不存在于数据库中")
                 return
             
-            # 检查设备是否属于账号或家庭
-            from app.crud.family_device import get_device_families
-            device_families = await get_device_families(db, device.id)
-            if device.account_id is None and len(device_families) == 0:
-                print(f"⚠️ [M701001] 设备 {sn} 未绑定账号或家庭，无法更新状态")
-                return
-            
             # 更新设备状态
             device_status = DeviceStatus.online if status == "online" else DeviceStatus.offline
             device_update = DeviceUpdate(status=device_status)

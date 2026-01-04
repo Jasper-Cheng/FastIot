@@ -672,6 +672,27 @@ async def create_devices(session: AsyncSession, accounts, device_models):
     # 用于跟踪每个型号的流水号
     model_serial_counters = {}
 
+    # 创建特定的空气监测设备 M701001-220403-000001
+    m701001_model = None
+    for model in device_models:
+        if model.model_code == "M701001":
+            m701001_model = model
+            break
+    
+    if m701001_model:
+        specific_device = Device(
+            account_id=None,  # 未绑定账号
+            model_id=m701001_model.id,
+            name="室内空气质量监测器",
+            sn="M701001-220403-000001",
+            status='unbound'
+        )
+        session.add(specific_device)
+        devices.append(specific_device)
+        print(f"✅ 已创建特定设备: M701001-220403-000001 (室内空气质量监测器)")
+    else:
+        print(f"⚠️ 未找到 M701001 设备型号，跳过创建特定设备")
+
     # 创建一些未绑定的设备（account_id=None）
     unbound_count = 10
     for i in range(unbound_count):
