@@ -217,17 +217,18 @@ async def get_device_detail(
     # 获取网络信息（如果有）- 使用显式查询避免懒加载问题
     network_info = None
     network_result = await db.execute(
-        select(DeviceNetwork).filter(DeviceNetwork.device_id == device.id)
+        select(DeviceNetwork).filter(DeviceNetwork.sn == device.sn)
     )
     network = network_result.scalar_one_or_none()
     if network:
         network_info = {
-            "netType": network.net_type,
-            "name": network.name,
             "ip": network.ip,
             "mac": network.mac,
-            "rssi": network.rssi,
-            "connectState": network.connect_state,
+            "bleName": network.ble_name,
+            "wifiName": network.wifi_name,
+            "wifiPassword": network.wifi_password,
+            "mqttBroker": network.mqtt_broker,
+            "mqttPort": network.mqtt_port,
             "lastUpdate": network.last_update.strftime("%Y-%m-%d %H:%M:%S") if network.last_update else None
         }
     

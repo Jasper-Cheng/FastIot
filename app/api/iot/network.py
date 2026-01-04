@@ -37,22 +37,22 @@ async def get_network_list(
     for network in networks:
         # 获取设备信息
         device_result = await db.execute(
-            select(Device).filter(Device.id == network.device_id)
+            select(Device).filter(Device.sn == network.sn)
         )
         device = device_result.scalar_one_or_none()
         
         items.append({
             "id": network.id,
-            "deviceId": network.device_id,
-            "deviceSn": device.sn if device else None,
+            "sn": network.sn,
+            "deviceSn": network.sn,
             "deviceName": device.name if device else None,
-            "netType": network.net_type,
-            "name": network.name,
             "ip": network.ip,
             "mac": network.mac,
-            "rssi": network.rssi,
-            "connectState": network.connect_state,
-            "extra": network.extra or {},
+            "bleName": network.ble_name,
+            "wifiName": network.wifi_name,
+            "wifiPassword": network.wifi_password,
+            "mqttBroker": network.mqtt_broker,
+            "mqttPort": network.mqtt_port,
             "lastUpdate": network.last_update.strftime("%Y-%m-%d %H:%M:%S") if network.last_update else None
         })
     
