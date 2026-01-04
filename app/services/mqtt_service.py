@@ -507,7 +507,7 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
     {'sn': 'M701001-220403-000001', 'co2': 485, 'hcho': 17, 'tvoc': 27, 'pm25': 21, 'pm10': 26, 'temp': 26.1, 'humi': 41.0}
     SN 格式: M701001-{生产日期}-{流水号}
     """
-    print(f"🌡️ [M701001] 处理设备 {sn} 的空气质量数据")
+    # print(f"🌡️ [M701001] 处理设备 {sn} 的空气质量数据")
     
     # 提取数据
     co2 = payload.get("co2")      # 二氧化碳 (ppm)
@@ -518,9 +518,9 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
     temp = payload.get("temp")    # 温度 (°C)
     humi = payload.get("humi")    # 湿度 (%)
     
-    print(f"   CO2: {co2} ppm, HCHO: {hcho} μg/m³, TVOC: {tvoc} μg/m³")
-    print(f"   PM2.5: {pm25} μg/m³, PM10: {pm10} μg/m³")
-    print(f"   温度: {temp} °C, 湿度: {humi} %")
+    # print(f"   CO2: {co2} ppm, HCHO: {hcho} μg/m³, TVOC: {tvoc} μg/m³")
+    # print(f"   PM2.5: {pm25} μg/m³, PM10: {pm10} μg/m³")
+    # print(f"   温度: {temp} °C, 湿度: {humi} %")
     
     # TODO: 保存到数据库
     # from app.crud.device_data import save_device_data
@@ -657,7 +657,7 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
 
 async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
     """处理 M701001 室内空气质量监测器状态"""
-    print(f"📡 [M701001] 处理设备 {sn} 的状态: {payload}")
+    # print(f"📡 [M701001] 处理设备 {sn} 的状态: {payload}")
     
     status = payload.get("status", "").lower()
     if status not in ["online", "offline"]:
@@ -683,7 +683,8 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
             updated_device = await update_device(db, device.id, device_update)
             
             if updated_device:
-                print(f"✅ [M701001] 设备 {sn} 状态已更新为: {device_status.value}")
+                # print(f"✅ [M701001] 设备 {sn} 状态已更新为: {device_status.value}")
+                pass
             else:
                 print(f"❌ [M701001] 设备 {sn} 状态更新失败")
     except Exception as e:
