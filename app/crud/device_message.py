@@ -81,9 +81,10 @@ async def get_account_device_messages(
     if status:
         query = query.where(DeviceMessage.status == status)
     
-    # 排序和分页
+    # 排序和分页，如果时间相同则按 id 倒序（确保排序稳定）
     query = query.order_by(
-        func.coalesce(DeviceMessage.updated_at, DeviceMessage.created_at).desc()
+        func.coalesce(DeviceMessage.updated_at, DeviceMessage.created_at).desc(),
+        DeviceMessage.id.desc()
     ).offset(skip).limit(limit)
     
     result = await db.execute(query)
@@ -184,9 +185,9 @@ async def get_device_messages_with_pagination(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
     
-    # 获取分页数据，按创建时间倒序
+    # 获取分页数据，按创建时间倒序，如果创建时间相同则按 id 倒序（确保排序稳定）
     result = await db.execute(
-        query.order_by(DeviceMessage.created_at.desc())
+        query.order_by(DeviceMessage.created_at.desc(), DeviceMessage.id.desc())
         .offset(skip)
         .limit(limit)
     )
