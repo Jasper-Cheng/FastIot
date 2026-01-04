@@ -677,6 +677,11 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
                 print(f"⚠️ [M701001] 设备 {sn} 不存在于数据库中")
                 return
             
+            # 检查设备是否绑定账号
+            if device.account_id is None:
+                print(f"⚠️ [M701001] 设备 {sn} 未绑定账号，跳过状态更新和消息发送")
+                return
+            
             # 更新设备状态
             device_status = DeviceStatus.online if status == "online" else DeviceStatus.offline
             device_update = DeviceUpdate(status=device_status)
@@ -691,6 +696,7 @@ async def handle_m701001_status(sn: str, payload: Dict[str, Any]):
         print(f"❌ [M701001] 更新设备状态失败 ({sn}): {e}")
         import traceback
         traceback.print_exc()
+        return
     
     # 通过 MQTT 通知 web/app 客户端
     try:
