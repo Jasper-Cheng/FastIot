@@ -249,7 +249,7 @@ class MQTTService:
             print(f"⚠️ [MQTT] 收到配置消息但缺少SN: {payload}")
             return
         
-        print(f"⚙️ [MQTT] 处理设备 {sn} 的配置信息: {payload}")
+        # print(f"⚙️ [MQTT] 处理设备 {sn} 的配置信息: {payload}")
         
         try:
             from app.db.session import AsyncSessionLocal
@@ -298,7 +298,7 @@ class MQTTService:
                     # 更新现有记录
                     for key, value in update_data.items():
                         setattr(device_network, key, value)
-                    print(f"✅ [MQTT] 已更新设备 {sn} 的网络配置信息")
+                    # print(f"✅ [MQTT] 已更新设备 {sn} 的网络配置信息")
                 else:
                     # 创建新记录
                     device_network = DeviceNetwork(
@@ -313,7 +313,7 @@ class MQTTService:
                         firmware=update_data.get("firmware")
                     )
                     db.add(device_network)
-                    print(f"✅ [MQTT] 已创建设备 {sn} 的网络配置信息")
+                    # print(f"✅ [MQTT] 已创建设备 {sn} 的网络配置信息")
                 
                 await db.commit()
                 print(f"📝 [MQTT] 设备 {sn} 配置信息已保存: {update_data}")
