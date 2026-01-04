@@ -30,6 +30,7 @@ class MQTTService:
         self.device_sn_control = "device/{sn}/control"  # 后台 -> 设备
         self.device_sn_data = "device/{sn}/data"        # 设备 -> 后台
         self.device_sn_status = "device/{sn}/status"    # 设备 -> 后台（包含 LWT 离线消息）
+        self.device_sn_config = "device/{sn}/config"    # 设备 -> 后台（配置信息）
         self.system_notice = "system/notice"           # 系统通知
         self.home_notice = "home/{home_id}/notice"     # 家庭通知
         self.web_sn_data = "web/{sn}/data"             # 后台 -> web
@@ -83,6 +84,9 @@ class MQTTService:
             elif topic.endswith("/status"):
                 sn = self.extract_sn(topic)
                 asyncio.create_task(self._on_status(sn, parsed_payload))
+            elif topic.endswith("/config"):
+                sn = self.extract_sn(topic)
+                asyncio.create_task(self._on_config(sn, parsed_payload))
             elif topic.endswith("/control"):
                 # 处理 web/app -> 后台的控制消息
                 platform, sn = self.extract_platform_and_sn(topic)
@@ -122,6 +126,7 @@ class MQTTService:
         topics = [
             ("device/+/data", 1),      # 设备数据
             ("device/+/status", 1),    # 设备状态（包含 LWT 离线消息）
+            ("device/+/config", 1),    # 设备配置信息
             ("web/+/control", 1),     # web -> 后台控制
             ("app/+/control", 1),     # app -> 后台控制
         ]
@@ -237,6 +242,86 @@ class MQTTService:
                 traceback.print_exc()
         else:
             print(f"⚠️ [MQTT] 未找到设备 {sn} 的状态处理器")
+
+    async def _on_config(self, sn: Optional[str], payload: Dict[str, Any]):
+        """处理设备配置信息消息，保存到 device_network 表"""
+        if not sn:
+            print(f"⚠️ [MQTT] 收到配置消息但缺少SN: {payload}")
+            return
+        
+        print(f"⚙️ [MQTT] 处理设备 {sn} 的配置信息: {payload}")
+        
+        try:
+            from app.db.session import AsyncSessionLocal
+            from app.crud.device import get_device_by_sn
+            from app.db.models.device_network import DeviceNetwork
+            from sqlalchemy import select
+            
+            async with AsyncSessionLocal() as db:
+                # 验证设备是否存在
+                device = await get_device_by_sn(db, sn)
+                if not device:
+                    print(f"⚠️ [MQTT] 设备 {sn} 不存在于数据库中，无法保存配置信息")
+                    return
+                
+                # 查询是否已存在网络信息记录
+                result = await db.execute(
+                    select(DeviceNetwork).filter(DeviceNetwork.sn == sn)
+                )
+                device_network = result.scalar_one_or_none()
+                
+                # 提取配置信息（只更新 payload 中提供的字段）
+                update_data = {}
+                if "ip" in payload:
+                    update_data["ip"] = payload.get("ip")
+                if "mac" in payload:
+                    update_data["mac"] = payload.get("mac")
+                if "ble_name" in payload or "bleName" in payload:
+                    update_data["ble_name"] = payload.get("ble_name") or payload.get("bleName")
+                if "wifi_name" in payload or "wifiName" in payload:
+                    update_data["wifi_name"] = payload.get("wifi_name") or payload.get("wifiName")
+                if "wifi_password" in payload or "wifiPassword" in payload:
+                    update_data["wifi_password"] = payload.get("wifi_password") or payload.get("wifiPassword")
+                if "mqtt_broker" in payload or "mqttBroker" in payload:
+                    update_data["mqtt_broker"] = payload.get("mqtt_broker") or payload.get("mqttBroker")
+                if "mqtt_port" in payload or "mqttPort" in payload:
+                    mqtt_port = payload.get("mqtt_port") or payload.get("mqttPort")
+                    if mqtt_port is not None:
+                        try:
+                            update_data["mqtt_port"] = int(mqtt_port)
+                        except (ValueError, TypeError):
+                            print(f"⚠️ [MQTT] 无效的 mqtt_port 值: {mqtt_port}")
+                if "firmware" in payload:
+                    update_data["firmware"] = payload.get("firmware")
+                
+                if device_network:
+                    # 更新现有记录
+                    for key, value in update_data.items():
+                        setattr(device_network, key, value)
+                    print(f"✅ [MQTT] 已更新设备 {sn} 的网络配置信息")
+                else:
+                    # 创建新记录
+                    device_network = DeviceNetwork(
+                        sn=sn,
+                        ip=update_data.get("ip"),
+                        mac=update_data.get("mac"),
+                        ble_name=update_data.get("ble_name"),
+                        wifi_name=update_data.get("wifi_name"),
+                        wifi_password=update_data.get("wifi_password"),
+                        mqtt_broker=update_data.get("mqtt_broker"),
+                        mqtt_port=update_data.get("mqtt_port"),
+                        firmware=update_data.get("firmware")
+                    )
+                    db.add(device_network)
+                    print(f"✅ [MQTT] 已创建设备 {sn} 的网络配置信息")
+                
+                await db.commit()
+                print(f"📝 [MQTT] 设备 {sn} 配置信息已保存: {update_data}")
+                
+        except Exception as e:
+            print(f"❌ [MQTT] 保存设备配置信息失败 ({sn}): {e}")
+            import traceback
+            traceback.print_exc()
 
     async def _on_control(self, platform: str, sn: str, payload: Dict[str, Any]):
         """处理 web/app -> 后台的控制消息"""
