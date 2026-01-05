@@ -11,6 +11,8 @@ class Device(Base):
     model_id = Column(BigInteger, ForeignKey("device_model.id"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     sn = Column(String(100), unique=True, index=True, nullable=False)
+    ble_name = Column(String(100), nullable=False, comment="蓝牙名称")
+    ble_mac = Column(String(50), nullable=True, comment="蓝牙MAC地址")
     status = Column(Enum('unbound', 'bound', 'offline', 'online', 'fatal', name='device_status'), default='unbound')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -20,4 +22,4 @@ class Device(Base):
     network = relationship("DeviceNetwork", primaryjoin="Device.sn == DeviceNetwork.sn", back_populates="device", uselist=False, passive_deletes=True)
 
     def __repr__(self):
-        return f"<Device(id={self.id}, name='{self.name}', sn='{self.sn}', status='{self.status}')>"
+        return f"<Device(id={self.id}, name='{self.name}', sn='{self.sn}', ble_name='{self.ble_name}', status='{self.status}')>"

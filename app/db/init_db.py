@@ -685,6 +685,8 @@ async def create_devices(session: AsyncSession, accounts, device_models):
             model_id=m701001_model.id,
             name="室内空气质量监测器",
             sn="M701001-220403-000001",
+            ble_name="室内空气质量监测器_BLE",
+            ble_mac=None,
             status='unbound'
         )
         session.add(specific_device)
@@ -715,6 +717,8 @@ async def create_devices(session: AsyncSession, accounts, device_models):
             model_id=device_model.id,
             name=f"未绑定设备{i+1}",
             sn=sn,
+            ble_name=f"未绑定设备{i+1}_BLE",
+            ble_mac=None,
             status=random.choice(['unbound', 'offline', 'fatal'])
         )
         session.add(device)
@@ -765,6 +769,8 @@ async def create_devices(session: AsyncSession, accounts, device_models):
                 model_id=device_model.id,
                 name=f"设备{i+1}",
                 sn=sn,
+                ble_name=f"设备{i+1}_BLE",
+                ble_mac=None,
                 status=status
             )
             session.add(device)
@@ -796,6 +802,8 @@ async def create_devices(session: AsyncSession, accounts, device_models):
             model_id=device_model.id,
             name=f"额外设备{device_count+1}",
             sn=sn,
+            ble_name=f"额外设备{device_count+1}_BLE",
+            ble_mac=None,
             status=random.choice(['unbound', 'bound', 'offline', 'online', 'fatal'])
         )
         session.add(device)

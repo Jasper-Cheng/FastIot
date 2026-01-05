@@ -12,6 +12,8 @@ async def create_device(db: AsyncSession, device: DeviceCreate) -> Device:
     db_device = Device(
         name=device.name,
         sn=device.sn,
+        ble_name=device.ble_name,
+        ble_mac=device.ble_mac,
         model_id=device.model_id,
         account_id=device.account_id,
         status=status_value
@@ -39,7 +41,7 @@ async def update_device(db: AsyncSession, device_id: int, device: DeviceUpdate) 
     
     update_data = device.dict(exclude_unset=True)
     # 允许更新的字段白名单（移除 family_id，因为现在使用 family_device 关联表）
-    allowed_fields = {"name", "sn", "status", "account_id", "model_id"}
+    allowed_fields = {"name", "sn", "ble_name", "ble_mac", "status", "account_id", "model_id"}
     for field, value in update_data.items():
         if field not in allowed_fields:
             continue
@@ -103,6 +105,7 @@ async def get_devices_with_pagination(
     limit: int = 10,
     sn: Optional[str] = None,
     name: Optional[str] = None,
+    ble_name: Optional[str] = None,
     model_id: Optional[int] = None,
     status: Optional[str] = None,
     account_id: Optional[int] = None
@@ -117,6 +120,8 @@ async def get_devices_with_pagination(
         conditions.append(Device.sn.like(f"%{sn}%"))
     if name:
         conditions.append(Device.name.like(f"%{name}%"))
+    if ble_name:
+        conditions.append(Device.ble_name.like(f"%{ble_name}%"))
     if model_id:
         conditions.append(Device.model_id == model_id)
     if status:

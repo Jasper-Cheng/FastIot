@@ -13,11 +13,15 @@ class DeviceStatus(str, Enum):
 class DeviceBase(BaseModel):
     name: str
     sn: str
+    ble_name: str
+    ble_mac: Optional[str] = None
     status: DeviceStatus = DeviceStatus.unbound
 
 class DeviceCreate(BaseModel):
     name: str
     sn: str
+    ble_name: str
+    ble_mac: Optional[str] = None
     model_id: int
     account_id: Optional[int] = None
     status: DeviceStatus = DeviceStatus.unbound
@@ -25,6 +29,8 @@ class DeviceCreate(BaseModel):
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
     sn: Optional[str] = None
+    ble_name: Optional[str] = None
+    ble_mac: Optional[str] = None
     status: Optional[DeviceStatus] = None
     account_id: Optional[int] = None
     model_id: Optional[int] = None

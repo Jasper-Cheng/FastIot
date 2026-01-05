@@ -36,6 +36,8 @@ async def create_device_info(
         raise HTTPException(status_code=400, detail="设备名称不能为空")
     if not device_data.get("sn"):
         raise HTTPException(status_code=400, detail="设备序列号不能为空")
+    if not device_data.get("ble_name"):
+        raise HTTPException(status_code=400, detail="蓝牙名称不能为空")
     if not device_data.get("modelId"):
         raise HTTPException(status_code=400, detail="设备型号ID不能为空")
     
@@ -56,6 +58,8 @@ async def create_device_info(
     device_create = DeviceCreate(
         name=device_data["name"],
         sn=device_data["sn"],
+        ble_name=device_data["ble_name"],
+        ble_mac=device_data.get("ble_mac"),  # 可选字段
         model_id=device_data["modelId"],
         account_id=None,  # 入库时默认为 null（未绑定）
         status=DeviceStatus.unbound  # 入库时默认为 unbound
@@ -119,6 +123,7 @@ async def get_device_list(
     pageSize: int = Query(10, ge=1, le=100, description="每页数量"),
     sn: Optional[str] = Query(None, description="设备序列号搜索（模糊匹配）"),
     name: Optional[str] = Query(None, description="设备名称搜索（模糊匹配）"),
+    bleName: Optional[str] = Query(None, description="蓝牙名称搜索（模糊匹配）"),
     modelId: Optional[int] = Query(None, description="设备型号ID筛选"),
     status: Optional[str] = Query(None, description="设备状态筛选"),
     accountId: Optional[int] = Query(None, description="账号ID筛选"),
@@ -134,6 +139,7 @@ async def get_device_list(
         limit=pageSize,
         sn=sn,
         name=name,
+        ble_name=bleName,
         model_id=modelId,
         status=status,
         account_id=accountId
@@ -175,6 +181,8 @@ async def get_device_list(
             "thingModelId": thing_model_id,
             "name": device.name,
             "sn": device.sn,
+            "ble_name": device.ble_name,
+            "ble_mac": device.ble_mac,
             "status": device.status,
             "familyIds": family_ids,
             "familyNames": family_names,
@@ -246,6 +254,8 @@ async def get_device_detail(
         "id": device.id,
         "sn": device.sn,
         "name": device.name,
+        "ble_name": device.ble_name,
+        "ble_mac": device.ble_mac,
         "modelId": device.model_id,
         "modelName": model.name if model else None,
         "thingModelId": model.thing_model_id if model else None,
@@ -279,6 +289,10 @@ async def update_device_info(
     update_data = DeviceUpdate()
     if "name" in device_data:
         update_data.name = device_data["name"]
+    if "ble_name" in device_data:
+        update_data.ble_name = device_data["ble_name"]
+    if "ble_mac" in device_data:
+        update_data.ble_mac = device_data["ble_mac"]
     if "modelId" in device_data:
         update_data.model_id = device_data["modelId"]
     if "accountId" in device_data:
@@ -300,6 +314,8 @@ async def update_device_info(
     
     # 保存更新前的设备信息用于日志
     old_name = device.name
+    old_ble_name = device.ble_name
+    old_ble_mac = device.ble_mac
     old_account_id = device.account_id
     old_status = device.status
     
@@ -329,6 +345,12 @@ async def update_device_info(
         changes = []
         if "name" in device_data and old_name != updated_device.name:
             changes.append(f"名称: {old_name} -> {updated_device.name}")
+        if "ble_name" in device_data and old_ble_name != updated_device.ble_name:
+            changes.append(f"蓝牙名称: {old_ble_name} -> {updated_device.ble_name}")
+        if "ble_mac" in device_data and old_ble_mac != updated_device.ble_mac:
+            old_mac_str = old_ble_mac or "空"
+            new_mac_str = updated_device.ble_mac or "空"
+            changes.append(f"蓝牙MAC: {old_mac_str} -> {new_mac_str}")
         if "accountId" in device_data:
             if old_account_id != updated_device.account_id:
                 if updated_device.account_id is None:
@@ -353,6 +375,10 @@ async def update_device_info(
                     "device_sn": updated_device.sn,
                     "old_name": old_name,
                     "new_name": updated_device.name,
+                    "old_ble_name": old_ble_name,
+                    "new_ble_name": updated_device.ble_name,
+                    "old_ble_mac": old_ble_mac,
+                    "new_ble_mac": updated_device.ble_mac,
                     "old_account_id": old_account_id,
                     "new_account_id": updated_device.account_id,
                     "old_status": old_status,
@@ -369,6 +395,8 @@ async def update_device_info(
     return {
         "id": updated_device.id,
         "name": updated_device.name,
+        "ble_name": updated_device.ble_name,
+        "ble_mac": updated_device.ble_mac,
         "modelId": updated_device.model_id,
         "accountId": updated_device.account_id,
         "accountName": account_name,

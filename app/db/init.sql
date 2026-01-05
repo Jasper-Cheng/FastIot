@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS `device` (
     `model_id` BIGINT NOT NULL COMMENT '设备型号ID',
     `name` VARCHAR(100) NOT NULL COMMENT '设备名称',
     `sn` VARCHAR(100) UNIQUE NOT NULL COMMENT '设备序列号',
+    `ble_name` VARCHAR(100) NOT NULL COMMENT '蓝牙名称',
+    `ble_mac` VARCHAR(50) NULL COMMENT '蓝牙MAC地址',
     `status` ENUM('unbound','bound','offline','online','fatal') DEFAULT 'unbound' COMMENT '设备状态',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
