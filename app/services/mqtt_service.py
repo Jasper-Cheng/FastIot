@@ -27,15 +27,21 @@ class MQTTService:
         self.password = settings.MQTT_PASSWORD
 
         # 分层化 topic
-        self.device_sn_control = "device/{sn}/control"  # 后台 -> 设备
-        self.device_sn_data = "device/{sn}/data"        # 设备 -> 后台
-        self.device_sn_status = "device/{sn}/status"    # 设备 -> 后台（包含 LWT 离线消息）
-        self.device_sn_config = "device/{sn}/config"    # 设备 -> 后台（配置信息）
-        self.system_notice = "system/notice"           # 系统通知
-        self.home_notice = "home/{home_id}/notice"     # 家庭通知
-        self.client_sn_data = "client/{sn}/data"       # 后台 -> 客户端（web/app）
-        self.client_sn_status = "client/{sn}/status"   # 后台 -> 客户端（web/app）
-        self.client_sn_control = "client/{sn}/control" # 客户端（web/app）-> 后台
+        # 设备跟后台相关的topic
+        self.device_sn_control = "device/{sn}/control"  # 后台 -> 设备（设备控制）
+        self.device_sn_data = "device/{sn}/data"        # 设备 -> 后台（设备数据）
+        self.device_sn_status = "device/{sn}/status"    # 设备 -> 后台（设备状态，包含 LWT 离线消息）
+        self.device_sn_config = "device/{sn}/config"    # 设备 -> 后台（设备配置信息）
+        # 设备跟客户端相关的topic
+        # 消息相关
+        self.device_sn_notice = "device/{sn}/notice"    # 后台 -> 客户端（设备消息）
+        self.system_notice = "system/notice"           # 后台 -> 客户端（系统消息）
+        self.home_notice = "home/{home_id}/notice"     # 后台 -> 客户端（家庭消息）
+        self.client_account_notice = "client/{account_id}/notice"  # 后台 -> 客户端（个人通知）
+        # 数据控制相关
+        self.client_sn_data = "client/{sn}/data"       # 后台 -> 客户端（设备数据）
+        self.client_sn_status = "client/{sn}/status"   # 后台 -> 客户端（设备状态）
+        self.client_sn_control = "client/{sn}/control" # 客户端（web/app）-> 后台（设备控制）
 
         self.client: Optional[MQTTClient] = None
         self.running = False
@@ -398,6 +404,32 @@ class MQTTService:
         
         self.client.publish(topic, message_json, qos=1)
         print(f"✅ [MQTT] 已发送系统通知: {payload}")
+
+    async def publish_client_notice(self, account_id: int, payload: dict):
+        """后台 -> 客户端，发布个人消息"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.client_account_notice.format(account_id=account_id)
+        message = {**payload, "account_id": account_id}
+        message_json = json.dumps(message, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送个人消息给账号 {account_id}: {message}")
+
+    async def publish_device_notice(self, sn: str, payload: dict):
+        """后台 -> 客户端，发布设备消息"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.device_sn_notice.format(sn=sn)
+        message = {**payload, "sn": sn}
+        message_json = json.dumps(message, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送设备消息 ({sn}): {message}")
 
     async def publish_client_data(self, sn: str, payload: dict):
         """后台 -> 客户端（web/app），发布设备数据"""
