@@ -13,8 +13,3 @@ class PointsResponse(BaseModel):
     description: Optional[str] = None
     extra: Optional[Dict[str, Any]] = None
     created_at: datetime
-
-
-class PointsBalanceResponse(BaseModel):
-    """积分余额响应"""
-    available_balance: int

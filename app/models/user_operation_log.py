@@ -66,6 +66,3 @@ class UserOperationLog(UserOperationLogBase):
 
     class Config:
         from_attributes = True
-
-class UserOperationLogInDB(UserOperationLog):
-    pass

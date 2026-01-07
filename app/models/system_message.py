@@ -62,12 +62,3 @@ class SystemMessageInDB(SystemMessageBase):
 class SystemMessage(SystemMessageInDB):
     """系统消息响应模型"""
     pass
-
-
-class SystemMessageList(BaseModel):
-    """系统消息列表响应模型"""
-    items: list[SystemMessage] = Field(..., description="消息列表")
-    total: int = Field(..., description="总数量")
-    page: int = Field(..., description="当前页码")
-    size: int = Field(..., description="每页数量")
-    pages: int = Field(..., description="总页数")

@@ -36,6 +36,3 @@ class DeviceMessageInDB(DeviceMessageBase):
 
     class Config:
         from_attributes = True
-
-class DeviceMessage(DeviceMessageInDB):
-    pass

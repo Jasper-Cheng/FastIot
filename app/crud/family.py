@@ -115,18 +115,6 @@ async def delete_family(db: AsyncSession, family_id: int) -> bool:
     await db.commit()
     return True
 
-async def regenerate_invite_code(db: AsyncSession, family_id: int) -> Optional[str]:
-    """重新生成家庭邀请码"""
-    db_family = await get_family(db, family_id)
-    if not db_family:
-        return None
-    
-    invite_code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
-    db_family.invite_code = invite_code
-    await db.commit()
-    await db.refresh(db_family)
-    return invite_code
-
 async def get_families_with_pagination(
     db: AsyncSession,
     skip: int = 0,

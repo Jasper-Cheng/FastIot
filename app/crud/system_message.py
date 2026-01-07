@@ -101,37 +101,6 @@ async def get_system_messages_count(
     return result.scalar()
 
 
-async def get_system_messages_by_platform(
-    db: AsyncSession,
-    *,
-    platform: str,
-    skip: int = 0,
-    limit: int = 100
-) -> List[SystemMessageModel]:
-    """根据平台获取消息"""
-    return await get_system_messages(
-        db=db,
-        skip=skip,
-        limit=limit,
-        platform=platform
-    )
-
-
-async def get_latest_system_messages(
-    db: AsyncSession,
-    *,
-    platform: Optional[str] = None,
-    limit: int = 10
-) -> List[SystemMessageModel]:
-    """获取最新消息"""
-    return await get_system_messages(
-        db=db,
-        skip=0,
-        limit=limit,
-        platform=platform
-    )
-
-
 async def update_system_message(
     db: AsyncSession, 
     message_id: int, 

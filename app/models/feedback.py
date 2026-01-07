@@ -13,13 +13,6 @@ class FeedbackTypeEnum(str, Enum):
     other = "other"
 
 
-class PriorityEnum(str, Enum):
-    low = "low"
-    normal = "normal"
-    high = "high"
-    urgent = "urgent"
-
-
 class StatusEnum(str, Enum):
     pending = "pending"
     processing = "processing"
