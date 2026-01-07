@@ -56,7 +56,6 @@ async def get_rsa_public_key():
 async def _generate_login_token_and_notify(
     acc: Account,
     db: AsyncSession,
-    login_type: str = "normal",
     extra_log_data: dict = None
 ) -> TokenResponse:
     """生成登录token并发送通知的共用函数
@@ -140,7 +139,7 @@ async def login(db: AsyncSession = Depends(get_db), payload: LoginRequest = Body
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号或密码错误")
 
     # 使用共用函数生成token并发送通知（app平台）
-    return await _generate_login_token_and_notify(acc, db, login_type="normal")
+    return await _generate_login_token_and_notify(acc, db)
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -217,7 +216,7 @@ async def register(db: AsyncSession = Depends(get_db), req: RegisterRequest = Bo
         print(f"记录注册操作失败: {e}")
 
     # 注册成功后自动登录
-    return await _generate_login_token_and_notify(acc, db, login_type="normal")
+    return await _generate_login_token_and_notify(acc, db)
 
 
 @router.post("/logout")
