@@ -6,7 +6,8 @@ from app.crud.family import (
     get_family,
     get_families_by_account,
     create_family,
-    delete_family
+    delete_family,
+    count_created_families_by_account
 )
 from app.models.family import FamilyCreate, FamilyInDB
 from app.models.device import DeviceInDB
@@ -40,6 +41,11 @@ async def create_family_endpoint(
     限制：每个账号最多只能创建6个家庭
     """
     account_id, platform, _ = extract_token_info(token_info)
+    
+    # 检查创建家庭数量限制
+    created_count = await count_created_families_by_account(db, account_id)
+    if created_count >= 6:
+        raise HTTPException(status_code=400, detail="每个账号最多只能创建6个家庭")
     
     try:
         db_family = await create_family(db, family, account_id)
