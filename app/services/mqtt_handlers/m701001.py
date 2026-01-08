@@ -2,8 +2,25 @@
 M701001 室内空气质量监测器处理器
 处理设备数据和状态消息
 """
-from typing import Dict, Any
+import time
+from typing import Dict, Any, List
 from app.services.mqtt_service import mqtt_service
+
+# 告警时间记录（内存存储，格式：{sn: {alert_type: last_alert_timestamp}}）
+_alert_timestamps: Dict[str, Dict[str, float]] = {}
+
+# 告警阈值配置（宽松阈值）
+# 参考：GB/T 18883-2002 室内空气质量标准
+ALERT_THRESHOLDS = {
+    "co2": 1500,     # CO2: 1500 ppm（宽松阈值）
+    "hcho": 100,     # 甲醛: 100 μg/m³（宽松阈值）
+    "tvoc": 600,     # TVOC: 600 μg/m³（宽松阈值）
+    "pm25": 75,      # PM2.5: 75 μg/m³（宽松阈值）
+    "pm10": 150,     # PM10: 150 μg/m³（宽松阈值）
+}
+
+# 告警间隔时间（秒）
+ALERT_INTERVAL_SECONDS = 60  # 1分钟
 
 
 async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
@@ -52,34 +69,59 @@ async def handle_m701001_data(sn: str, payload: Dict[str, Any]):
         import traceback
         traceback.print_exc()
     
-    # 阈值告警检查
-    alerts = []
-    alert_details = []
+    # 阈值告警检查（更严格的阈值 + 1分钟间隔控制）
+    current_time = time.time()
+    alerts: List[str] = []
+    alert_details: List[Dict[str, Any]] = []
     
-    if co2 and co2 > 1000:
-        alert_msg = f"CO2 超标: {co2} ppm (阈值: 1000 ppm)"
-        alerts.append(alert_msg)
-        alert_details.append({"type": "co2", "value": co2, "threshold": 1000, "unit": "ppm"})
+    # 初始化设备的告警时间记录
+    if sn not in _alert_timestamps:
+        _alert_timestamps[sn] = {}
     
-    if hcho and hcho > 100:
-        alert_msg = f"甲醛超标: {hcho} μg/m³ (阈值: 100 μg/m³)"
-        alerts.append(alert_msg)
-        alert_details.append({"type": "hcho", "value": hcho, "threshold": 100, "unit": "μg/m³"})
+    # CO2 检查
+    if co2 is not None and co2 > ALERT_THRESHOLDS["co2"]:
+        last_alert_time = _alert_timestamps[sn].get("co2", 0)
+        if (current_time - last_alert_time) >= ALERT_INTERVAL_SECONDS:
+            alert_msg = f"CO2 超标: {co2} ppm (阈值: {ALERT_THRESHOLDS['co2']} ppm)"
+            alerts.append(alert_msg)
+            alert_details.append({"type": "co2", "value": co2, "threshold": ALERT_THRESHOLDS["co2"], "unit": "ppm"})
+            _alert_timestamps[sn]["co2"] = current_time
     
-    if tvoc and tvoc > 600:
-        alert_msg = f"TVOC 超标: {tvoc} μg/m³ (阈值: 600 μg/m³)"
-        alerts.append(alert_msg)
-        alert_details.append({"type": "tvoc", "value": tvoc, "threshold": 600, "unit": "μg/m³"})
+    # 甲醛检查
+    if hcho is not None and hcho > ALERT_THRESHOLDS["hcho"]:
+        last_alert_time = _alert_timestamps[sn].get("hcho", 0)
+        if (current_time - last_alert_time) >= ALERT_INTERVAL_SECONDS:
+            alert_msg = f"甲醛超标: {hcho} μg/m³ (阈值: {ALERT_THRESHOLDS['hcho']} μg/m³)"
+            alerts.append(alert_msg)
+            alert_details.append({"type": "hcho", "value": hcho, "threshold": ALERT_THRESHOLDS["hcho"], "unit": "μg/m³"})
+            _alert_timestamps[sn]["hcho"] = current_time
     
-    if pm25 and pm25 > 75:
-        alert_msg = f"PM2.5 超标: {pm25} μg/m³ (阈值: 75 μg/m³)"
-        alerts.append(alert_msg)
-        alert_details.append({"type": "pm25", "value": pm25, "threshold": 75, "unit": "μg/m³"})
+    # TVOC 检查
+    if tvoc is not None and tvoc > ALERT_THRESHOLDS["tvoc"]:
+        last_alert_time = _alert_timestamps[sn].get("tvoc", 0)
+        if (current_time - last_alert_time) >= ALERT_INTERVAL_SECONDS:
+            alert_msg = f"TVOC 超标: {tvoc} μg/m³ (阈值: {ALERT_THRESHOLDS['tvoc']} μg/m³)"
+            alerts.append(alert_msg)
+            alert_details.append({"type": "tvoc", "value": tvoc, "threshold": ALERT_THRESHOLDS["tvoc"], "unit": "μg/m³"})
+            _alert_timestamps[sn]["tvoc"] = current_time
     
-    if pm10 and pm10 > 150:
-        alert_msg = f"PM10 超标: {pm10} μg/m³ (阈值: 150 μg/m³)"
-        alerts.append(alert_msg)
-        alert_details.append({"type": "pm10", "value": pm10, "threshold": 150, "unit": "μg/m³"})
+    # PM2.5 检查
+    if pm25 is not None and pm25 > ALERT_THRESHOLDS["pm25"]:
+        last_alert_time = _alert_timestamps[sn].get("pm25", 0)
+        if (current_time - last_alert_time) >= ALERT_INTERVAL_SECONDS:
+            alert_msg = f"PM2.5 超标: {pm25} μg/m³ (阈值: {ALERT_THRESHOLDS['pm25']} μg/m³)"
+            alerts.append(alert_msg)
+            alert_details.append({"type": "pm25", "value": pm25, "threshold": ALERT_THRESHOLDS["pm25"], "unit": "μg/m³"})
+            _alert_timestamps[sn]["pm25"] = current_time
+    
+    # PM10 检查
+    if pm10 is not None and pm10 > ALERT_THRESHOLDS["pm10"]:
+        last_alert_time = _alert_timestamps[sn].get("pm10", 0)
+        if (current_time - last_alert_time) >= ALERT_INTERVAL_SECONDS:
+            alert_msg = f"PM10 超标: {pm10} μg/m³ (阈值: {ALERT_THRESHOLDS['pm10']} μg/m³)"
+            alerts.append(alert_msg)
+            alert_details.append({"type": "pm10", "value": pm10, "threshold": ALERT_THRESHOLDS["pm10"], "unit": "μg/m³"})
+            _alert_timestamps[sn]["pm10"] = current_time
     
     if alerts:
         print(f"⚠️ [M701001] 设备 {sn} 告警:")
