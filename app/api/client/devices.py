@@ -15,7 +15,8 @@ from app.db.session import get_db
 from app.api.utils import (
     extract_token_info,
     log_operation_with_token,
-    check_family_member
+    check_family_member,
+    send_device_notice
 )
 
 router = APIRouter()
@@ -117,6 +118,21 @@ async def update_device_name(
         updated = await get_device(db, device_id)
         if not updated:
             raise HTTPException(status_code=500, detail="更新设备后无法获取设备信息")
+    
+    # 使用 utils 发送设备消息通知
+    await send_device_notice(
+        device_sn=updated.sn,
+        payload={
+            "type": "device_name_updated",
+            "message": f"设备名称已更新：{old_name} -> {payload.name}",
+            "device_id": updated.id,
+            "device_name": payload.name,
+            "old_name": old_name,
+            "device_sn": updated.sn,
+            "account_id": account_id,
+            "family_id": family_id,
+        }
+    )
     
     return DeviceInDB.model_validate(updated)
 
@@ -234,6 +250,17 @@ async def unbind_device_by_sn(
             "device_sn": sn,
             "unbound_account_id": account_id,
             "device_status": updated.status if updated else "unbound"
+        }
+    )
+
+    await send_device_notice(
+        device_sn=sn,
+        payload={
+            "type": "device_unbind",
+            "message": f"设备已解绑：{device_name}（SN: {sn}）",
+            "device_id": device.id,
+            "device_name": device_name,
+            "device_sn": sn,
         }
     )
     

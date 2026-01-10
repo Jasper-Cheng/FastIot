@@ -14,7 +14,6 @@ from app.crud.account import (
     get_account_by_email,
     get_account_by_unionid,
     create_account,
-    delete_account,
     update_account,
 )
 from app.crud.family import get_family
@@ -37,7 +36,6 @@ from app.core.rsa_crypto import rsa_crypto
 from app.services.wechat_service import wechat_service, QRCodeStatus
 from app.api.utils import (
     log_operation,
-    log_operation_with_token,
     extract_token_info,
     send_families_notice_by_account
 )
