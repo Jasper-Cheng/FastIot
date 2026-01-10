@@ -203,3 +203,126 @@ async def log_operation_with_token(
     )
 
 
+# ============================================================
+# MQTT 消息发送
+# ============================================================
+
+async def send_family_notice(
+    family_id: int,
+    payload: Dict[str, Any],
+    raise_on_error: bool = False
+) -> None:
+    """发送家庭通知消息
+    
+    Args:
+        family_id: 家庭ID
+        payload: 消息内容字典
+        raise_on_error: 是否在发送失败时抛出异常，默认为 False
+    
+    Example:
+        await send_family_notice(
+            family_id=1,
+            payload={
+                "type": "member_added",
+                "message": "有新成员加入家庭",
+                "member_id": 123
+            }
+        )
+    """
+    try:
+        from app.services.mqtt_service import mqtt_service
+        await mqtt_service.publish_home_notice(str(family_id), payload)
+    except Exception as e:
+        print(f"发送家庭通知失败 (family_id={family_id}): {e}")
+        if raise_on_error:
+            raise
+
+
+async def send_device_notice(
+    device_sn: str,
+    payload: Dict[str, Any],
+    raise_on_error: bool = False
+) -> None:
+    """发送设备通知消息
+    
+    Args:
+        device_sn: 设备序列号
+        payload: 消息内容字典
+        raise_on_error: 是否在发送失败时抛出异常，默认为 False
+    
+    Example:
+        await send_device_notice(
+            device_sn="M701001",
+            payload={
+                "type": "status_change",
+                "message": "设备状态已更新",
+                "status": "online"
+            }
+        )
+    """
+    try:
+        from app.services.mqtt_service import mqtt_service
+        await mqtt_service.publish_device_notice(device_sn, payload)
+    except Exception as e:
+        print(f"发送设备通知失败 (device_sn={device_sn}): {e}")
+        if raise_on_error:
+            raise
+
+
+async def send_system_notice(
+    payload: Dict[str, Any],
+    raise_on_error: bool = False
+) -> None:
+    """发送系统通知消息
+    
+    Args:
+        payload: 消息内容字典
+        raise_on_error: 是否在发送失败时抛出异常，默认为 False
+    
+    Example:
+        await send_system_notice({
+            "type": "maintenance",
+            "message": "系统将在今晚进行维护",
+            "start_time": "2024-01-01 00:00:00"
+        })
+    """
+    try:
+        from app.services.mqtt_service import mqtt_service
+        await mqtt_service.publish_system_notice(payload)
+    except Exception as e:
+        print(f"发送系统通知失败: {e}")
+        if raise_on_error:
+            raise
+
+
+async def send_personal_notice(
+    account_id: int,
+    payload: Dict[str, Any],
+    raise_on_error: bool = False
+) -> None:
+    """发送个人通知消息
+    
+    Args:
+        account_id: 账户ID
+        payload: 消息内容字典
+        raise_on_error: 是否在发送失败时抛出异常，默认为 False
+    
+    Example:
+        await send_personal_notice(
+            account_id=123,
+            payload={
+                "type": "points_awarded",
+                "message": "您获得了积分奖励",
+                "points": 100
+            }
+        )
+    """
+    try:
+        from app.services.mqtt_service import mqtt_service
+        await mqtt_service.publish_client_notice(account_id, payload)
+    except Exception as e:
+        print(f"发送个人通知失败 (account_id={account_id}): {e}")
+        if raise_on_error:
+            raise
+
+
