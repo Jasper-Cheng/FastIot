@@ -326,3 +326,71 @@ async def send_personal_notice(
             raise
 
 
+async def send_families_notice_by_account(
+    db: AsyncSession,
+    account_id: int,
+    payload: Dict[str, Any],
+    raise_on_error: bool = False
+) -> Dict[str, int]:
+    """向指定账户下的所有家庭发送家庭通知消息
+    
+    Args:
+        db: 数据库会话
+        account_id: 账户ID
+        payload: 消息内容字典
+        raise_on_error: 是否在发送失败时抛出异常，默认为 False
+    
+    Returns:
+        dict: 包含发送统计信息的字典，格式为 {"total": 总家庭数, "success": 成功数, "failed": 失败数}
+    
+    Example:
+        result = await send_families_notice_by_account(
+            db=db,
+            account_id=123,
+            payload={
+                "type": "system_update",
+                "message": "系统即将更新",
+                "update_time": "2024-01-01 00:00:00"
+            }
+        )
+        # result: {"total": 3, "success": 3, "failed": 0}
+    """
+    from app.crud.family import get_families_by_account
+    
+    result = {"total": 0, "success": 0, "failed": 0}
+    
+    try:
+        # 获取该账户下的所有家庭
+        families = await get_families_by_account(db, account_id)
+        result["total"] = len(families)
+        
+        if not families:
+            print(f"账户 {account_id} 下没有家庭，无需发送消息")
+            return result
+        
+        # 遍历所有家庭，发送消息
+        for family in families:
+            try:
+                await send_family_notice(
+                    family_id=family.id,
+                    payload=payload,
+                    raise_on_error=False  # 单个失败不影响其他家庭
+                )
+                result["success"] += 1
+            except Exception as e:
+                result["failed"] += 1
+                print(f"发送家庭通知失败 (account_id={account_id}, family_id={family.id}): {e}")
+        
+        print(f"✅ 已向账户 {account_id} 的 {result['total']} 个家庭发送消息: 成功 {result['success']} 个, 失败 {result['failed']} 个")
+        
+        # 如果所有家庭都发送失败且 raise_on_error=True，则抛出异常
+        if result["failed"] > 0 and raise_on_error:
+            raise Exception(f"向账户 {account_id} 的家庭发送消息时发生错误: {result['failed']} 个家庭发送失败")
+            
+    except Exception as e:
+        print(f"获取账户 {account_id} 的家庭列表失败: {e}")
+        if raise_on_error:
+            raise
+    
+    return result
+
