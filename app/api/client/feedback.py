@@ -9,7 +9,8 @@ from app.api.dependencies import get_current_token
 from app.db.session import get_db
 from app.api.utils import (
     extract_token_info,
-    log_operation_with_token
+    log_operation_with_token,
+    send_personal_notice
 )
 
 router = APIRouter()
@@ -77,7 +78,19 @@ async def create_feedback(
             "source": source.value
         }
     )
-    
+
+    # 发送个人通知
+    await send_personal_notice(
+        account_id=account_id,
+        payload={
+            "type": "feedback_created",
+            "message": f"创建意见反馈：{feedback_type}",
+            "feedback_id": created_feedback.id,
+            "feedback_type": feedback_type,
+            "feedback_name": feedback_in.name if hasattr(feedback_in, 'name') else None,
+            "source": source.value
+        }
+    )
     return created_feedback
 
 
