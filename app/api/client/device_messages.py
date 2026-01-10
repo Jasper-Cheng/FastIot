@@ -8,6 +8,7 @@ from app.crud.device_message import (
     mark_all_account_device_messages_read,
     get_device_message,
 )
+from app.crud.device import get_device, get_devices_by_account
 from app.models.device_message import (
     DeviceMessageInDB,
     DeviceMessageStatus,
@@ -17,7 +18,8 @@ from app.api.dependencies import get_current_token
 from app.db.session import get_db
 from app.api.utils import (
     extract_token_info,
-    check_family_member
+    check_family_member,
+    send_device_notice
 )
 
 router = APIRouter()
@@ -109,11 +111,21 @@ async def make_device_message_read(
     if not updated:
         raise HTTPException(status_code=404, detail="设备消息不存在")
     
-    # TODO: 消息通知功能待重构
-    # 获取消息关联的设备（用于后续通知）
-    # device = await get_device(db, message.device_id)
-    # device_name = device.name if device else None
-    # device_id = device.id if device else message.device_id
+    # 获取消息关联的设备（用于发送通知）
+    device = await get_device(db, updated.device_id)
+    if device:
+        # 使用 utils 发送设备消息通知
+        await send_device_notice(
+            device_sn=device.sn,
+            payload={
+                "type": "message_read",
+                "message": "设备消息已标记为已读",
+                "message_id": message_id,
+                "device_id": updated.device_id,
+                "device_name": device.name,
+                "level": updated.level.value if updated.level else None,
+            }
+        )
     
     return updated
 
@@ -139,7 +151,22 @@ async def mark_all_device_messages_read(
     # 更新设备消息状态为已读
     count = await mark_all_account_device_messages_read(db, account_id, family_id=family_id)
     
-    # TODO: 消息通知功能待重构
+    # 获取相关设备列表，向所有设备发送消息通知
+    devices = await get_devices_by_account(db, account_id, skip=0, limit=1000, family_id=family_id)
+    for device in devices:
+        # 使用 utils 发送设备消息通知
+        await send_device_notice(
+            device_sn=device.sn,
+            payload={
+                "type": "all_messages_read",
+                "message": "所有设备消息标记为已读",
+                "account_id": account_id,
+                "device_id": device.id,
+                "device_name": device.name,
+                "family_id": family_id,
+                "count": count,
+            }
+        )
     
     if family_id:
         return {"message": f"家庭 {family_id} 的 {count} 条设备消息已标记为已读"}
