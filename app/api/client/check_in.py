@@ -18,7 +18,7 @@ from app.models.check_in import (
     CheckInCalendarResponse,
     CheckInStatsResponse
 )
-from app.api.utils import extract_token_info
+from app.api.utils import extract_token_info, send_personal_notice
 
 router = APIRouter()
 
@@ -74,6 +74,21 @@ async def check_in(
     }
     
     check_in_record = await create_check_in(db, check_in_data)
+    
+    # 使用 utils 发送个人通知
+    await send_personal_notice(
+        account_id=account_id,
+        payload={
+            "type": "check_in_success",
+            "message": f"签到成功！获得 {points_earned} 积分，连续签到 {continuous_days} 天",
+            "check_in_id": check_in_record.id,
+            "points_earned": points_earned,
+            "continuous_days": continuous_days,
+            "check_in_type": check_in_type,
+            "check_in_date": today.isoformat(),
+        }
+    )
+    
     return check_in_record
 
 
