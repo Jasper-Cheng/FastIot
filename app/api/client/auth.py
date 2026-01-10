@@ -35,7 +35,12 @@ from app.api.dependencies import get_current_account, get_current_token
 from app.db.session import get_db
 from app.core.rsa_crypto import rsa_crypto
 from app.services.wechat_service import wechat_service, QRCodeStatus
-from app.api.utils import log_operation, log_operation_with_token, extract_token_info
+from app.api.utils import (
+    log_operation,
+    log_operation_with_token,
+    extract_token_info,
+    send_families_notice_by_account
+)
 
 router = APIRouter()
 
@@ -457,7 +462,19 @@ async def update_profile(
                 }
         )
     
-    # TODO: 消息通知功能待重构
+    # 向该用户下的所有家庭发送用户信息更新通知
+    if update_data:
+        await send_families_notice_by_account(
+            db=db,
+            account_id=current_account.id,
+            payload={
+                "type": "member_info_updated",
+                "message": f"{updated_account.nickname or updated_account.phone} 更新了个人信息",
+                "account_id": current_account.id,
+                "updated_fields": list(update_data.keys()),
+                "platform": platform
+            }
+        )
     
     return Account.model_validate(updated_account)
 
@@ -986,8 +1003,19 @@ async def delete_account_endpoint(
             )
         except Exception as e:
             print(f"记录删除家庭操作日志失败: {e}")
-        
-        # TODO: 消息通知功能待重构
+    
+    # 向该用户下的所有家庭发送账号注销通知（在删除账号之前，此时还能查询到所有家庭）
+    await send_families_notice_by_account(
+        db=db,
+        account_id=account_id,
+        payload={
+            "type": "account_deleted",
+            "message": f"{current_account.nickname or current_account.phone} 已注销账号",
+            "account_id": account_id,
+            "reason": "account_deletion",
+            "platform": platform
+        }
+    )
     
     # 记录操作日志（在删除前记录，因为删除后日志也会被级联删除）
     await log_operation(
