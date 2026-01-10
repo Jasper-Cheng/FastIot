@@ -16,7 +16,7 @@ from app.crud.system_message import (
 )
 from app.models.system_message import SystemMessageCreate, SystemMessageUpdate
 from app.models.user_operation_log import OperationTypeEnum
-from app.services.mqtt_service import mqtt_service
+from app.api.utils import send_system_notice
 
 router = APIRouter()
 
@@ -118,28 +118,18 @@ async def create_notice(
     message_created_at = message.created_at
     message_updated_at = message.updated_at
     
-    # 发送 MQTT 系统通知
-    try:
-        await mqtt_service.publish_system_notice(
-            payload={
-                "method": "system.message",
-                "params": {
-                    "type": message_type,
-                    "data": {
-                        "id": message_id,
-                        "title": message_title,
-                        "content": message_content,
-                        "type": message_type,
-                        "priority": message_priority,
-                        "platforms": message_platforms,
-                        "extra": message_extra
-                    }
-                }
-            }
-        )
-    except Exception as e:
-        # MQTT 发送失败不影响创建流程
-        print(f"发送系统消息 MQTT 通知失败: {e}")
+    await send_system_notice(
+        payload={
+            "type": message_type,
+            "message": message_content,
+            "id": message_id,
+            "title": message_title,
+            "type": message_type,
+            "priority": message_priority,
+            "platforms": message_platforms,
+            "extra": message_extra
+        }
+    )
     
     # 记录操作日志
     await log_operation_with_token(
