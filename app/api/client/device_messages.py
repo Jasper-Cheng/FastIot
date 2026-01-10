@@ -159,12 +159,10 @@ async def mark_all_device_messages_read(
             device_sn=device.sn,
             payload={
                 "type": "all_messages_read",
-                "message": "所有设备消息标记为已读",
+                "message": f"设备{device.name}的所有消息已标记为已读",
                 "account_id": account_id,
                 "device_id": device.id,
-                "device_name": device.name,
-                "family_id": family_id,
-                "count": count,
+                "sn": device.sn,
             }
         )
     
