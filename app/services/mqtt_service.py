@@ -37,6 +37,7 @@ class MQTTService:
         self.device_sn_notice = "device/{sn}/notice"    # 后台 -> 客户端（设备消息）
         self.system_notice = "system/notice"           # 后台 -> 客户端（系统消息）
         self.home_notice = "home/{home_id}/notice"     # 后台 -> 客户端（家庭消息）
+        self.client_account_notice = "client/{account_id}/notice"  # 后台 -> 客户端（个人通知）
         # 数据控制相关
         self.client_sn_data = "client/{sn}/data"       # 后台 -> 客户端（设备数据）
         self.client_sn_status = "client/{sn}/status"   # 后台 -> 客户端（设备状态）
@@ -403,6 +404,19 @@ class MQTTService:
         
         self.client.publish(topic, message_json, qos=1)
         print(f"✅ [MQTT] 已发送系统通知: {payload}")
+
+    async def publish_client_notice(self, account_id: int, payload: dict):
+        """后台 -> 客户端，发布个人消息"""
+        if not self.client or not self.running:
+            print("❌ [MQTT] 客户端未连接，无法发送消息")
+            return
+
+        topic = self.client_account_notice.format(account_id=account_id)
+        message = {**payload, "account_id": account_id}
+        message_json = json.dumps(message, ensure_ascii=False)
+        
+        self.client.publish(topic, message_json, qos=1)
+        print(f"✅ [MQTT] 已发送个人消息给账号 {account_id}: {message}")
 
     async def publish_device_notice(self, sn: str, payload: dict):
         """后台 -> 客户端，发布设备消息"""
