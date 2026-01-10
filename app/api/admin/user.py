@@ -420,6 +420,7 @@ async def update_user(
         extra={"updated_fields": list(update_data.keys()), "target_user_id": id}
     )
     
+    
     return {
         "id": updated_account.id,
         "nickname": updated_account.nickname,

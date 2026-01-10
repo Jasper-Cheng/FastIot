@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 
 from app.db.session import get_db
 from app.api.dependencies import get_current_token
-from app.api.utils import extract_token_info, log_operation_with_token
+from app.api.utils import extract_token_info, log_operation_with_token, send_personal_notice
 from app.crud.points import (
     get_latest_points_by_all_accounts,
     get_latest_points_by_all_accounts_count,
@@ -225,7 +225,19 @@ async def adjust_user_points(
             "description": description
         }
     )
-    
+
+    await send_personal_notice(
+        account_id=accountId,
+        payload={
+            "type": "points_adjusted",
+            "message": f"{'奖励' if points > 0 else '扣除'}用户 {account.nickname or account.phone} {abs(points)} 积分",
+            "points": points,
+            "old_balance": int(current_balance),
+            "new_balance": int(new_balance),
+            "type": points_type,
+            "description": description
+        }
+    )
     return {
         "id": point_id,
         "accountId": accountId,

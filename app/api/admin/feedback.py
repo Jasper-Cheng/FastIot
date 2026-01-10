@@ -10,6 +10,7 @@ from app.crud.feedback import feedback
 from app.db.models.feedback import Feedback
 from app.db.models.account import Account
 from app.models.user_operation_log import OperationTypeEnum
+from app.api.utils import send_personal_notice
 
 router = APIRouter()
 
@@ -120,7 +121,16 @@ async def reply_feedback(
             "has_reply": bool(replay)
         }
     )
-    
+
+    await send_personal_notice(
+        account_id=updated_fb.account_id,
+        payload={
+            "type": "feedback_replied",
+            "message": f"回复反馈：{updated_fb.name} - {old_status} -> {updated_fb.status}",
+            "feedback_id": updated_fb.id,
+            "feedback_name": updated_fb.name,
+        }
+    )
     return {
         "id": updated_fb.id,
         "accountId": updated_fb.account_id,
