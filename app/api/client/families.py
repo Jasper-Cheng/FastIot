@@ -17,7 +17,8 @@ from app.db.session import get_db
 from app.api.utils import (
     extract_token_info,
     log_operation_with_token,
-    check_family_creator
+    check_family_creator,
+    send_family_notice
 )
 
 router = APIRouter()
@@ -83,7 +84,7 @@ async def delete_family_endpoint(
     token_info: dict = Depends(get_current_token)
 ):
     """删除家庭（仅创建者）"""
-    account_id, _, _ = extract_token_info(token_info)
+    account_id, platform, _ = extract_token_info(token_info)
     
     # 检查家庭是否存在
     family = await get_family(db, family_id)
@@ -94,6 +95,21 @@ async def delete_family_endpoint(
     await check_family_creator(db, family_id, account_id, "只有家庭创建者可以删除家庭")
     
     family_name = family.name
+    
+    # 在删除家庭之前发送通知给所有家庭成员
+    await send_family_notice(
+        family_id=family_id,
+        payload={
+            "type": "family_deleted",
+            "message": f"家庭 {family_name} 已被删除",
+            "family_id": family_id,
+            "family_name": family_name,
+            "deleted_by_account_id": account_id,
+            "platform": platform
+        }
+    )
+    
+    # 删除家庭
     success = await delete_family(db, family_id)
     if not success:
         raise HTTPException(status_code=404, detail="删除家庭失败")
@@ -104,10 +120,8 @@ async def delete_family_endpoint(
         token_info=token_info,
         operation_type=OperationTypeEnum.family_delete,
         description=f"删除家庭: {family_name}",
-        extra={"family_id": family_id, "family_name": family_name}
+        extra={"family_id": family_id, "family_name": family_name, "platform": platform, "deleted_by_account_id": account_id}
     )
-    
-    # TODO: 消息通知功能待重构
     
     return {"message": "家庭已删除"}
 
@@ -165,7 +179,17 @@ async def add_device_to_family(
         }
     )
     
-    # TODO: 消息通知功能待重构
+    # 发送家庭通知
+    await send_family_notice(
+        family_id=family_id,
+        payload={
+            "type": "device_added_to_family",
+            "message": f"设备 {device.name} 已添加到家庭 {family_name or family_id}",
+            "device_id": device.id,
+            "device_name": device.name,
+            "device_sn": device.sn
+        }
+    )
     
     return {"message": "设备已添加到家庭", "device_id": device_id, "family_id": family_id}
 
@@ -219,7 +243,17 @@ async def remove_device_from_family(
         }
     )
     
-    # TODO: 消息通知功能待重构
+    # 发送家庭通知
+    await send_family_notice(
+        family_id=family_id,
+        payload={
+            "type": "device_removed_from_family",
+            "message": f"设备 {device.name} 已从家庭 {family_name or family_id} 中移除",
+            "device_id": device.id,
+            "device_name": device.name,
+            "device_sn": device.sn
+        }
+    )
     
     return {"message": "设备已从家庭中移除", "device_id": device_id, "family_id": family_id}
 
