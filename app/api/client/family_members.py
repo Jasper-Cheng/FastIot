@@ -30,7 +30,7 @@ from app.api.utils import (
     extract_token_info,
     log_operation_with_token,
     check_family_member,
-    check_family_creator
+    send_family_notice
 )
 
 router = APIRouter()
@@ -99,7 +99,16 @@ async def join_family_by_invite_code(
         extra={"family_id": family.id, "family_name": family.name}
     )
     
-    # TODO: 消息通知功能待重构
+    # 发送家庭通知
+    await send_family_notice(
+        family_id=family.id,
+        payload={
+            "type": "family_member_added",
+            "message": f"家庭成员 {nickname} 已加入家庭 {family.name}",
+            "family_id": family.id,
+            "family_name": family.name
+        }
+    )
     
     return family_member
 
@@ -194,7 +203,16 @@ async def update_family_member(
         }
     )
     
-    # TODO: 消息通知功能待重构
+    # 发送家庭通知
+    await send_family_notice(
+        family_id=db_family_member.family_id,
+        payload={
+            "type": "family_member_updated",
+            "message": f"家庭成员昵称已更新：{old_nickname or '未设置'} -> {family_member.nickname or '未设置'}",
+            "family_id": db_family_member.family_id,
+            "family_name": family_name
+        }
+    )
     
     # 重新加载以获取关联的account信息
     result = await db.execute(
@@ -273,7 +291,16 @@ async def remove_family_member(
             extra={"family_id": family_id, "family_name": family_name}
         )
         
-        # TODO: 消息通知功能待重构
+        # 发送家庭通知
+        await send_family_notice(
+            family_id=family_id,
+            payload={
+                "type": "family_deleted",
+                "message": f"家庭 {family_name} 已被删除",
+                "family_id": family_id,
+                "family_name": family_name
+            }
+        )
         
         return {"message": "家庭已删除"}
     
@@ -305,7 +332,16 @@ async def remove_family_member(
         }
     )
     
-    # TODO: 消息通知功能待重构
+    # 发送家庭通知
+    await send_family_notice(
+        family_id=family_id,
+        payload={
+            "type": "family_member_removed",
+            "message": f"家庭成员 {removed_member_name} 已从家庭 {family_name} 中移除",
+            "family_id": family_id,
+            "family_name": family_name
+        }
+    )
     
     return {"message": "成员已移除"}
 
