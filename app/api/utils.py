@@ -322,6 +322,9 @@ async def send_personal_notice(
             }
         )
     """
+    # TODO: 暂时屏蔽发送MQTT个人消息
+    return
+    
     try:
         from app.services.mqtt_service import mqtt_service
         await mqtt_service.publish_client_notice(account_id, payload)

@@ -37,7 +37,7 @@ class MQTTService:
         self.device_sn_notice = "device/{sn}/notice"    # 后台 -> 客户端（设备消息）
         self.system_notice = "system/{platform}/notice" # 后台 -> 客户端（系统消息，按平台）
         self.home_notice = "home/{home_id}/notice"     # 后台 -> 客户端（家庭消息）
-        self.client_account_notice = "client/{account_id}/notice"  # 后台 -> 客户端（个人通知）
+        self.client_account_notice = "client/{account_id}/notice"  # 后台 -> 客户端（个人通知） ，暂不使用
         # 数据控制相关
         self.client_sn_data = "client/{sn}/data"       # 后台 -> 客户端（设备数据）
         self.client_sn_status = "client/{sn}/status"   # 后台 -> 客户端（设备状态）
