@@ -123,7 +123,7 @@ async def make_device_message_read(
                 "message_id": message_id,
                 "device_id": updated.device_id,
                 "device_name": device.name,
-                "level": updated.level.value if updated.level else None,
+                "level": updated.level if updated.level else None,
                 "operator_account_id": account_id
             }
         )
