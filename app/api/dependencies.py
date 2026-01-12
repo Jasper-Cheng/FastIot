@@ -8,7 +8,7 @@ from app.crud.account import get_account
 from app.models.account import Account
 
 # 让 Swagger 的 Authorize 使用表单登录端点
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/web/auth/login/form")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/client/auth/login/form")
 
 async def get_current_token(
     token: str = Depends(oauth2_scheme)
