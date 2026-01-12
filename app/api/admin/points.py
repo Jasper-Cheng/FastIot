@@ -235,7 +235,7 @@ async def adjust_user_points(
             "points": points,
             "old_balance": int(current_balance),
             "new_balance": int(new_balance),
-            "type": points_type,
+            "points_type": points_type,
             "description": description,
             "operator_account_id": operator_account_id
         }
