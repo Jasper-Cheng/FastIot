@@ -945,15 +945,30 @@ async def delete_account_endpoint(
     account_id, platform, _ = extract_token_info(token_info)
     platform_name = "App" if platform == "app" else "Web"
     
-    # 如果账号是任何家庭的创建者，先删除这些家庭
+    # 导入必要的模块
     from app.crud.family_member import get_family_members_by_account
     from app.models.family_member import FamilyMemberRole
     from app.crud.family import get_family, delete_family
     
+    # 先获取该账户下的所有家庭信息（在删除之前获取，确保能查询到所有家庭）
     family_members = await get_family_members_by_account(db, account_id)
     creator_families = [fm for fm in family_members if fm.role == FamilyMemberRole.creator]
     
-    # 删除所有创建的家庭
+    # 向该用户下的所有家庭发送账号注销通知（在删除家庭之前，此时还能查询到所有家庭）
+    await send_families_notice_by_account(
+        db=db,
+        account_id=account_id,
+        payload={
+            "type": "account_deleted",
+            "message": f"{current_account.nickname or current_account.phone} 已注销账号",
+            "account_id": account_id,
+            "reason": "account_deletion",
+            "platform": platform,
+            "operator_account_id": account_id
+        }
+    )
+    
+    # 如果账号是任何家庭的创建者，删除这些家庭（在发送消息之后删除）
     deleted_families = []  # 记录成功删除的家庭信息
     for fm in creator_families:
         family = await get_family(db, fm.family_id)
@@ -962,7 +977,7 @@ async def delete_account_endpoint(
             family_id = family.id
             family_name = family.name
             
-            # 先删除家庭（会级联删除家庭成员和设备关联）
+            # 删除家庭（会级联删除家庭成员和设备关联）
             success = await delete_family(db, fm.family_id)
             
             # 删除成功后保存家庭信息
@@ -1002,20 +1017,6 @@ async def delete_account_endpoint(
             )
         except Exception as e:
             print(f"记录删除家庭操作日志失败: {e}")
-    
-    # 向该用户下的所有家庭发送账号注销通知（在删除账号之前，此时还能查询到所有家庭）
-    await send_families_notice_by_account(
-        db=db,
-        account_id=account_id,
-        payload={
-            "type": "account_deleted",
-            "message": f"{current_account.nickname or current_account.phone} 已注销账号",
-            "account_id": account_id,
-            "reason": "account_deletion",
-            "platform": platform,
-            "operator_account_id": account_id
-        }
-    )
     
     # 记录操作日志（在删除前记录，因为删除后日志也会被级联删除）
     await log_operation(
