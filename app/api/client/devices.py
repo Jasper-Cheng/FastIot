@@ -131,6 +131,7 @@ async def update_device_name(
             "device_sn": updated.sn,
             "account_id": account_id,
             "family_id": family_id,
+            "operator_account_id": account_id
         }
     )
     
@@ -261,6 +262,7 @@ async def unbind_device_by_sn(
             "device_id": device.id,
             "device_name": device_name,
             "device_sn": sn,
+            "operator_account_id": account_id
         }
     )
     

@@ -105,7 +105,8 @@ async def delete_family_endpoint(
             "family_id": family_id,
             "family_name": family_name,
             "deleted_by_account_id": account_id,
-            "platform": platform
+            "platform": platform,
+            "operator_account_id": account_id
         }
     )
     
@@ -187,7 +188,8 @@ async def add_device_to_family(
             "message": f"设备 {device.name} 已添加到家庭 {family_name or family_id}",
             "device_id": device.id,
             "device_name": device.name,
-            "device_sn": device.sn
+            "device_sn": device.sn,
+            "operator_account_id": account_id
         }
     )
     
@@ -251,7 +253,8 @@ async def remove_device_from_family(
             "message": f"设备 {device.name} 已从家庭 {family_name or family_id} 中移除",
             "device_id": device.id,
             "device_name": device.name,
-            "device_sn": device.sn
+            "device_sn": device.sn,
+            "operator_account_id": account_id
         }
     )
     

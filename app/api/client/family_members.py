@@ -106,7 +106,8 @@ async def join_family_by_invite_code(
             "type": "family_member_added",
             "message": f"家庭成员 {nickname} 已加入家庭 {family.name}",
             "family_id": family.id,
-            "family_name": family.name
+            "family_name": family.name,
+            "operator_account_id": account_id
         }
     )
     
@@ -210,7 +211,8 @@ async def update_family_member(
             "type": "family_member_updated",
             "message": f"家庭成员昵称已更新：{old_nickname or '未设置'} -> {family_member.nickname or '未设置'}",
             "family_id": db_family_member.family_id,
-            "family_name": family_name
+            "family_name": family_name,
+            "operator_account_id": account_id
         }
     )
     
@@ -298,7 +300,8 @@ async def remove_family_member(
                 "type": "family_deleted",
                 "message": f"家庭 {family_name} 已被删除",
                 "family_id": family_id,
-                "family_name": family_name
+                "family_name": family_name,
+                "operator_account_id": account_id
             }
         )
         
@@ -339,7 +342,8 @@ async def remove_family_member(
             "type": "family_member_removed",
             "message": f"家庭成员 {removed_member_name} 已从家庭 {family_name} 中移除",
             "family_id": family_id,
-            "family_name": family_name
+            "family_name": family_name,
+            "operator_account_id": account_id
         }
     )
     

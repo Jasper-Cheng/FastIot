@@ -226,6 +226,7 @@ async def adjust_user_points(
         }
     )
 
+    operator_account_id, _, _ = extract_token_info(token_info)
     await send_personal_notice(
         account_id=accountId,
         payload={
@@ -235,7 +236,8 @@ async def adjust_user_points(
             "old_balance": int(current_balance),
             "new_balance": int(new_balance),
             "type": points_type,
-            "description": description
+            "description": description,
+            "operator_account_id": operator_account_id
         }
     )
     return {

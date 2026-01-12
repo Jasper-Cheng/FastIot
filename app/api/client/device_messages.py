@@ -124,6 +124,7 @@ async def make_device_message_read(
                 "device_id": updated.device_id,
                 "device_name": device.name,
                 "level": updated.level.value if updated.level else None,
+                "operator_account_id": account_id
             }
         )
     
@@ -163,6 +164,7 @@ async def mark_all_device_messages_read(
                 "account_id": account_id,
                 "device_id": device.id,
                 "sn": device.sn,
+                "operator_account_id": account_id
             }
         )
     

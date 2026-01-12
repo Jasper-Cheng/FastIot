@@ -470,7 +470,8 @@ async def update_profile(
                 "message": f"{updated_account.nickname or updated_account.phone} 更新了个人信息",
                 "account_id": current_account.id,
                 "updated_fields": list(update_data.keys()),
-                "platform": platform
+                "platform": platform,
+                "operator_account_id": current_account.id
             }
         )
     
@@ -1011,7 +1012,8 @@ async def delete_account_endpoint(
             "message": f"{current_account.nickname or current_account.phone} 已注销账号",
             "account_id": account_id,
             "reason": "account_deletion",
-            "platform": platform
+            "platform": platform,
+            "operator_account_id": account_id
         }
     )
     

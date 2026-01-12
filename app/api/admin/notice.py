@@ -118,6 +118,9 @@ async def create_notice(
     message_created_at = message.created_at
     message_updated_at = message.updated_at
     
+    # 获取操作者账户ID
+    operator_account_id, _, _ = extract_token_info(token_info)
+    
     # 根据平台列表发送系统通知
     # 注意：移除 payload 中重复的 type 字段，只保留一个
     notice_payload = {
@@ -127,7 +130,8 @@ async def create_notice(
         "title": message_title,
         "priority": message_priority,
         "platforms": message_platforms,
-        "extra": message_extra
+        "extra": message_extra,
+        "operator_account_id": operator_account_id
     }
     
     # 遍历平台列表，为每个平台发送通知

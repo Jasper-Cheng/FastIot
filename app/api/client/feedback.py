@@ -88,7 +88,8 @@ async def create_feedback(
             "feedback_id": created_feedback.id,
             "feedback_type": feedback_type,
             "feedback_name": feedback_in.name if hasattr(feedback_in, 'name') else None,
-            "source": source.value
+            "source": source.value,
+            "operator_account_id": account_id
         }
     )
     return created_feedback

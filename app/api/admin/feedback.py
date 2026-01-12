@@ -122,6 +122,7 @@ async def reply_feedback(
         }
     )
 
+    operator_account_id, _, _ = extract_token_info(token_info)
     await send_personal_notice(
         account_id=updated_fb.account_id,
         payload={
@@ -129,6 +130,7 @@ async def reply_feedback(
             "message": f"回复反馈：{updated_fb.name} - {old_status} -> {updated_fb.status}",
             "feedback_id": updated_fb.id,
             "feedback_name": updated_fb.name,
+            "operator_account_id": operator_account_id
         }
     )
     return {

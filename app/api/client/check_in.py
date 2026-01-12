@@ -86,6 +86,7 @@ async def check_in(
             "continuous_days": continuous_days,
             "check_in_type": check_in_type,
             "check_in_date": today.isoformat(),
+            "operator_account_id": account_id
         }
     )
     
