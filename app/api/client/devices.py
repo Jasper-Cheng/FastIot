@@ -198,6 +198,21 @@ async def bind_device_by_sn(
         }
     )
 
+    # 发送设备绑定消息通知
+    await send_device_notice(
+        device_sn=device.sn,
+        payload={
+            "type": "device_bind",
+            "message": f"设备已绑定：{device.name}（SN: {device.sn}）",
+            "device_id": device.id,
+            "device_name": device.name,
+            "device_sn": device.sn,
+            "account_id": account_id,
+            "family_id": family_id,
+            "operator_account_id": account_id
+        }
+    )
+
     return device
 
 
