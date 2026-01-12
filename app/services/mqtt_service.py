@@ -62,6 +62,9 @@ class MQTTService:
         if rc == 0:
             print("[MQTT] ✅ 后台已连接到 Broker")
             self._connect_event.set()
+            self.running = True
+            # 重连后重新订阅主题（异步任务）
+            asyncio.create_task(self._resubscribe_topics())
         else:
             print(f"❌ [MQTT] 连接失败，返回码: {rc}")
 
@@ -138,6 +141,16 @@ class MQTTService:
             print(f"[MQTT] 已订阅: {topic}")
         
         await asyncio.sleep(0.5)
+
+    async def _resubscribe_topics(self):
+        """重连后重新订阅主题（用于自动重连场景）"""
+        try:
+            if self.client and self.running:
+                await asyncio.sleep(0.5)  # 等待连接稳定
+                await self.subscribe_topics()
+                print("[MQTT] ✅ 重连后已重新订阅所有主题")
+        except Exception as e:
+            print(f"⚠️ [MQTT] 重连后重新订阅主题失败: {e}")
 
     def register_data_handler(self, sn_prefix: str, handler: DataHandler):
         """注册数据处理器（按 SN 前缀）
