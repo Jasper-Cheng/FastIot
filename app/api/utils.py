@@ -270,27 +270,32 @@ async def send_device_notice(
 
 
 async def send_system_notice(
+    platform: str,
     payload: Dict[str, Any],
     raise_on_error: bool = False
 ) -> None:
-    """发送系统通知消息
+    """发送系统通知消息（按平台）
     
     Args:
+        platform: 平台标识（app/web）
         payload: 消息内容字典
         raise_on_error: 是否在发送失败时抛出异常，默认为 False
     
     Example:
-        await send_system_notice({
-            "type": "maintenance",
-            "message": "系统将在今晚进行维护",
-            "start_time": "2024-01-01 00:00:00"
-        })
+        await send_system_notice(
+            platform="app",
+            payload={
+                "type": "maintenance",
+                "message": "系统将在今晚进行维护",
+                "start_time": "2024-01-01 00:00:00"
+            }
+        )
     """
     try:
         from app.services.mqtt_service import mqtt_service
-        await mqtt_service.publish_system_notice(payload)
+        await mqtt_service.publish_system_notice(platform, payload)
     except Exception as e:
-        print(f"发送系统通知失败: {e}")
+        print(f"发送系统通知失败 (platform={platform}): {e}")
         if raise_on_error:
             raise
 

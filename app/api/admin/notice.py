@@ -118,18 +118,24 @@ async def create_notice(
     message_created_at = message.created_at
     message_updated_at = message.updated_at
     
-    await send_system_notice(
-        payload={
-            "type": message_type,
-            "message": message_content,
-            "id": message_id,
-            "title": message_title,
-            "type": message_type,
-            "priority": message_priority,
-            "platforms": message_platforms,
-            "extra": message_extra
-        }
-    )
+    # 根据平台列表发送系统通知
+    # 注意：移除 payload 中重复的 type 字段，只保留一个
+    notice_payload = {
+        "type": message_type,
+        "message": message_content,
+        "id": message_id,
+        "title": message_title,
+        "priority": message_priority,
+        "platforms": message_platforms,
+        "extra": message_extra
+    }
+    
+    # 遍历平台列表，为每个平台发送通知
+    for platform in message_platforms:
+        try:
+            await send_system_notice(platform=platform, payload=notice_payload)
+        except Exception as e:
+            print(f"发送系统通知到平台 {platform} 失败: {e}")
     
     # 记录操作日志
     await log_operation_with_token(
