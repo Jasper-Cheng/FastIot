@@ -301,7 +301,8 @@ async def remove_family_member(
                 "message": f"家庭 {family_name} 已被删除",
                 "family_id": family_id,
                 "family_name": family_name,
-                "operator_account_id": account_id
+                "operator_account_id": account_id,
+                "removed_account_id": db_family_member.account_id
             }
         )
         
@@ -343,7 +344,8 @@ async def remove_family_member(
             "message": f"家庭成员 {removed_member_name} 已从家庭 {family_name} 中移除",
             "family_id": family_id,
             "family_name": family_name,
-            "operator_account_id": account_id
+            "operator_account_id": account_id,
+            "removed_account_id": db_family_member.account_id
         }
     )
     
