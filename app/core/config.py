@@ -80,9 +80,9 @@ class Settings(BaseSettings):
     WECHAT_REDIRECT_URI: Optional[str] = None  # 微信回调地址
     WECHAT_TOKEN: Optional[str] = None  # 微信验证Token（用于URL验证）
 
-    # MQTT 配置
-    MQTT_HOST: str = "127.0.0.1"
-    MQTT_PORT: int = 1883
+    # MQTT 配置（从 .env 读取，变量名：MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD）
+    MQTT_HOST: str = None
+    MQTT_PORT: int = None
     MQTT_USERNAME: Optional[str] = None
     MQTT_PASSWORD: Optional[str] = None
 
