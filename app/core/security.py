@@ -22,7 +22,7 @@ def create_access_token(
         expire = get_utc_time() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
-    to_encode: Dict[str, Any] = {"exp": expire}
+    to_encode = {"exp": int(expire.timestamp())}  # ✅ 转为时间戳
     if extra_claims:
         to_encode.update(extra_claims)
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
