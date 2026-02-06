@@ -460,7 +460,7 @@ class MQTTService:
         message_json = json.dumps(message, ensure_ascii=False)
         
         self.client.publish(topic, message_json, qos=1)
-        print(f"✅ [MQTT] 已发送设备数据给客户端 ({sn}): {message}")
+        print(f"✅ [MQTT] 发送设备数据 ({sn}): {message}")
 
     async def publish_client_status(self, sn: str, payload: dict):
         """后台 -> 客户端（web/app），发布设备状态"""
@@ -473,7 +473,7 @@ class MQTTService:
         message_json = json.dumps(message, ensure_ascii=False)
         
         self.client.publish(topic, message_json, qos=1)
-        print(f"✅ [MQTT] 已发送设备状态给客户端 ({sn}): {message}")
+        print(f"✅ [MQTT] 发送设备状态 ({sn}): {message}")
 
     async def disconnect(self):
         """断开 MQTT 连接"""
