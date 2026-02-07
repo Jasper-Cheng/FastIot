@@ -1522,3 +1522,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+#仅初始化（不删表）：poetry run python -m app.db.init_db
+#重置并初始化（先删表再建表、插入数据）：poetry run python -m app.db.init_db --reset
+#若已激活虚拟环境可省略 poetry run：python -m app.db.init_db 或 python -m app.db.init_db --reset
