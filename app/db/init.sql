@@ -3,7 +3,19 @@ CREATE DATABASE IF NOT EXISTS `iot` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicod
 
 USE `iot`;
 
--- 账号表：所有能登录的用户
+-- 家庭表：家庭/组织容器（必须先于 account，因 account 有外键引用 family）
+CREATE TABLE IF NOT EXISTS `family` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '家庭ID',
+    `name` VARCHAR(100) NOT NULL COMMENT '家庭名称',
+    `avatar` VARCHAR(255) NULL COMMENT '家庭头像',
+    `description` VARCHAR(500) NULL COMMENT '家庭描述',
+    `invite_code` VARCHAR(32) UNIQUE NULL COMMENT '家庭邀请码',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX `idx_family_invite_code` (`invite_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='家庭表';
+
+-- 账号表：所有能登录的用户（user/admin 等角色通过 role 字段区分）
 CREATE TABLE IF NOT EXISTS `account` (
     `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '账号ID',
     `password` VARCHAR(128) NULL COMMENT '密码',
@@ -20,18 +32,6 @@ CREATE TABLE IF NOT EXISTS `account` (
     INDEX `idx_unionid` (`unionid`),
     INDEX `idx_account_current_family` (`current_family_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账号表';
-
--- 家庭表：家庭/组织容器
-CREATE TABLE IF NOT EXISTS `family` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '家庭ID',
-    `name` VARCHAR(100) NOT NULL COMMENT '家庭名称',
-    `avatar` VARCHAR(255) NULL COMMENT '家庭头像',
-    `description` VARCHAR(500) NULL COMMENT '家庭描述',
-    `invite_code` VARCHAR(32) UNIQUE NULL COMMENT '家庭邀请码',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_at` TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    INDEX `idx_family_invite_code` (`invite_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='家庭表';
 
 -- 家庭成员关联表：账号与家庭的多对多关系
 CREATE TABLE IF NOT EXISTS `family_member` (
