@@ -1,0 +1,19 @@
+# 不要将 .env 打进镜像，避免覆盖 docker-compose 注入的环境变量
+.env
+.env.*
+!.env.example
+
+# 常见忽略
+.git
+.gitignore
+__pycache__
+*.pyc
+.venv
+venv
+.pytest_cache
+.coverage
+htmlcov
+*.md
+.cursor
+.idea
+terminals

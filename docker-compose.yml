@@ -69,7 +69,10 @@ services:
     ports:
       - "${PORT}:8000"
     env_file:
-      - .env  # 关键：从.env文件加载所有环境变量
+      - .env
+    # Linux 下让 host.docker.internal 指向宿主机（.env 里 MQTT 等连宿主机时用）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       mysql:
         condition: service_healthy
