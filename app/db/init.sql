@@ -1,3 +1,6 @@
+-- 确保脚本以 UTF-8 解析，避免中文乱码（如 nickname「管理员」）
+SET NAMES utf8mb4;
+
 -- 创建数据库（如果不存在）
 CREATE DATABASE IF NOT EXISTS `iot` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
