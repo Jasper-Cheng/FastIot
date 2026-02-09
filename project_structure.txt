@@ -1,122 +1,133 @@
 FastIoT 项目结构 - 物联网设备管理平台
+├── .dockerignore                           # Docker 构建忽略（不含 .env）
+├── .env.example                            # 环境变量示例
+├── .gitignore                              # Git 忽略
+├── .github/
+│   └── workflows/
+│       └── docker-image.yml                # Docker 镜像 CI
 ├── app/                                    # 主应用目录
-│   ├── api/                                # API接口层
-│   │   ├── dependencies.py                 # 依赖注入和认证中间件（已移除权限控制）
-│   │   ├── router.py                       # API路由配置
-│   │   └── endpoints/                      # API端点模块
-│   │       ├── auth.py                     # 认证相关端点
-│   │       ├── users.py                    # 用户管理端点
-│   │       ├── members.py                  # 成员管理端点
-│   │       ├── devices.py                  # 设备管理端点
-│   │       ├── rooms.py                    # 房间管理端点
-│   │       ├── room_devices.py             # 房间设备关联端点
-│   │       ├── device_networks.py          # 设备网络信息端点
-│   │       ├── device_logs.py              # 设备日志端点
-│   │       ├── device_params.py            # 设备参数端点
-│   │       ├── alerts.py                   # 告警管理端点
-│   │       ├── member_device_permissions.py # 成员设备权限端点
-│   │       ├── thing_models.py             # 物模型管理端点
-│   │       ├── device_models.py            # 设备型号管理端点
-│   │       └── admins.py                   # 管理员管理端点
-│   ├── core/                               # 核心配置模块
-│   │   ├── config.py                       # 应用配置管理
-│   │   └── security.py                     # 安全工具 (JWT、密码加密)
+│   ├── api/                                # API 接口层
+│   │   ├── dependencies.py                 # 依赖注入与认证
+│   │   ├── router.py                       # API 路由汇总
+│   │   ├── utils.py                        # API 工具
+│   │   ├── admin/                          # 管理端 API
+│   │   │   ├── __init__.py
+│   │   │   ├── account.py                  # 账号管理
+│   │   │   ├── auth.py                    # 管理员认证
+│   │   │   ├── device.py                  # 设备管理
+│   │   │   ├── device_message.py          # 设备消息
+│   │   │   ├── device_model.py             # 设备型号
+│   │   │   ├── family.py                  # 家庭管理
+│   │   │   ├── feedback.py                 # 意见反馈
+│   │   │   ├── log.py                      # 操作日志
+│   │   │   ├── network.py                  # 设备网络
+│   │   │   ├── notice.py                  # 通知
+│   │   │   ├── points.py                  # 积分
+│   │   │   ├── thing_model.py             # 物模型
+│   │   │   ├── user.py                    # 用户管理
+│   │   │   └── version.py                 # 版本管理
+│   │   └── client/                         # 客户端 API
+│   │       ├── __init__.py
+│   │       ├── auth.py                     # 客户端认证（登录/注册）
+│   │       ├── check_in.py                 # 签到
+│   │       ├── device_messages.py          # 设备消息
+│   │       ├── devices.py                  # 设备
+│   │       ├── families.py                 # 家庭
+│   │       ├── family_members.py           # 家庭成员
+│   │       ├── feedback.py                 # 反馈
+│   │       ├── points.py                   # 积分
+│   │       ├── system_message.py           # 系统消息
+│   │       ├── version_info.py             # 版本信息
+│   │       └── websocket.py                # WebSocket
+│   ├── core/                               # 核心配置
+│   │   ├── config.py                       # 应用配置（.env）
+│   │   ├── rsa_crypto.py                   # RSA 加解密
+│   │   └── security.py                     # 安全（JWT、密码哈希）
 │   ├── crud/                               # 数据库操作层
-│   │   ├── base.py                         # 基础CRUD操作
-│   │   ├── account.py                      # 账号数据库操作
-│   │   ├── user.py                         # 用户数据库操作
-│   │   ├── member.py                       # 成员数据库操作
-│   │   ├── device.py                       # 设备数据库操作
-│   │   ├── device_data.py                  # 设备数据数据库操作
-│   │   ├── device_model.py                 # 设备型号数据库操作
-│   │   ├── device_network.py               # 设备网络数据库操作
-│   │   ├── device_log.py                   # 设备日志数据库操作
-│   │   ├── device_param.py                 # 设备参数数据库操作
-│   │   ├── room.py                         # 房间数据库操作
-│   │   ├── room_device.py                  # 房间设备关联数据库操作
-│   │   ├── alert.py                        # 告警数据库操作
-│   │   ├── member_device_permission.py     # 成员设备权限数据库操作
-│   │   ├── thing_model.py                  # 物模型数据库操作
-│   │   └── admin.py                        # 管理员数据库操作
+│   │   ├── base.py                         # 基础 CRUD
+│   │   ├── account.py
+│   │   ├── check_in.py
+│   │   ├── device_message.py
+│   │   ├── device_model.py
+│   │   ├── device_permission.py
+│   │   ├── device.py
+│   │   ├── family_device.py
+│   │   ├── family_member.py
+│   │   ├── family.py
+│   │   ├── feedback.py
+│   │   ├── points.py
+│   │   ├── system_message.py
+│   │   ├── thing_model.py
+│   │   ├── user_operation_log.py
+│   │   └── version_info.py
 │   ├── db/                                 # 数据库模块
-│   │   ├── base.py                         # 数据库基础配置
-│   │   ├── session.py                      # 数据库会话管理
-│   │   ├── init_db.py                      # 数据库初始化脚本
-│   │   ├── init.sql                        # 数据库表结构SQL
-│   │   └── models/                         # 数据库模型 (SQLAlchemy)
-│   │       ├── account.py                  # 账号数据模型
-│   │       ├── user.py                     # 用户数据模型
-│   │       ├── member.py                   # 成员数据模型
-│   │       ├── device.py                   # 设备数据模型
-│   │       ├── device_data.py              # 设备传感器数据模型
-│   │       ├── device_model.py             # 设备型号数据模型
-│   │       ├── device_network.py           # 设备网络数据模型
-│   │       ├── device_log.py               # 设备日志数据模型
-│   │       ├── device_param.py             # 设备参数数据模型
-│   │       ├── room.py                     # 房间数据模型
-│   │       ├── room_device.py              # 房间设备关联数据模型
-│   │       ├── alert.py                    # 告警数据模型
-│   │       ├── member_device_permission.py # 成员设备权限数据模型
-│   │       ├── thing_model.py              # 物模型数据模型
-│   │       └── admin.py                    # 管理员数据模型
-│   ├── models/                             # Pydantic数据模型
-│   │   ├── account.py                      # 账号请求/响应模型
-│   │   ├── user.py                         # 用户请求/响应模型
-│   │   ├── member.py                       # 成员请求/响应模型
-│   │   ├── device.py                       # 设备请求/响应模型
-│   │   ├── device_data.py                  # 设备数据请求/响应模型
-│   │   ├── device_model.py                 # 设备型号请求/响应模型
-│   │   ├── device_network.py               # 设备网络请求/响应模型
-│   │   ├── device_log.py                   # 设备日志请求/响应模型
-│   │   ├── device_param.py                 # 设备参数请求/响应模型
-│   │   ├── room.py                         # 房间请求/响应模型
-│   │   ├── room_device.py                  # 房间设备关联请求/响应模型
-│   │   ├── alert.py                        # 告警请求/响应模型
-│   │   ├── member_device_permission.py     # 成员设备权限请求/响应模型
-│   │   ├── thing_model.py                  # 物模型请求/响应模型
-│   │   ├── admin.py                        # 管理员请求/响应模型
-│   │   └── token.py                        # 认证令牌模型
-│   ├── services/                           # 业务逻辑服务层
-│   │   ├── alert_service.py                # 告警处理服务
-│   │   ├── data_service.py                 # 数据处理服务
-│   │   ├── device_service.py               # 设备管理服务
-│   │   ├── mqtt_client.py                  # MQTT客户端
-│   │   ├── mqtt_handlers.py                # MQTT消息处理
-│   │   ├── redis_service.py                # Redis缓存服务
-│   │   └── websocket_service.py            # WebSocket通信服务
-│   ├── main.py                             # FastAPI应用入口
-│   └── worker.py                           # 后台任务处理
-├── docker-compose.yml                      # Docker容器编排
-├── Dockerfile                              # Docker镜像构建
-├── entrypoint.sh                           # 容器启动脚本
-├── pyproject.toml                          # Python项目配置
-├── poetry.lock                             # 依赖锁定文件
-├── project_structure.txt                   # 项目结构文档
-├── README.md                               # 项目说明文档
-└── REDIS_CONFIG.md                         # Redis配置说明
+│   │   ├── base.py                         # 基类与 metadata
+│   │   ├── session.py                     # 异步会话与 get_db
+│   │   ├── init_db.py                      # 初始化/种子数据脚本
+│   │   ├── init.sql                        # 建表 SQL（Docker 初启执行）
+│   │   └── models/                        # SQLAlchemy 模型
+│   │       ├── __init__.py
+│   │       ├── account.py
+│   │       ├── check_in.py
+│   │       ├── device_message.py
+│   │       ├── device_model.py
+│   │       ├── device_network.py
+│   │       ├── device_thing_model.py
+│   │       ├── device.py
+│   │       ├── family_device.py
+│   │       ├── family_member.py
+│   │       ├── family.py
+│   │       ├── feedback.py
+│   │       ├── points.py
+│   │       ├── system_message.py
+│   │       ├── user_operation_log.py
+│   │       └── version_info.py
+│   ├── models/                             # Pydantic 请求/响应模型
+│   │   ├── account.py
+│   │   ├── check_in.py
+│   │   ├── device_message.py
+│   │   ├── device.py
+│   │   ├── family_member.py
+│   │   ├── family.py
+│   │   ├── feedback.py
+│   │   ├── points.py
+│   │   ├── system_message.py
+│   │   ├── token.py
+│   │   ├── user_operation_log.py
+│   │   └── version_info.py
+│   ├── services/                          # 业务与基础设施服务
+│   │   ├── mqtt_service.py                 # MQTT 连接与订阅
+│   │   ├── mqtt_handlers/                  # 按设备型号的 MQTT 处理
+│   │   │   ├── __init__.py
+│   │   │   └── m701001.py                  # M701001 型号处理
+│   │   ├── redis_service.py                # Redis 缓存
+│   │   ├── websocket_tool.py               # WebSocket 工具
+│   │   └── wechat_service.py               # 微信登录/二维码
+│   ├── utils/
+│   │   └── time_utils.py                   # 时间工具
+│   └── main.py                             # FastAPI 应用入口
+├── docker-compose.yml                      # 编排：MySQL / Redis / RabbitMQ / app
+├── Dockerfile                              # 应用镜像构建
+├── poetry.lock                             # 依赖锁定
+├── pyproject.toml                          # 项目与依赖配置（Poetry）
+├── project_structure.txt                   # 本结构说明
+└── README.md                               # 项目说明
 
-# 技术栈:
-# - FastAPI: Web框架
-# - SQLAlchemy: ORM框架
-# - Pydantic: 数据验证
-# - MQTT: 物联网通信
-# - WebSocket: 实时通信
-# - Redis: 缓存和消息队列
-# - Docker: 容器化部署
-# - Poetry: 依赖管理
+# 技术栈
+# - FastAPI, Uvicorn
+# - SQLAlchemy 2 (async + aiomysql)
+# - Pydantic / pydantic-settings
+# - MQTT (gmqtt), WebSocket
+# - Redis, RabbitMQ (可选)
+# - Docker Compose
+# - Poetry
 
-# 权限控制状态:
-# - 已移除所有基于角色的访问控制 (RBAC)
-# - 已移除所有权限制检查
-# - 所有认证用户均可访问所有端点
-# - 仅保留基本的资源存在性验证
+# 部署说明
+# - .env 为 Docker 环境变量（mysql/redis/rabbitmq 服务名，MQTT 用 host.docker.internal）
+# - 宿主机映射端口：MYSQL_HOST_PORT=3307 等见 .env
+# - 构建时 .dockerignore 排除 .env，运行时由 compose 注入
 
-# 主要功能模块:
-# 1. 用户管理: 账号、用户、成员、管理员
-# 2. 设备管理: 设备、设备型号、设备网络、设备日志、设备参数
-# 3. 房间管理: 房间、房间设备关联
-# 4. 告警管理: 告警、告警统计
-# 5. 权限管理: 成员设备权限（已简化）
-# 6. 物模型管理: 物模型、设备型号
-# 7. 实时通信: WebSocket、MQTT
-# 8. 数据存储: MySQL、Redis
+# 主要功能
+# - 账号/家庭/成员、设备/物模型/型号、签到/积分、反馈、系统消息、版本
+# - 客户端认证（RSA+密码）、管理端认证
+# - MQTT 设备数据与状态、WebSocket 实时推送
