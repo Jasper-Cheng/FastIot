@@ -1,27 +1,5 @@
+# MySQL 使用已有容器（如 mysql-iot，宿主机端口 3336），不在此 compose 中创建
 services:
-  # MySQL 数据库服务
-  mysql:
-    image: mysql:8.0
-    container_name: fastiot_mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DB}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    ports:
-      - "${MYSQL_PORT}:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./app/db/init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - fastiot_network
-    command: --default-authentication-plugin=mysql_native_password
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
-
   # Redis 缓存服务
   redis:
     image: redis:7-alpine
@@ -70,12 +48,14 @@ services:
       - "${PORT}:8000"
     env_file:
       - .env
-    # Linux 下让 host.docker.internal 指向宿主机（.env 里 MQTT 等连宿主机时用）
+    # MySQL 连已有容器：宿主机 3336 -> mysql-iot；MQTT 等也通过宿主机
+    environment:
+      MYSQL_HOST: host.docker.internal
+      MYSQL_PORT: "3336"
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER}:${MYSQL_PASSWORD}@host.docker.internal:3336/${MYSQL_DB}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      mysql:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
@@ -84,8 +64,6 @@ services:
       - fastiot_network
 
 volumes:
-  mysql_data:
-    driver: local
   redis_data:
     driver: local
   rabbitmq_data:
