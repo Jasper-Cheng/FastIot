@@ -43,8 +43,8 @@ async def init_db(reset=False) -> None:
         try:
             async with temp_engine.begin() as conn:
                 # 创建数据库（如果不存在）
-                await conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{settings.MYSQL_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
-                print(f"✓ 数据库 '{settings.MYSQL_DB}' 已准备就绪")
+                await conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{settings.MYSQL_DATABASE}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
+                print(f"✓ 数据库 '{settings.MYSQL_DATABASE}' 已准备就绪")
         finally:
             await temp_engine.dispose()
         

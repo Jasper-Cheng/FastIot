@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     DATABASE_URL: Optional[MySQLDsn] = None
     MYSQL_HOST: str
     MYSQL_PORT: int
-    MYSQL_DB: str
+    MYSQL_DATABASE: str
     MYSQL_USER: str
     MYSQL_PASSWORD: str
     MYSQL_ROOT_PASSWORD: str
@@ -99,7 +99,7 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
         # 自动生成 DATABASE_URL
         if not self.DATABASE_URL:
-            self.DATABASE_URL = f"mysql+aiomysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
+            self.DATABASE_URL = f"mysql+aiomysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
         # 自动生成 REDIS_URL
         if not self.REDIS_URL:
             password_part = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
