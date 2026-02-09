@@ -2,10 +2,8 @@
 from typing import Optional, List
 from pydantic_settings import BaseSettings
 from pydantic import RedisDsn, AmqpDsn, MySQLDsn, validator, Field
-from dotenv import load_dotenv
 
-# 加载 .env 文件
-load_dotenv()
+# 注意：在容器环境下由 docker-compose 注入环境变量，不再用 load_dotenv()
 
 class Settings(BaseSettings):
     # 项目信息
