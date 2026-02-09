@@ -1,0 +1,51 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Generate Docker tags
+        id: tags
+        run: |
+          # 基础镜像名
+          IMAGE_NAME="${{ secrets.Docker_REPOSITORY }}"
+          
+          # 总是包含 latest 标签
+          TAGS="${IMAGE_NAME}:latest"
+          
+          # 如果是标签推送，添加版本标签
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG_NAME#v}  # 移除 v 前缀
+            TAGS="${TAGS},${IMAGE_NAME}:${VERSION}"
+          fi
+          
+          # 添加提交哈希标签
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          TAGS="${TAGS},${IMAGE_NAME}:${SHORT_SHA}"
+          
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.Docker_USERNAME }}
+          password: ${{ secrets.Docker_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
