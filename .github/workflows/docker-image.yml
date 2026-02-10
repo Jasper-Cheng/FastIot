@@ -19,19 +19,23 @@ jobs:
       - name: Determine environment and image name
         id: env
         run: |
-          # 确定环境
+          # 确定环境和分支
           if [[ "${GITHUB_REF}" == refs/heads/main ]]; then
             ENVIRONMENT="production"
+            BRANCH="main"
             REPOSITORY="${{ secrets.Docker_REPOSITORY }}"
           elif [[ "${GITHUB_REF}" == refs/heads/test ]]; then
             ENVIRONMENT="test"
+            BRANCH="test"
             REPOSITORY="${{ secrets.Docker_REPOSITORY_TEST }}"
           else
             ENVIRONMENT="production"  # 标签推送默认使用生产环境
+            BRANCH="main"
             REPOSITORY="${{ secrets.Docker_REPOSITORY }}"
           fi
           
           echo "environment=${ENVIRONMENT}" >> $GITHUB_OUTPUT
+          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
           echo "repository=${REPOSITORY}" >> $GITHUB_OUTPUT
 
       - name: Generate Docker tags
@@ -39,26 +43,28 @@ jobs:
         run: |
           IMAGE_NAME="${{ steps.env.outputs.repository }}"
           ENVIRONMENT="${{ steps.env.outputs.environment }}"
+          BRANCH="${{ steps.env.outputs.branch }}"
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
           
-          # 基础标签：环境标签
-          TAGS="${IMAGE_NAME}:${ENVIRONMENT}"
+          # 初始化标签数组
+          TAGS=""
           
-          # 如果是 main 分支推送，添加 latest 标签
-          if [[ "${GITHUB_REF}" == refs/heads/main ]]; then
-            TAGS="${TAGS},${IMAGE_NAME}:latest"
-          fi
+          # 1. 分支标签：main 或 test
+          TAGS="${IMAGE_NAME}:${BRANCH}"
           
-          # 如果是标签推送，添加版本标签
+          # 2. 提交哈希标签（缩写）
+          TAGS="${TAGS},${IMAGE_NAME}:${SHORT_SHA}"
+          
+          # 3. 如果是标签推送，添加版本标签
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG_NAME=${GITHUB_REF#refs/tags/}
             VERSION=${TAG_NAME#v}  # 移除 v 前缀
-            TAGS="${TAGS},${IMAGE_NAME}:${VERSION},${IMAGE_NAME}:${VERSION}-${ENVIRONMENT}"
+            TAGS="${TAGS},${IMAGE_NAME}:${VERSION}"
+            # 版本环境标签可选保留
+            # TAGS="${TAGS},${IMAGE_NAME}:${VERSION}-${ENVIRONMENT}"
           fi
           
-          # 添加提交哈希标签
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          TAGS="${TAGS},${IMAGE_NAME}:${SHORT_SHA},${IMAGE_NAME}:${SHORT_SHA}-${ENVIRONMENT}"
-          
+          # 输出标签
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Log in to Docker Hub
@@ -79,5 +85,7 @@ jobs:
       - name: Log push information
         run: |
           echo "Environment: ${{ steps.env.outputs.environment }}"
+          echo "Branch: ${{ steps.env.outputs.branch }}"
           echo "Repository: ${{ steps.env.outputs.repository }}"
           echo "Tags: ${{ steps.tags.outputs.tags }}"
+          echo "Commit SHA: ${GITHUB_SHA:0:7}"
