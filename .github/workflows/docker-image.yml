@@ -14,7 +14,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Determine environment and image name
         id: env
@@ -29,7 +29,7 @@ jobs:
             BRANCH="test"
             REPOSITORY="${{ secrets.Docker_REPOSITORY_TEST }}"
           else
-            ENVIRONMENT="production"  # 标签推送默认使用生产环境
+            ENVIRONMENT="production"
             BRANCH="main"
             REPOSITORY="${{ secrets.Docker_REPOSITORY }}"
           fi
@@ -46,41 +46,44 @@ jobs:
           BRANCH="${{ steps.env.outputs.branch }}"
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
           
-          # 初始化标签数组
           TAGS=""
           
-          # 1. 分支标签：main 或 test
           TAGS="${IMAGE_NAME}:${BRANCH}"
-          
-          # 2. 提交哈希标签（缩写）
           TAGS="${TAGS},${IMAGE_NAME}:${SHORT_SHA}"
           
-          # 3. 如果是标签推送，添加版本标签
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG_NAME=${GITHUB_REF#refs/tags/}
-            VERSION=${TAG_NAME#v}  # 移除 v 前缀
+            VERSION=${TAG_NAME#v}
             TAGS="${TAGS},${IMAGE_NAME}:${VERSION}"
-            # 版本环境标签可选保留
-            # TAGS="${TAGS},${IMAGE_NAME}:${VERSION}-${ENVIRONMENT}"
           fi
           
-          # 输出标签
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.Docker_USERNAME }}
           password: ${{ secrets.Docker_PASSWORD }}
 
+      # 新增：支持多架构构建
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 修改 build step
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          platforms: linux/amd64,linux/arm64
           build-args: |
             ENVIRONMENT=${{ steps.env.outputs.environment }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Log push information
         run: |
