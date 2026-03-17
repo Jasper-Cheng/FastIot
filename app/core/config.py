@@ -114,9 +114,10 @@ class Settings(BaseSettings):
             self.CELERY_RESULT_BACKEND = self.REDIS_URL
 
     class Config:
-        env_file = ".env"
+        env_file = ".env_test"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"
 
 # 全局实例
 settings = Settings()
