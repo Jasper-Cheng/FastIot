@@ -1,6 +1,6 @@
 # FastIoT 物联网设备管理平台
 
-FastIoT 是面向物联网设备的后端管理平台，提供账号与家庭、设备与物模型、签到积分、反馈与系统消息等能力，支持 **RSA+密码** 客户端登录、**MQTT** 设备接入与 **WebSocket** 实时推送。基于 **FastAPI**、**MySQL**、**Redis**、**RabbitMQ** 与 **Docker** 构建。
+FastIoT 是面向物联网设备的后端管理平台，提供账号与家庭、设备与物模型、签到积分、反馈与系统消息等能力，支持 **RSA+密码** 客户端登录、**MQTT** 设备接入与 **WebSocket** 实时推送。基于 **FastAPI**、**MySQL** 与 **Docker** 构建。
 
 ## 核心功能
 
@@ -26,7 +26,6 @@ FastIoT 是面向物联网设备的后端管理平台，提供账号与家庭、
 ### 实时与通信
 - **MQTT**：设备数据/状态主题订阅，按型号分发（如 M701001）
 - **WebSocket**：实时推送
-- **Redis**：缓存
 
 ## 技术栈
 
@@ -34,8 +33,6 @@ FastIoT 是面向物联网设备的后端管理平台，提供账号与家庭、
 |----------|------|
 | 后端     | Python 3.9+, FastAPI, Uvicorn |
 | 数据库   | MySQL 8.0，SQLAlchemy 2（async + aiomysql） |
-| 缓存     | Redis 7 |
-| 消息队列 | RabbitMQ 3（可选） |
 | 实时     | WebSocket, MQTT（gmqtt） |
 | 认证     | JWT, RSA 加密传输密码, Passlib/bcrypt |
 | 配置     | pydantic-settings, .env |
@@ -60,10 +57,9 @@ FastIoT/
 │   ├── crud/               # 数据库操作
 │   ├── db/                 # 会话、init_db、init.sql、models
 │   ├── models/             # Pydantic 请求/响应模型
-│   ├── services/           # MQTT、Redis、WebSocket、微信
+│   ├── services/           # MQTT、WebSocket、微信
 │   ├── utils/
 │   └── main.py             # FastAPI 入口
-├── docker-compose.yml      # MySQL / Redis / RabbitMQ / app
 ├── Dockerfile
 ├── pyproject.toml
 ├── poetry.lock
@@ -84,12 +80,12 @@ FastIoT/
 git clone <repository-url>
 cd FastIoT
 cp .env.example .env
-# 编辑 .env：当前仓库 .env 面向 Docker 环境（mysql/redis/rabbitmq 服务名）
+# 编辑 .env：当前仓库 .env 面向 Docker 环境（mysql 服务名）
 ```
 
 ### 2. 使用 Docker Compose（推荐）
 
-`.env` 中为 **Docker 环境** 配置：`MYSQL_HOST=mysql`、`REDIS_HOST=redis`、`RABBITMQ_HOST=rabbitmq`，MySQL 容器内端口 3306，宿主机映射端口使用 `MYSQL_HOST_PORT`（如 3307）避免与本地 MySQL 冲突。
+`.env` 中为 **Docker 环境** 配置：`MYSQL_HOST=mysql`，MySQL 容器内端口 3306，宿主机映射端口使用 `MYSQL_HOST_PORT`（如 3307）避免与本地 MySQL 冲突。
 
 ```bash
 docker-compose up -d
@@ -101,7 +97,7 @@ docker-compose up -d
 
 ### 3. 本机直接运行（不用 Docker 跑 app）
 
-若在本机用 Poetry 跑应用，需在 `.env` 中改为本机地址（如 `MYSQL_HOST=localhost`、`MYSQL_PORT=3307`、`REDIS_HOST=localhost` 等），并确保 MySQL/Redis 已启动（可用 Docker 只起中间件）。
+若在本机用 Poetry 跑应用，需在 `.env` 中改为本机地址（如 `MYSQL_HOST=localhost`、`MYSQL_PORT=3307` 等），并确保 MySQL 已启动（可用 Docker 只起中间件）。
 
 ```bash
 poetry install
@@ -132,8 +128,6 @@ poetry run python -m app.db.init_db --reset
 | DATABASE_URL | 数据库连接串 | `mysql+aiomysql://用户:密码@mysql:3306/iot` |
 | MYSQL_HOST / MYSQL_PORT | 应用连接 MySQL 的主机与端口 | `mysql` / `3306` |
 | MYSQL_HOST_PORT | 宿主机映射 MySQL 端口（compose ports） | `3307` |
-| REDIS_HOST / REDIS_PORT | Redis | `redis` / `6379` |
-| RABBITMQ_HOST / RABBITMQ_PORT | RabbitMQ | `rabbitmq` / `5672` |
 | MQTT_HOST / MQTT_PORT | MQTT Broker（宿主机时用 host.docker.internal） | `host.docker.internal` / `1883` |
 | SECRET_KEY / ACCESS_TOKEN_EXPIRE_MINUTES | JWT | - |
 
@@ -184,7 +178,7 @@ docker-compose up -d --build --force-recreate app
 docker-compose logs -f app
 ```
 
-宿主机需开放端口：`PORT`（默认 8000）、`MYSQL_HOST_PORT`（如 3307）、Redis/RabbitMQ 端口等（见 `.env`）。
+宿主机需开放端口：`PORT`（默认 8000）、`MYSQL_HOST_PORT`（如 3307）等（见 `.env`）。
 
 ## 开发说明
 

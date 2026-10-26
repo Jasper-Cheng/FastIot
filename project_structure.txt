@@ -100,13 +100,11 @@ FastIoT 项目结构 - 物联网设备管理平台
 │   │   ├── mqtt_handlers/                  # 按设备型号的 MQTT 处理
 │   │   │   ├── __init__.py
 │   │   │   └── m701001.py                  # M701001 型号处理
-│   │   ├── redis_service.py                # Redis 缓存
 │   │   ├── websocket_tool.py               # WebSocket 工具
 │   │   └── wechat_service.py               # 微信登录/二维码
 │   ├── utils/
 │   │   └── time_utils.py                   # 时间工具
 │   └── main.py                             # FastAPI 应用入口
-├── docker-compose.yml                      # 编排：MySQL / Redis / RabbitMQ / app
 ├── Dockerfile                              # 应用镜像构建
 ├── poetry.lock                             # 依赖锁定
 ├── pyproject.toml                          # 项目与依赖配置（Poetry）
@@ -118,12 +116,11 @@ FastIoT 项目结构 - 物联网设备管理平台
 # - SQLAlchemy 2 (async + aiomysql)
 # - Pydantic / pydantic-settings
 # - MQTT (gmqtt), WebSocket
-# - Redis, RabbitMQ (可选)
 # - Docker Compose
 # - Poetry
 
 # 部署说明
-# - .env 为 Docker 环境变量（mysql/redis/rabbitmq 服务名，MQTT 用 host.docker.internal）
+# - .env 为 Docker 环境变量（mysql 服务名，MQTT 用 host.docker.internal）
 # - 宿主机映射端口：MYSQL_HOST_PORT=3307 等见 .env
 # - 构建时 .dockerignore 排除 .env，运行时由 compose 注入
 

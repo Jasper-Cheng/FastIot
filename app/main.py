@@ -6,7 +6,6 @@ import logging
 from sqlalchemy import text
 from app.core.config import settings
 from app.db.session import engine
-from app.services.redis_service import redis_service
 # from app.services.websocket_tool import websocket_tool  # 已改用 MQTT
 from app.services.wechat_service import wechat_service
 from app.services.mqtt_service import mqtt_service
@@ -58,18 +57,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"❌ 数据库连接失败: {e}")
 
-    # Redis 就绪检查（仅验证，不启用缓存持久连接）
-    try:
-        await redis_service.connect()
-        print("✅ Redis就绪检测通过")
-    except Exception as e:
-        print(f"❌ Redis就绪检测失败: {e}")
-    finally:
-        try:
-            await redis_service.disconnect()
-        except Exception:
-            pass
-    
     # 启动心跳检查任务 - 已改用 MQTT，不再需要 WebSocket 心跳检查
     # heartbeat_task = asyncio.create_task(heartbeat_checker())
     # print("✅ WebSocket心跳检查任务已启动")
