@@ -44,7 +44,7 @@ FastIoT 是面向物联网设备的后端管理平台，提供账号与家庭、
 ```
 FastIoT/
 ├── .dockerignore          # 构建忽略（含 .env，避免覆盖运行时注入）
-├── .env.example            # 环境变量示例
+├── .env                    # 环境变量（本地/Docker 共用，不入库）
 ├── .github/workflows/      # CI（如 Docker 镜像构建）
 ├── app/
 │   ├── api/                # API 层
@@ -79,8 +79,7 @@ FastIoT/
 ```bash
 git clone <repository-url>
 cd FastIoT
-cp .env.example .env
-# 编辑 .env：当前仓库 .env 面向 Docker 环境（mysql 服务名）
+# 新建 .env 并按下方「环境变量」一节填写（当前仓库 .env 面向 Docker 环境，mysql 服务名）
 ```
 
 ### 2. 使用 Docker Compose（推荐）
@@ -131,7 +130,7 @@ poetry run python -m app.db.init_db --reset
 | MQTT_HOST / MQTT_PORT | MQTT Broker（宿主机时用 host.docker.internal） | `host.docker.internal` / `1883` |
 | SECRET_KEY / ACCESS_TOKEN_EXPIRE_MINUTES | JWT | - |
 
-详见 `.env.example`。
+详见 `.env` 中的配置项。
 
 ## API 概览
 

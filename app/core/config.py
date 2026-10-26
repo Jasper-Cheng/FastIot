@@ -82,7 +82,7 @@ class Settings(BaseSettings):
             self.DATABASE_URL = f"mysql+aiomysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
 
     class Config:
-        env_file = ".env_dev"
+        env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
         extra = "ignore"

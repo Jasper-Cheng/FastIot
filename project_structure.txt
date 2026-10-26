@@ -1,6 +1,5 @@
 FastIoT 项目结构 - 物联网设备管理平台
 ├── .dockerignore                           # Docker 构建忽略（不含 .env）
-├── .env.example                            # 环境变量示例
 ├── .gitignore                              # Git 忽略
 ├── .github/
 │   └── workflows/
