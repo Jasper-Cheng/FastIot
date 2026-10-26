@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   # 支持在 Actions 页面手动触发构建
   workflow_dispatch:
 
@@ -27,12 +25,6 @@ jobs:
           TAGS="${IMAGE_NAME}:main"
           # 不可变 tag（提交 SHA），用于生产发布与回滚
           TAGS="${TAGS},${IMAGE_NAME}:${SHORT_SHA}"
-
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-            VERSION=${TAG_NAME#v}
-            TAGS="${TAGS},${IMAGE_NAME}:${VERSION}"
-          fi
 
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
           echo "sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
@@ -64,5 +56,5 @@ jobs:
           echo "Repository: ${{ secrets.Docker_REPOSITORY }}"
           echo "Tags: ${{ steps.tags.outputs.tags }}"
           echo "Commit SHA: ${GITHUB_SHA:0:7}"
-          echo "测试环境使用: ${{ secrets.Docker_REPOSITORY }}:main"
-          echo "生产发布使用: ${{ secrets.Docker_REPOSITORY }}:${{ steps.tags.outputs.sha }}"
+          echo "测试环境: ${{ secrets.Docker_REPOSITORY }}:main"
+          echo "生产发布: ${{ secrets.Docker_REPOSITORY }}:${{ steps.tags.outputs.sha }}"
