@@ -4,60 +4,38 @@ on:
   push:
     branches:
       - main
-      - test
     tags:
       - 'v*'
+  # 支持在 Actions 页面手动触发构建
+  workflow_dispatch:
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Determine environment and image name
-        id: env
-        run: |
-          # 确定环境和分支
-          if [[ "${GITHUB_REF}" == refs/heads/main ]]; then
-            ENVIRONMENT="production"
-            BRANCH="main"
-            REPOSITORY="${{ secrets.Docker_REPOSITORY }}"
-          elif [[ "${GITHUB_REF}" == refs/heads/test ]]; then
-            ENVIRONMENT="test"
-            BRANCH="test"
-            REPOSITORY="${{ secrets.Docker_REPOSITORY_TEST }}"
-          else
-            ENVIRONMENT="production"
-            BRANCH="main"
-            REPOSITORY="${{ secrets.Docker_REPOSITORY }}"
-          fi
-          
-          echo "environment=${ENVIRONMENT}" >> $GITHUB_OUTPUT
-          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
-          echo "repository=${REPOSITORY}" >> $GITHUB_OUTPUT
-
       - name: Generate Docker tags
         id: tags
         run: |
-          IMAGE_NAME="${{ steps.env.outputs.repository }}"
-          ENVIRONMENT="${{ steps.env.outputs.environment }}"
-          BRANCH="${{ steps.env.outputs.branch }}"
+          IMAGE_NAME="${{ secrets.Docker_REPOSITORY }}"
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          
-          TAGS=""
-          
-          TAGS="${IMAGE_NAME}:${BRANCH}"
+
+          # 可变 tag（跟随最新 main），用于测试环境
+          TAGS="${IMAGE_NAME}:main"
+          # 不可变 tag（提交 SHA），用于生产发布与回滚
           TAGS="${TAGS},${IMAGE_NAME}:${SHORT_SHA}"
-          
+
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG_NAME=${GITHUB_REF#refs/tags/}
             VERSION=${TAG_NAME#v}
             TAGS="${TAGS},${IMAGE_NAME}:${VERSION}"
           fi
-          
+
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -65,14 +43,12 @@ jobs:
           username: ${{ secrets.Docker_USERNAME }}
           password: ${{ secrets.Docker_PASSWORD }}
 
-      # 新增：支持多架构构建
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 修改 build step
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -80,15 +56,13 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           platforms: linux/amd64,linux/arm64
-          build-args: |
-            ENVIRONMENT=${{ steps.env.outputs.environment }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Log push information
         run: |
-          echo "Environment: ${{ steps.env.outputs.environment }}"
-          echo "Branch: ${{ steps.env.outputs.branch }}"
-          echo "Repository: ${{ steps.env.outputs.repository }}"
+          echo "Repository: ${{ secrets.Docker_REPOSITORY }}"
           echo "Tags: ${{ steps.tags.outputs.tags }}"
           echo "Commit SHA: ${GITHUB_SHA:0:7}"
+          echo "测试环境使用: ${{ secrets.Docker_REPOSITORY }}:main"
+          echo "生产发布使用: ${{ secrets.Docker_REPOSITORY }}:${{ steps.tags.outputs.sha }}"
